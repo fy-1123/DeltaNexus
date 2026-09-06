@@ -1,7 +1,6 @@
 # 三角联结（DeltaNexus）交接文档
 
-> 版本：0.1.0Beta（Forge 1.20.1 / Minecraft 1.20.1，兼容 Mohist 混合服务端；更名自 三角洲系统 DeltaForceSystem）
-> 仓库：`D:\Work\java\DeltaForceSystem`（本地 git，无远程 push 目标）
+> 版本：0.1.0Beta（Forge 1.20.1 / Minecraft 1.20.1，兼容 Mohist 混合服务端
 > 模组 ID：`deltanexus`｜显示名：三角联结｜指令：`/dn`｜日志前缀：`[DN]`
 
 ---
@@ -21,7 +20,7 @@
 | 版本 | 内容 |
 | :--- | :--- |
 | 1.0.0Alpha~1.1.0Alpha | 制造台 + 仓库翻页 + 安全箱 + 权限管理 + Web 编辑器基线 |
-| 2.0.0Alpha | 格式背包模块融合（expansionpack 源码并入 `com.deltanexus.system.grid`，含 git 历史） |
+| 2.0.0Alpha | 格式背包模块 |
 | 2.0.1Alpha | 仓库翻页→滚轮滚动（12 行视口）、安全箱升级树行列制、网格性能与放置校验 |
 | 2.0.2Alpha | 特勤处独立升级界面、格式背包配置指令/Web、无处可放回指针、同类叠加 |
 | 2.0.3Alpha | 特勤处 V 键+独立权限、安全箱行列形状渲染、材料识别仓库、物品类背景色、非左上角捡起 |

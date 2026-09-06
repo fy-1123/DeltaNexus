@@ -1,7 +1,7 @@
 # 三角联结（DeltaNexus）
 
 Minecraft 1.20.1 / Forge 47.4.x 的「制造 + 仓库」整合 Mod（缩写 `dn`，兼容 Mohist 混合服务端）。
-版本 `0.1.0Beta`。本版本自旧项目 **三角洲系统（DeltaForceSystem）** 全面更名而来：模组 ID `deltanexus`、
+版本 `0.1.0Beta`；模组 ID `deltanexus`。
 中文名 **三角联结**、指令前缀 `/dn`、控制台日志前缀 `[DN]`、配置目录 `config/deltanexus/`。
 
 > 核心设计哲学：**配置热加载（不停机修改）、时间戳驱动（零 Tick 依赖）、增量网络包（省流量）**。
@@ -88,8 +88,6 @@ help                                    指令帮助
 - **快捷栏分级**：默认规则 `0-3:ANY, 4-8:GRID`（1-4 号格任意大小、5-9 号格仅 1x1），`/dn grid hotbar` 修改。
 - **物品尺寸**：默认内置常见物品尺寸，`/dn grid size <宽> <高>` 自定义主手物品，存于 `config/deltanexus-sizes.json`。
 - **物品「类」背景色**：每个物品可归属一个「类」，类决定跨格物品背景色，配置存于 `config/deltanexus/grid_classes.json`。
-- **来源**：网格算法与源码集成自 [expansionpack-1.0.0](https://github.com/zhuchuovo/expansionpack-1.0.0)
-  （已获原作者授权，见 CREDITS.txt），作用域/锁定格/NBT 限制/存档清理/放置校验为三角联结扩展。
 
 ## 仓库滚动渲染
 
