@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>三角联结 · 网页编辑器</title>
+    <style>
+        /* ===== 全局 ===== */
+        :root {
+            color-scheme: dark;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            background: #0f1017;
+            color: #e6e6f0;
+            font: 14px/1.5 "Microsoft YaHei", system-ui, sans-serif;
+        }
+
+        /* ===== Header + 导航栏 ===== */
+        .app-header {
+            background: #1a1c28;
+            border-bottom: 2px solid #3a3a4a;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            padding: 8px 18px 0 18px;
+        }
+        .header-top {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            padding-bottom: 8px;
+        }
+        .header-top h1 {
+            font-size: 18px;
+            margin: 0;
+            color: #ffaa33;
+            white-space: nowrap;
+        }
+        .header-top .ver {
+            color: #777;
+            font-size: 12px;
+            margin-left: -6px;
+        }
+        .header-top .token-area {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex: 1 1 280px;
+        }
+        .header-top .token-area input {
+            background: #24263a;
+            border: 1px solid #3a3a4a;
+            color: #eee;
+            padding: 5px 8px;
+            border-radius: 4px;
+            flex: 1;
+            min-width: 120px;
+        }
+        .header-top .actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        /* ===== 导航栏 ===== */
+        .nav-bar {
+            display: flex;
+            gap: 2px;
+            flex-wrap: wrap;
+            padding: 4px 0 0 0;
+            border-top: 1px solid #2a2c3a;
+            margin-top: 2px;
+        }
+        .nav-bar .nav-item {
+            padding: 8px 18px 10px 18px;
+            cursor: pointer;
+            color: #9aa0b5;
+            font-size: 14px;
+            border-radius: 6px 6px 0 0;
+            transition: background 0.15s, color 0.15s;
+            user-select: none;
+            border-bottom: 3px solid transparent;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+        }
+        .nav-bar .nav-item:hover {
+            background: #24263a;
+            color: #d0d8ee;
+        }
+        .nav-bar .nav-item.active {
+            color: #ffaa33;
+            border-bottom-color: #ffaa33;
+            background: #161824;
+        }
+        .nav-bar .nav-item .icon {
+            margin-right: 6px;
+        }
+
+        /* ===== 内容区域 ===== */
+        .content-area {
+            max-width: 1100px;
+            margin: 16px auto 20px auto;
+            padding: 0 18px;
+        }
+        .content-area .section-panel {
+            display: none;
+            background: #161824;
+            border: 1px solid #2a2c3a;
+            border-radius: 8px;
+            padding: 14px 16px;
+            animation: fadeIn 0.2s ease;
+        }
+        .content-area .section-panel.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            0% {
+                opacity: 0.4;
+                transform: translateY(4px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .section-panel h2 {
+            margin: 0 0 12px 0;
+            font-size: 16px;
+            color: #88aaff;
+            border-bottom: 1px solid #2a2c3a;
+            padding-bottom: 8px;
+        }
+
+        /* ===== 通用组件 ===== */
+        .row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin: 6px 0;
+        }
+        .row label {
+            color: #9aa0b5;
+            min-width: 90px;
+        }
+        input,
+        select {
+            background: #24263a;
+            border: 1px solid #3a3a4a;
+            color: #eee;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        input[type="number"] {
+            width: 90px;
+        }
+        input.wide {
+            width: 220px;
+        }
+        .btn {
+            background: #2c3a4a;
+            border: 1px solid #4a5a6a;
+            color: #eee;
+            padding: 5px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.15s;
+        }
+        .btn:hover {
+            background: #3a4c60;
+        }
+        .btn.green {
+            background: #2c4a34;
+            border-color: #4a7a5a;
+        }
+        .btn.green:hover {
+            background: #3a5c44;
+        }
+        .btn.red {
+            background: #4a2c30;
+            border-color: #7a4a52;
+        }
+        .btn.red:hover {
+            background: #5c3a40;
+        }
+        .btn.orange {
+            background: #4a3a1e;
+            border-color: #7a6a3a;
+        }
+        .btn.orange:hover {
+            background: #5c4a2e;
+        }
+        .btn.small {
+            padding: 2px 10px;
+            font-size: 12px;
+        }
+
+        .muted {
+            color: #777;
+            font-size: 12px;
+        }
+        .inline-form {
+            background: #1c1e2c;
+            border: 1px dashed #3a3a4a;
+            padding: 8px 10px;
+            border-radius: 6px;
+            margin: 6px 0;
+        }
+
+        /* ===== 表格 ===== */
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 8px;
+        }
+        th,
+        td {
+            border: 1px solid #2a2c3a;
+            padding: 4px 8px;
+            text-align: left;
+            font-size: 13px;
+        }
+        th {
+            background: #1c1e2c;
+            color: #9aa0b5;
+        }
+        td .btn {
+            padding: 2px 8px;
+            font-size: 12px;
+        }
+
+        /* ===== 状态提示 ===== */
+        #status {
+            position: fixed;
+            right: 16px;
+            bottom: 16px;
+            background: #22263a;
+            border: 1px solid #4a5a7a;
+            padding: 8px 14px;
+            border-radius: 6px;
+            display: none;
+            max-width: 480px;
+            z-index: 20;
+            font-size: 13px;
+        }
+        #status.show {
+            display: block;
+        }
+        #status.ok {
+            color: #88ff88;
+            border-color: #4a7a5a;
+        }
+        #status.err {
+            color: #ff8888;
+            border-color: #7a4a52;
+        }
+
+        /* ===== 响应式 ===== */
+        @media (max-width: 720px) {
+            .header-top {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .header-top .token-area {
+                flex: 1;
+            }
+            .nav-bar .nav-item {
+                padding: 6px 12px 8px 12px;
+                font-size: 13px;
+            }
+            .row label {
+                min-width: 70px;
+            }
+            input.wide {
+                width: 140px;
+            }
+            .content-area {
+                padding: 0 10px;
+            }
+            .section-panel {
+                padding: 10px 12px;
+            }
+        }
+        @media (max-width: 480px) {
+            .nav-bar .nav-item {
+                font-size: 12px;
+                padding: 4px 8px 6px 8px;
+            }
+            .nav-bar .nav-item .icon {
+                margin-right: 2px;
+            }
+            .header-top h1 {
+                font-size: 15px;
+            }
+        }
+
+        /* ===== 配方详情内联样式 ===== */
+        #recipeDetail h3 {
+            font-size: 13px;
+            color: #88aaff;
+            margin: 10px 0 4px;
+        }
+        #recipeDetail .row {
+            margin: 4px 0;
+        }
+        #recipeDetail .inline-form {
+            padding: 6px 8px;
+        }
+        #recipeDetail .inline-form .row {
+            margin: 2px 0;
+        }
+        .recipe-layout {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .recipe-layout .recipe-side {
+            flex: 0 0 38%;
+            min-width: 200px;
+        }
+        .recipe-layout .recipe-side table {
+            margin-top: 0;
+        }
+        .recipe-layout .recipe-side table td {
+            cursor: pointer;
+        }
+        .recipe-layout .recipe-side table td:hover {
+            background: #1c1e2c;
+        }
+        .recipe-layout .recipe-detail-side {
+            flex: 1;
+            min-width: 260px;
+        }
+
+        /* ===== 升级树卡片 ===== */
+        #treeList .tree-card,
+        #safeTreeList .tree-card {
+            background: #1c1e2c;
+            border: 1px solid #2a2c3a;
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+        }
+        #treeList .tree-card .row,
+        #safeTreeList .tree-card .row {
+            margin: 4px 0;
+        }
+        #treeList .tree-card .row .muted span,
+        #safeTreeList .tree-card .row .muted span {
+            display: inline-block;
+            background: #24263a;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin: 2px 4px 2px 0;
+            border: 1px solid #2a2c3a;
+        }
+        .tag-allow {
+            color: #88ff88;
+        }
+        .tag-deny {
+            color: #ff8888;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== HEADER + 导航栏 ===== -->
+    <header class="app-header">
+        <div class="header-top">
+            <h1>三角联结 · 网页编辑器 <span class="ver" id="ver"></span></h1>
+            <div class="token-area">
+                <label style="min-width:auto;color:#9aa0b5;">令牌</label>
+                <input id="tokenInput" placeholder="访问令牌（留空则从地址栏 ?token= 读取）" spellcheck="false">
+                <button class="btn" onclick="saveToken()">保存</button>
+            </div>
+            <div class="actions">
+                <button class="btn green" onclick="loadAll()">↻ 刷新</button>
+                <button class="btn orange" onclick="doAction('/api/reload')">重载配置</button>
+                <button class="btn orange" onclick="doAction('/api/export')">导出备份</button>
+            </div>
+        </div>
+
+        <!-- 导航栏 -->
+        <nav class="nav-bar" id="mainNav">
+            <span class="nav-item active" data-target="sec-settings"><span class="icon">⚙️</span>全局设置</span>
+            <span class="nav-item" data-target="sec-grid"><span class="icon">🎒</span>格式背包</span>
+            <span class="nav-item" data-target="sec-workbench"><span class="icon">🔧</span>工作台管理</span>
+            <span class="nav-item" data-target="sec-recipe"><span class="icon">📋</span>配方管理</span>
+            <span class="nav-item" data-target="sec-tree"><span class="icon">🌳</span>升级树</span>
+            <span class="nav-item" data-target="sec-safe"><span class="icon">📦</span>安全箱</span>
+            <span class="nav-item" data-target="sec-player"><span class="icon">👤</span>玩家数据</span>
+            <span class="nav-item" data-target="sec-perm"><span class="icon">🔐</span>权限管理</span>
+        </nav>
+    </header>
+
+    <!-- ===== 状态提示 ===== -->
+    <div id="status"></div>
+
+    <!-- ===== 内容区域 ===== -->
+    <main class="content-area">
+
+        <!-- 全局设置 -->
+        <section id="sec-settings" class="section-panel active">
+            <h2>全局设置</h2>
+            <div class="row"><label>制造速度倍率</label><input type="number" id="sSpeed" step="0.01" min="0.01" max="100"><button class="btn green" onclick="saveSpeed()">保存</button><span class="muted">0.01 ~ 100，只影响新任务</span></div>
+            <div class="row"><label>并行队列数</label><input type="number" id="sQueue" min="1" max="100"><button class="btn green" onclick="saveQueue()">保存</button></div>
+            <div class="row"><label>制造计时模式</label><select id="sMode"><option value="offline">离线模式（离线照常计时）</option><option value="online">在线模式（仅在线计时）</option></select><button class="btn green" onclick="saveMode()">保存</button></div>
+            <div class="row"><label>货币类型</label>
+                <select id="sCurrency"><option value="item">物品</option><option value="scoreboard">计分板</option><option value="vault">Vault 经济</option><option value="playerpoints">PlayerPoints 点券</option></select>
+                <span id="currencyParams"></span><button class="btn green" onclick="saveCurrency()">保存</button>
+            </div>
+            <div class="row"><label>仓库行数</label><input type="number" id="sPages" min="1" max="64"><button class="btn green" onclick="savePages()">保存</button><span class="muted">每行 9 格，滚轮向下滚动，自动随升级树扩容</span></div>
+            <div class="row"><label>初始槽位数</label><input type="number" id="sSlots" min="0" max="576"><button class="btn green" onclick="saveSlots()">保存</button><span class="muted">0 级仓库初始解锁槽位</span></div>
+        </section>
+
+        <!-- 格式背包（2.0.3 独立导航页） -->
+        <section id="sec-grid" class="section-panel">
+            <h2>格式背包</h2>
+            <div class="row"><label>快捷栏规则</label><input id="sHotbar" placeholder="如 0-2:ANY,3-6:GRID,7-8:FOOD" class="wide"><button class="btn green" onclick="saveHotbar()">保存</button><span class="muted">起始-结束:模式（ANY/GRID/FOOD），修改后同步客户端</span></div>
+            <div class="row"><label>物品尺寸</label>
+                <div id="gridSizes" style="display:inline-flex;flex-wrap:wrap;gap:6px"></div>
+                <input id="gItem" placeholder="物品ID" style="width:150px"><input type="number" id="gW" value="2" min="1" max="9" style="width:52px"><input type="number" id="gH" value="1" min="1" max="9" style="width:52px"><button class="btn green" onclick="addGridSize()">添加</button>
+            </div>
+            <div class="row"><label>类（背景色）</label>
+                <div id="gridClasses" style="display:inline-flex;flex-wrap:wrap;gap:6px"></div>
+                <input id="gcName" placeholder="类名" style="width:90px"><input type="number" id="gcR" value="90" min="0" max="255" style="width:52px"><input type="number" id="gcG" value="96" min="0" max="255" style="width:52px"><input type="number" id="gcB" value="104" min="0" max="255" style="width:52px"><button class="btn green" onclick="addGridClass()">添加/改色</button>
+            </div>
+            <div class="row"><label>物品归属类</label>
+                <div id="gridItemClasses" style="display:inline-flex;flex-wrap:wrap;gap:6px"></div>
+                <input id="gicItem" placeholder="物品ID" style="width:150px"><input id="gicClass" placeholder="类名" style="width:90px"><button class="btn green" onclick="setGridItemClass()">设置</button>
+            </div>
+        </section>
+
+        <!-- 工作台管理 -->
+        <section id="sec-workbench" class="section-panel">
+            <h2>工作台管理</h2>
+            <div class="inline-form row">
+                <label>新增</label><input id="wbId" placeholder="id（英文）" class="wide"><input id="wbDisplay" placeholder="显示名"><button class="btn green" onclick="addWorkbench()">添加</button>
+            </div>
+            <table id="wbTable"><thead><tr><th>id</th><th>显示名</th><th>配方目录</th><th>操作</th></tr></thead><tbody></tbody></table>
+        </section>
+
+        <!-- 配方管理 -->
+        <section id="sec-recipe" class="section-panel">
+            <h2>配方管理</h2>
+            <div class="row"><label>工作台</label><select id="recipeWb"></select>
+                <span class="muted" id="recipeCount"></span>
+                <span style="flex:1"></span>
+                <label>新增配方</label><input id="recipeIdNew" placeholder="配方 id"><button class="btn green" onclick="addRecipe()">添加</button>
+            </div>
+            <div class="recipe-layout">
+                <div class="recipe-side">
+                    <table id="recipeList"><thead><tr><th>配方</th></tr></thead><tbody></tbody></table>
+                </div>
+                <div class="recipe-detail-side">
+                    <div id="recipeDetail" class="muted">点击左侧配方查看/编辑</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 升级树（仓库） -->
+        <section id="sec-tree" class="section-panel">
+            <h2>仓库升级树</h2>
+            <div class="inline-form row"><label>新增等级</label><input type="number" id="treeLevelNew" min="1"><button class="btn green" onclick="treeAdd()">添加</button></div>
+            <div id="treeList"></div>
+        </section>
+
+        <!-- 安全箱（默认尺寸 + 升级树 + NBT 限制） -->
+        <section id="sec-safe" class="section-panel">
+            <h2>安全箱</h2>
+            <div class="inline-form row"><label>默认尺寸</label>
+                <input type="number" id="safeW" min="1" max="3" style="width:70px"><span class="muted">x</span>
+                <input type="number" id="safeH" min="1" max="3" style="width:70px">
+                <button class="btn green" onclick="saveSafeSize()">保存</button>
+                <span class="muted">0 级玩家初始尺寸（最大 3x3，默认 1x1）</span>
+            </div>
+            <div class="inline-form row"><label>新增等级</label><input type="number" id="safeTreeLevelNew" min="1"><button class="btn green" onclick="safeTreeAdd()">添加</button></div>
+            <div id="safeTreeList"></div>
+            <h2 style="margin-top:16px">安全箱 NBT 限制</h2>
+            <div class="inline-form row">
+                <label>新增限制</label><input id="srNbt" placeholder="NBT（如 {display:{Name:\"\\\"禁入\\\"\"}}）" style="width:260px" spellcheck="false">
+                <input id="srItem" placeholder="物品ID（留空 = 任意）" style="width:150px" spellcheck="false">
+                <select id="srMatch"><option value="contains">包含匹配</option><option value="exact">完全匹配</option></select>
+                <button class="btn green" onclick="safeRestrictAdd()">添加</button>
+                <span class="muted">拥有指定 NBT 的物品无法放入安全箱</span>
+            </div>
+            <table id="safeRestrictTable"><thead><tr><th>#</th><th>物品</th><th>匹配</th><th>NBT</th><th></th></tr></thead><tbody></tbody></table>
+        </section>
+
+        <!-- 玩家数据（仓库等级 / 安全箱等级） -->
+        <section id="sec-player" class="section-panel">
+            <h2>玩家数据</h2>
+            <div class="row"><label>在线玩家</label><select id="playerSel"></select>
+                <span class="muted" id="playerInfo"></span>
+            </div>
+            <div class="row"><label>仓库等级</label><input type="number" id="pLevel" min="0"><button class="btn green" onclick="savePlayerLevel()">保存</button><span class="muted">0 ~ 升级树最大等级，容量联动解锁</span></div>
+            <div class="row"><label>安全箱等级</label><input type="number" id="pSafeLevel" min="0"><button class="btn green" onclick="savePlayerSafeLevel()">保存</button><span class="muted">0 ~ 安全箱升级树最大等级，尺寸随等级增长</span></div>
+            <div class="row"><button class="btn red" onclick="resetPlayer()">重置仓库与安全箱</button><span class="muted">等级归 0（物品保留，缩位部分暂不可取）</span></div>
+        </section>
+
+        <!-- 权限管理 -->
+        <section id="sec-perm" class="section-panel">
+            <h2>权限管理</h2>
+            <div class="inline-form">
+                <div class="row"><label>全局默认</label>
+                    <span class="muted">仓库</span><select id="permDefaultWh" style="width:90px"><option value="allow">允许</option><option value="deny">拒绝</option></select>
+                    <span class="muted">工作台</span><select id="permDefaultWb" style="width:90px"><option value="allow">允许</option><option value="deny">拒绝</option></select>
+                    <span class="muted">特勤处</span><select id="permDefaultSp" style="width:90px"><option value="allow">允许</option><option value="deny">拒绝</option></select>
+                    <button class="btn green" onclick="savePermDefaults()">保存</button>
+                    <span class="muted">控制玩家能否用指令/按键打开仓库、配方工作台与特勤处（OP 始终允许）</span>
+                </div>
+            </div>
+            <div class="inline-form row">
+                <label>新增覆盖</label><input id="permName" placeholder="玩家名" class="wide">
+                <select id="permType"><option value="all">全部</option><option value="warehouse">仓库</option><option value="workbench">工作台</option><option value="special">特勤处</option></select>
+                <select id="permAllow"><option value="true">允许</option><option value="false">拒绝</option></select>
+                <button class="btn green" onclick="permSet()">设置</button>
+            </div>
+            <table id="permTable"><thead><tr><th>玩家</th><th>仓库</th><th>工作台</th><th>特勤处</th><th>操作</th></tr></thead><tbody></tbody></table>
+        </section>
+
+    </main>
+
+    <script>
+        "use strict";
+
+        // ============================================================
+        //  导航切换
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            const navItems = document.querySelectorAll('.nav-bar .nav-item');
+            const panels = document.querySelectorAll('.section-panel');
+
+            navItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    // 导航高亮
+                    navItems.forEach(n => n.classList.remove('active'));
+                    this.classList.add('active');
+
+                    // 显示对应面板
+                    const targetId = this.dataset.target;
+                    panels.forEach(p => {
+                        p.classList.toggle('active', p.id === targetId);
+                    });
+                });
+            });
+        });
+
+        // ============================================================
+        //  全局状态 & API
+        // ============================================================
+        let STATE = null;
+        let token = "";
+
+        function getToken() {
+            if (token) return token;
+            token = localStorage.getItem('dn_token') || "";
+            const q = new URLSearchParams(location.search).get('token');
+            if (q) token = q;
+            return token;
+        }
+
+        function saveToken() {
+            token = document.getElementById('tokenInput').value.trim();
+            localStorage.setItem('dn_token', token);
+            status("令牌已保存", true);
+        }
+
+        function authHeaders() {
+            const h = { 'Content-Type': 'application/json' };
+            if (getToken()) h['Authorization'] = 'Bearer ' + token;
+            return h;
+        }
+
+        function status(msg, isOk) {
+            const el = document.getElementById('status');
+            el.className = 'show ' + (isOk ? 'ok' : 'err');
+            el.textContent = msg;
+            clearTimeout(status._t);
+            status._t = setTimeout(() => el.className = '', 4000);
+        }
+
+        async function api(path, body) {
+            const opt = { method: body === undefined ? 'GET' : 'POST', headers: authHeaders() };
+            if (body !== undefined) opt.body = JSON.stringify(body);
+            let res;
+            try { res = await fetch(path, opt); } catch (e) { return { ok: false, msg: '请求失败: ' + e }; }
+            try { return await res.json(); } catch (e) { return { ok: false, msg: '响应解析失败(' + res.status + ')' }; }
+        }
+
+        async function doAction(path, body) {
+            const r = await api(path, body === undefined ? {} : body);
+            status(r.msg || (r.ok ? '完成' : '失败'), !!r.ok);
+            if (r.ok) loadAll();
+        }
+
+        async function loadAll() {
+            document.getElementById('tokenInput').value = getToken();
+            const r = await api('/api/overview');
+            if (!r.ok) { status(r.msg || '加载失败（token 可能无效）', false); return; }
+            STATE = r;
+            document.getElementById('ver').textContent = 'v' + r.version;
+            renderSettings();
+            renderWorkbenches();
+            renderRecipeWb();
+            renderTree();
+            renderSafeTree();
+            renderSafeRestrictions();
+            renderPlayers();
+            renderPerms();
+        }
+
+        // ============================================================
+        //  工具
+        // ============================================================
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g,
+                '&quot;').replace(/'/g, '&#39;');
+        }
+
+        // ============================================================
+        //  全局设置
+        // ============================================================
+        function renderSettings() {
+            const s = STATE.settings;
+            document.getElementById('sSpeed').value = s.speed;
+            document.getElementById('sQueue').value = s.queue;
+            document.getElementById('sMode').value = s.mode;
+            document.getElementById('sCurrency').value = s.currency;
+            document.getElementById('sPages').value = s.warehouse_rows;
+            document.getElementById('sSlots').value = s.warehouse_slots;
+            renderGridPage(s);
+            renderCurrencyParams();
+        }
+
+        /** 格式背包页（2.0.3 独立导航）：快捷栏规则 + 物品尺寸 + 类配置。 */
+        function renderGridPage(s) {
+            document.getElementById('sHotbar').value = s.hotbar_rules || '';
+            const gs = document.getElementById('gridSizes');
+            gs.innerHTML = (s.grid_sizes || []).map(g =>
+                '<span class="tag">' + esc(g.item) + ' ' + g.w + 'x' + g.h +
+                ' <button class="btn red small" onclick="removeGridSize(\'' + esc(g.item) + '\')">✕</button></span>'
+            ).join('') || '<span class="muted">无自定义尺寸</span>';
+            const cls = s.grid_classes || {};
+            const gc = document.getElementById('gridClasses');
+            gc.innerHTML = Object.keys(cls).map(c =>
+                '<span class="tag" style="background:rgb(' + cls[c].join(',') + ')">' + esc(c) +
+                ' <button class="btn red small" onclick="removeGridClass(\'' + esc(c) + '\')">✕</button></span>'
+            ).join('') || '<span class="muted">无类</span>';
+            const items = s.grid_item_class || {};
+            const gic = document.getElementById('gridItemClasses');
+            gic.innerHTML = Object.keys(items).map(i =>
+                '<span class="tag">' + esc(i) + ' -> ' + esc(items[i]) +
+                ' <button class="btn red small" onclick="unsetGridItemClass(\'' + esc(i) + '\')">✕</button></span>'
+            ).join('') || '<span class="muted">无物品归属（默认灰色背景）</span>';
+        }
+
+        function renderCurrencyParams() {
+            const s = STATE.settings;
+            const el = document.getElementById('currencyParams');
+            if (s.currency === 'item') el.innerHTML =
+                '<input id="cItem" placeholder="物品ID（如 minecraft:emerald）" class="wide" value="' + esc(s.currency_item) +
+                '">';
+            else if (s.currency === 'scoreboard') el.innerHTML =
+                '<input id="cObj" placeholder="计分板目标名" value="' + esc(s.currency_scoreboard) + '">';
+            else if (s.currency === 'vault') el.innerHTML =
+                '<span class="muted">API:' + (s.vault_api ? '✓' : '✗') + ' 提供者:' + (s.vault_provider ? '✓' : '✗') +
+                '</span>';
+            else if (s.currency === 'playerpoints') el.innerHTML =
+                '<span class="muted">点券:' + (s.playerpoints ? '✓' : '✗') + '</span>';
+        }
+
+        async function saveSpeed() { doAction('/api/setting/speed', { multiplier: parseFloat(document.getElementById('sSpeed')
+                    .value) }); }
+
+        async function saveQueue() { doAction('/api/setting/queue', { size: parseInt(document.getElementById('sQueue')
+                    .value) }); }
+
+        async function saveMode() { doAction('/api/setting/mode', { mode: document.getElementById('sMode').value }); }
+
+        async function savePages() { doAction('/api/setting/warehouse/rows', { rows: parseInt(document.getElementById(
+                    'sPages').value) }); }
+
+        async function saveSlots() { doAction('/api/setting/warehouse/slots', { slots: parseInt(document.getElementById(
+                    'sSlots').value) }); }
+
+        async function saveHotbar() { doAction('/api/grid/hotbar', { rules: document.getElementById('sHotbar').value }); }
+
+        async function addGridSize() {
+            doAction('/api/grid/size/set', { item: document.getElementById('gItem').value.trim(),
+                w: parseInt(document.getElementById('gW').value), h: parseInt(document.getElementById('gH').value) });
+        }
+
+        async function removeGridSize(item) { doAction('/api/grid/size/remove', { item: item }); }
+
+        async function addGridClass() {
+            doAction('/api/grid/class/set', { name: document.getElementById('gcName').value.trim(),
+                r: parseInt(document.getElementById('gcR').value), g: parseInt(document.getElementById('gcG').value),
+                b: parseInt(document.getElementById('gcB').value) });
+        }
+
+        async function removeGridClass(name) { doAction('/api/grid/class/remove', { name: name }); }
+
+        async function setGridItemClass() {
+            doAction('/api/grid/class/setclass', { item: document.getElementById('gicItem').value.trim(),
+                name: document.getElementById('gicClass').value.trim() });
+        }
+
+        async function unsetGridItemClass(item) { doAction('/api/grid/class/unsetclass', { item: item }); }
+
+        async function saveCurrency() {
+            const t = document.getElementById('sCurrency').value;
+            const body = { type: t };
+            if (t === 'item') body.item = (document.getElementById('cItem') || {}).value || '';
+            if (t === 'scoreboard') body.objective = (document.getElementById('cObj') || {}).value || '';
+            doAction('/api/setting/currency', body);
+        }
+
+        // ============================================================
+        //  工作台管理
+        // ============================================================
+        function renderWorkbenches() {
+            const tb = document.querySelector('#wbTable tbody');
+            tb.innerHTML = '';
+            for (const w of STATE.workbenches) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td>' + esc(w.id) + '</td><td>' + esc(w.display) + '</td><td>' + esc(w.recipes_dir) +
+                    '</td>' +
+                    '<td><button class="btn" onclick="renameWb(\'' + esc(w.id) + '\')">重命名</button> ' +
+                    '<button class="btn red" onclick="removeWb(\'' + esc(w.id) + '\')">删除</button></td>';
+                tb.appendChild(tr);
+            }
+        }
+
+        async function addWorkbench() {
+            doAction('/api/workbench/add', { id: document.getElementById('wbId').value, display: document.getElementById(
+                    'wbDisplay').value });
+        }
+
+        async function removeWb(id) {
+            if (!confirm('确认删除工作台 ' + id + '？')) return;
+            doAction('/api/workbench/remove', { id: id });
+        }
+
+        async function renameWb(id) {
+            const d = prompt('新的显示名：', id);
+            if (d == null) return;
+            doAction('/api/workbench/rename', { id: id, display: d });
+        }
+
+        // ============================================================
+        //  配方管理
+        // ============================================================
+        function renderRecipeWb() {
+            const sel = document.getElementById('recipeWb');
+            sel.innerHTML = '';
+            for (const w of STATE.workbenches) {
+                const o = document.createElement('option');
+                o.value = w.id;
+                o.textContent = w.display + ' (' + w.id + ')';
+                sel.appendChild(o);
+            }
+            renderRecipes();
+        }
+
+        function recipesOf(wb) { return STATE.recipes.filter(r => r.workbench === wb); }
+
+        function renderRecipes() {
+            const wb = document.getElementById('recipeWb').value;
+            const list = recipesOf(wb);
+            document.getElementById('recipeCount').textContent = list.length + ' 个配方';
+            const tb = document.querySelector('#recipeList tbody');
+            tb.innerHTML = '';
+            for (const r of list) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td style="cursor:pointer" onclick="showRecipe(\'' + esc(r.recipe_id) + '\')">' + esc(r
+                    .display_name) + ' <span class="muted">[' + esc(r.recipe_id) + ']</span></td>';
+                tb.appendChild(tr);
+            }
+            if (list.length) showRecipe(list[0].recipe_id);
+        }
+
+        async function addRecipe() {
+            doAction('/api/recipe/add', { workbench: document.getElementById('recipeWb').value, recipe_id: document
+                    .getElementById('recipeIdNew').value });
+        }
+
+        function showRecipe(id) {
+            const r = STATE.recipes.find(x => x.recipe_id === id);
+            if (!r) return;
+            const d = document.getElementById('recipeDetail');
+            let h = '<div class="row"><b>' + esc(r.display_name) + '</b> <span class="muted">[' + esc(r.recipe_id) +
+                ']</span></div>';
+            h += '<div class="row"><label>显示名</label><input id="rName" class="wide" value="' + esc(r.display_name === r
+                .recipe_id ? '' : r.display_name) + '"><button class="btn" onclick="saveRecipeName(\'' + esc(r.recipe_id) +
+                '\')">重命名</button></div>';
+            h +=
+                '<div class="row"><label>耗时(秒)</label><input type="number" id="rTime" min="1" value="' + r.base_duration +
+                '"><button class="btn" onclick="saveRecipeTime(\'' + esc(r.recipe_id) +
+                '\')">保存</button>';
+            h += '<label>所需等级</label><input type="number" id="rLevel" min="0" value="' + r.required_level +
+                '"><button class="btn" onclick="saveRecipeLevel(\'' + esc(r.recipe_id) + '\')">保存</button></div>';
+            h +=
+                '<div class="row"><label>并行上限</label><input type="number" id="rParallel" min="1" max="100" value="' + r
+                .max_parallel + '"><button class="btn" onclick="saveRecipeParallel(\'' + esc(r.recipe_id) +
+                '\')">保存</button><span class="muted">同一配方同时制作上限</span></div>';
+            h += '<h3>原料</h3><table><thead><tr><th>物品</th><th>数量</th><th>NBT</th><th>匹配</th><th></th></tr></thead><tbody>';
+            r.input.forEach((ing, i) => {
+                h += '<tr><td>' + esc(ing.item) + '</td><td><input type="number" id="ic_' + esc(r.recipe_id) + '_' +
+                    i + '" min="1" value="' + ing.count + '" style="width:64px">' +
+                    '<button class="btn" onclick="setInputCount(\'' + esc(r.recipe_id) + '\',' + i +
+                    ')">改</button></td>' +
+                    '<td class="muted">' + esc(ing.nbt) + '</td><td>' + esc(ing.match_type) + '</td>' +
+                    '<td><button class="btn red" onclick="delInput(\'' + esc(r.recipe_id) + '\',' + i +
+                    ')">删除</button></td></tr>';
+            });
+            h +=
+                '</tbody></table><div class="inline-form row"><input id="inItem" placeholder="物品ID" class="wide"><input type="number" id="inCount" value="1" min="1"><input id="inNbt" placeholder="NBT(可空)" style="width:180px"><select id="inMatch"><option>ignore</option><option>exact</option><option>contains</option></select><button class="btn green" onclick="addInput(\'' +
+                esc(r.recipe_id) + '\')">添加原料</button></div>';
+            h += '<h3>产物</h3><table><thead><tr><th>物品</th><th>数量</th><th>NBT</th><th></th></tr></thead><tbody>';
+            r.output.forEach((o, i) => {
+                h += '<tr><td>' + esc(o.item) + '</td><td><input type="number" id="oc_' + esc(r.recipe_id) + '_' +
+                    i + '" min="1" value="' + o.count + '" style="width:64px">' +
+                    '<button class="btn" onclick="setOutputCount(\'' + esc(r.recipe_id) + '\',' + i +
+                    ')">改</button></td>' +
+                    '<td class="muted">' + esc(o.nbt) + '</td>' +
+                    '<td><button class="btn red" onclick="delOutput(\'' + esc(r.recipe_id) + '\',' + i +
+                    ')">删除</button></td></tr>';
+            });
+            h +=
+                '</tbody></table><div class="inline-form row"><input id="outItem" placeholder="物品ID" class="wide"><input type="number" id="outCount" value="1" min="1"><input id="outNbt" placeholder="NBT(可空)" style="width:180px"><button class="btn green" onclick="addOutput(\'' +
+                esc(r.recipe_id) + '\')">添加产物</button></div>';
+            h += '<div class="row"><button class="btn red" onclick="removeRecipe(\'' + esc(r.recipe_id) +
+                '\')">删除配方</button></div>';
+            d.innerHTML = h;
+        }
+
+        async function saveRecipeName(id) { doAction('/api/recipe/rename', { recipe_id: id, display_name: document
+                    .getElementById('rName').value }); }
+
+        async function saveRecipeTime(id) { doAction('/api/recipe/time', { recipe_id: id, seconds: parseInt(document
+                    .getElementById('rTime').value) }); }
+
+        async function saveRecipeLevel(id) { doAction('/api/recipe/level', { recipe_id: id, level: parseInt(document
+                    .getElementById('rLevel').value) }); }
+
+        async function saveRecipeParallel(id) { doAction('/api/recipe/parallel', { recipe_id: id, limit: parseInt(document
+                    .getElementById('rParallel').value) }); }
+
+        async function addInput(id) { doAction('/api/recipe/input/add', { recipe_id: id, item: document.getElementById(
+                    'inItem').value, count: parseInt(document.getElementById('inCount').value), nbt: document
+                    .getElementById('inNbt').value, match_type: document.getElementById('inMatch').value }); }
+
+        async function delInput(id, i) { doAction('/api/recipe/input/remove', { recipe_id: id, index: i }); }
+
+        async function setInputCount(id, i) { doAction('/api/recipe/input/update', { recipe_id: id, index: i, count: parseInt(
+                    document.getElementById('ic_' + id + '_' + i).value) }); }
+
+        async function addOutput(id) { doAction('/api/recipe/output/add', { recipe_id: id, item: document.getElementById(
+                    'outItem').value, count: parseInt(document.getElementById('outCount').value), nbt: document
+                    .getElementById('outNbt').value }); }
+
+        async function delOutput(id, i) { doAction('/api/recipe/output/remove', { recipe_id: id, index: i }); }
+
+        async function setOutputCount(id, i) { doAction('/api/recipe/output/update', { recipe_id: id, index: i, count: parseInt(
+                    document.getElementById('oc_' + id + '_' + i).value) }); }
+
+        async function removeRecipe(id) { if (confirm('确认删除配方 ' + id + '？')) doAction('/api/recipe/remove', { recipe_id: id }); }
+
+        // ============================================================
+        //  仓库升级树
+        // ============================================================
+        function renderTree() {
+            const el = document.getElementById('treeList');
+            let h = '';
+            for (const u of STATE.tree) {
+                h += '<div class="tree-card"><div class="row"><b>Lv' + u.level + '</b>' +
+                    '<label>费用</label><input type="number" id="tc_' + u.level + '" min="0" value="' + u.cost_money +
+                    '">' +
+                    '<label>解锁槽位</label><input type="number" id="ts_' + u.level + '" min="1" value="' + u.unlock_slots +
+                    '">' +
+                    '<button class="btn green" onclick="treeSave(' + u.level + ')">保存</button>' +
+                    '<button class="btn red" onclick="treeDel(' + u.level + ')">删除等级</button></div>';
+                h += '<div class="row muted">材料: ';
+                u.required_items.forEach((it, i) => {
+                    h += '<span>' + esc(it.item) + ' <input type="number" id="tq_' + u.level + '_' + i +
+                        '" min="1" value="' + it.count + '" style="width:64px">' +
+                        '<button class="btn small" onclick="treeItemSet(' + u.level + ',' + i +
+                        ')">改</button>' +
+                        (it.nbt ? '(' + esc(it.nbt) + ')' : '') +
+                        ' <button class="btn red small" onclick="treeItemDel(' + u.level + ',' + i +
+                        ')">✕</button></span> ';
+                });
+                h +=
+                    '</div><div class="row"><input id="ti_' + u.level + '" placeholder="材料物品ID" class="wide"><input type="number" id="tiq_' +
+                    u.level + '" value="1" min="1" style="width:70px"><input id="tin_' + u.level +
+                    '" placeholder="NBT(可空)" style="width:160px"><select id="tim_' + u.level +
+                    '"><option>ignore</option><option>exact</option><option>contains</option></select><button class="btn green" onclick="treeItemAdd(' +
+                    u.level + ')">添加材料</button></div></div>';
+            }
+            if (!STATE.tree.length) h = '<span class="muted">升级树为空</span>';
+            el.innerHTML = h;
+        }
+
+        async function treeAdd() { doAction('/api/tree/add', { level: parseInt(document.getElementById('treeLevelNew')
+                    .value) }); }
+
+        async function treeSave(l) { doAction('/api/tree/cost', { level: l, cost: parseInt(document.getElementById('tc_' + l)
+                    .value) });
+            doAction('/api/tree/slots', { level: l, slots: parseInt(document.getElementById('ts_' + l).value) }); }
+
+        async function treeDel(l) { if (confirm('确认删除等级 Lv' + l + '？')) doAction('/api/tree/remove', { level: l }); }
+
+        async function treeItemAdd(l) { doAction('/api/tree/item/add', { level: l, item: document.getElementById('ti_' + l)
+                    .value, count: parseInt(document.getElementById('tiq_' + l).value), nbt: document.getElementById(
+                    'tin_' + l).value, match_type: document.getElementById('tim_' + l).value }); }
+
+        async function treeItemDel(l, i) { doAction('/api/tree/item/remove', { level: l, index: i }); }
+
+        async function treeItemSet(l, i) { doAction('/api/tree/item/update', { level: l, index: i, count: parseInt(document
+                    .getElementById('tq_' + l + '_' + i).value) }); }
+
+        // ============================================================
+        //  安全箱（默认尺寸 + 升级树）
+        // ============================================================
+        async function saveSafeSize() {
+            doAction('/api/setting/safe/size', {
+                width: parseInt(document.getElementById('safeW').value),
+                height: parseInt(document.getElementById('safeH').value)
+            });
+        }
+
+        function renderSafeTree() {
+            const s = STATE.settings;
+            document.getElementById('safeW').value = s.safe_box_width;
+            document.getElementById('safeH').value = s.safe_box_height;
+            const el = document.getElementById('safeTreeList');
+            let h = '';
+            for (const u of STATE.safe_tree) {
+                const ur = u.unlock_rows || 1, uc = u.unlock_cols || 1;
+                h += '<div class="tree-card"><div class="row"><b>Lv' + u.level + '</b>' +
+                    '<label>费用</label><input type="number" id="stc_' + u.level + '" min="0" value="' + u.cost_money +
+                    '">' +
+                    '<label>解锁行</label><input type="number" id="str_' + u.level + '" min="1" max="3" value="' + ur +
+                    '">' +
+                    '<label>解锁列</label><input type="number" id="stcl_' + u.level + '" min="1" max="3" value="' + uc +
+                    '">' +
+                    '<button class="btn green" onclick="safeTreeSave(' + u.level + ')">保存</button>' +
+                    '<button class="btn red" onclick="safeTreeDel(' + u.level + ')">删除等级</button></div>';
+                h += '<div class="row muted">材料: ';
+                u.required_items.forEach((it, i) => {
+                    h += '<span>' + esc(it.item) + ' <input type="number" id="stq_' + u.level + '_' + i +
+                        '" min="1" value="' + it.count + '" style="width:64px">' +
+                        '<button class="btn small" onclick="safeTreeItemSet(' + u.level + ',' + i +
+                        ')">改</button>' +
+                        (it.nbt ? '(' + esc(it.nbt) + ')' : '') +
+                        ' <button class="btn red small" onclick="safeTreeItemDel(' + u.level + ',' + i +
+                        ')">✕</button></span> ';
+                });
+                h +=
+                    '</div><div class="row"><input id="sti_' + u.level + '" placeholder="材料物品ID" class="wide"><input type="number" id="stiq_' +
+                    u.level + '" value="1" min="1" style="width:70px"><input id="stin_' + u.level +
+                    '" placeholder="NBT(可空)" style="width:160px"><select id="stim_' + u.level +
+                    '"><option>ignore</option><option>exact</option><option>contains</option></select><button class="btn green" onclick="safeTreeItemAdd(' +
+                    u.level + ')">添加材料</button></div></div>';
+            }
+            if (!STATE.safe_tree.length) h = '<span class="muted">安全箱升级树为空（解锁行 x 列，各 1~3，按 3x3 网格左上角排布）</span>';
+            el.innerHTML = h;
+        }
+
+        async function safeTreeAdd() { doAction('/api/safe/tree/add', { level: parseInt(document.getElementById(
+                    'safeTreeLevelNew').value) }); }
+
+        async function safeTreeSave(l) { doAction('/api/safe/tree/cost', { level: l, cost: parseInt(document.getElementById(
+                    'stc_' + l).value) });
+            doAction('/api/safe/tree/dims', { level: l, rows: parseInt(document.getElementById('str_' + l).value),
+                cols: parseInt(document.getElementById('stcl_' + l).value) }); }
+
+        async function safeTreeDel(l) { if (confirm('确认删除安全箱等级 Lv' + l + '？')) doAction('/api/safe/tree/remove', { level: l }); }
+
+        async function safeTreeItemAdd(l) { doAction('/api/safe/tree/item/add', { level: l, item: document.getElementById(
+                    'sti_' + l).value, count: parseInt(document.getElementById('stiq_' + l).value), nbt: document
+                    .getElementById('stin_' + l).value, match_type: document.getElementById('stim_' + l).value }); }
+
+        async function safeTreeItemDel(l, i) { doAction('/api/safe/tree/item/remove', { level: l, index: i }); }
+
+        async function safeTreeItemSet(l, i) { doAction('/api/safe/tree/item/update', { level: l, index: i, count: parseInt(
+                    document.getElementById('stq_' + l + '_' + i).value) }); }
+
+        // ============================================================
+        //  安全箱 NBT 限制
+        // ============================================================
+        function renderSafeRestrictions() {
+            const tb = document.querySelector('#safeRestrictTable tbody');
+            tb.innerHTML = '';
+            const list = STATE.safe_restrictions || [];
+            if (!list.length) {
+                tb.innerHTML = '<tr><td colspan="5" class="muted">暂无限制（拥有指定 NBT 的物品均可放入安全箱）</td></tr>';
+                return;
+            }
+            list.forEach((r, i) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td>' + i + '</td>' +
+                    '<td>' + (r.item ? esc(r.item) : '<span class="muted">任意</span>') + '</td>' +
+                    '<td>' + esc(r.match_type) + '</td>' +
+                    '<td style="word-break:break-all" class="muted">' + esc(r.nbt) + '</td>' +
+                    '<td><button class="btn red" onclick="safeRestrictRemove(' + i + ')">删除</button></td>';
+                tb.appendChild(tr);
+            });
+        }
+
+        async function safeRestrictAdd() {
+            const nbt = document.getElementById('srNbt').value.trim();
+            if (!nbt) { status('请输入 NBT 字符串', false); return; }
+            doAction('/api/safe/restrict/add', {
+                nbt: nbt,
+                item: document.getElementById('srItem').value.trim(),
+                match_type: document.getElementById('srMatch').value
+            });
+        }
+
+        async function safeRestrictRemove(i) {
+            if (!confirm('确认删除该 NBT 限制？')) return;
+            doAction('/api/safe/restrict/remove', { index: i });
+        }
+
+        // ============================================================
+        //  玩家数据（仓库等级 / 安全箱等级）
+        // ============================================================
+        function renderPlayers() {
+            const sel = document.getElementById('playerSel');
+            sel.innerHTML = '';
+            for (const p of STATE.players) {
+                const o = document.createElement('option');
+                o.value = p.name;
+                o.textContent = p.name;
+                sel.appendChild(o);
+            }
+            renderPlayerInfo();
+        }
+
+        function renderPlayerInfo() {
+            const name = document.getElementById('playerSel').value;
+            const p = STATE.players.find(x => x.name === name);
+            if (!p) { document.getElementById('playerInfo').textContent = ''; return; }
+            document.getElementById('playerInfo').textContent = '仓库 Lv' + p.level +
+                ' / 安全箱 Lv' + p.safe_level + '（' + p.safe_width + 'x' + p.safe_height + '，' + p.safe_unlocked + ' 格）';
+            document.getElementById('pLevel').value = p.level;
+            document.getElementById('pSafeLevel').value = p.safe_level;
+        }
+
+        async function savePlayerLevel() { doAction('/api/player/level', { name: document.getElementById('playerSel').value,
+                level: parseInt(document.getElementById('pLevel').value) }); }
+
+        async function savePlayerSafeLevel() { doAction('/api/player/safe/level', { name: document.getElementById('playerSel')
+                    .value, level: parseInt(document.getElementById('pSafeLevel').value) }); }
+
+        async function resetPlayer() { if (confirm('确认重置该玩家仓库与安全箱数据？')) doAction('/api/player/reset', { name: document
+                    .getElementById('playerSel').value }); }
+
+        // ============================================================
+        //  权限管理
+        // ============================================================
+        function renderPerms() {
+            const perms = STATE.permissions;
+            document.getElementById('permDefaultWh').value = perms.default_warehouse ? 'allow' : 'deny';
+            document.getElementById('permDefaultWb').value = perms.default_workbench ? 'allow' : 'deny';
+            document.getElementById('permDefaultSp').value = perms.default_special ? 'allow' : 'deny';
+            const tb = document.querySelector('#permTable tbody');
+            tb.innerHTML = '';
+            const names = Object.keys(perms.players);
+            if (!names.length) {
+                tb.innerHTML = '<tr><td colspan="5" class="muted">无玩家覆盖（全部按全局默认）</td></tr>';
+                return;
+            }
+            for (const n of names) {
+                const p = perms.players[n];
+                const wh = p.warehouse !== undefined ? p.warehouse : perms.default_warehouse;
+                const wb = p.workbench !== undefined ? p.workbench : perms.default_workbench;
+                const sp = p.special !== undefined ? p.special : perms.default_special;
+                const whTag = p.warehouse !== undefined ? (wh ? 'tag-allow' : 'tag-deny') : 'muted';
+                const wbTag = p.workbench !== undefined ? (wb ? 'tag-allow' : 'tag-deny') : 'muted';
+                const spTag = p.special !== undefined ? (sp ? 'tag-allow' : 'tag-deny') : 'muted';
+                const whTxt = (wh ? '允许' : '拒绝') + (p.warehouse !== undefined ? '' : '（默认）');
+                const wbTxt = (wb ? '允许' : '拒绝') + (p.workbench !== undefined ? '' : '（默认）');
+                const spTxt = (sp ? '允许' : '拒绝') + (p.special !== undefined ? '' : '（默认）');
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td>' + esc(n) + '</td>' +
+                    '<td class="' + whTag + '">' + whTxt + '</td>' +
+                    '<td class="' + wbTag + '">' + wbTxt + '</td>' +
+                    '<td class="' + spTag + '">' + spTxt + '</td>' +
+                    '<td><button class="btn" onclick="permFlip(\'' + esc(n) + '\',\'warehouse\')">切换仓库</button> ' +
+                    '<button class="btn" onclick="permFlip(\'' + esc(n) + '\',\'workbench\')">切换工作台</button> ' +
+                    '<button class="btn" onclick="permFlip(\'' + esc(n) + '\',\'special\')">切换特勤处</button> ' +
+                    '<button class="btn red" onclick="permRemove(\'' + esc(n) + '\')">移除覆盖</button></td>';
+                tb.appendChild(tr);
+            }
+        }
+
+        async function savePermDefaults() {
+            doAction('/api/perm/default', { type: 'warehouse', allow: document.getElementById('permDefaultWh').value === 'allow' });
+            doAction('/api/perm/default', { type: 'workbench', allow: document.getElementById('permDefaultWb').value === 'allow' });
+            doAction('/api/perm/default', { type: 'special', allow: document.getElementById('permDefaultSp').value === 'allow' });
+        }
+
+        async function permSet() {
+            const name = document.getElementById('permName').value.trim();
+            if (!name) { status('请输入玩家名', false); return; }
+            doAction('/api/perm/set', {
+                name: name,
+                type: document.getElementById('permType').value,
+                allow: document.getElementById('permAllow').value === 'true'
+            });
+        }
+
+        async function permFlip(name, type) {
+            const perms = STATE.permissions;
+            const p = perms.players[name];
+            const def = type === 'warehouse' ? perms.default_warehouse
+                : (type === 'workbench' ? perms.default_workbench : perms.default_special);
+            const cur = p && p[type] !== undefined ? p[type] : def;
+            doAction('/api/perm/set', { name: name, type: type, allow: !cur });
+        }
+
+        async function permRemove(name) {
+            if (!confirm('确认移除 ' + name + ' 的权限覆盖（恢复全局默认）？')) return;
+            doAction('/api/perm/remove', { name: name });
+        }
+
+        // ============================================================
+        //  事件绑定
+        // ============================================================
+        document.getElementById('recipeWb').addEventListener('change', renderRecipes);
+        document.getElementById('playerSel').addEventListener('change', renderPlayerInfo);
+        document.getElementById('sCurrency').addEventListener('change', renderCurrencyParams);
+
+        // ============================================================
+        //  启动
+        // ============================================================
+        loadAll();
+    </script>
+</body>
+</html>

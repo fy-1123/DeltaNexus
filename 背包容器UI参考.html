@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UI列示</title>
+    <style>
+        /* 全局重置 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            background: #dce1e8;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', 'PingFang SC', Roboto, sans-serif;
+        }
+
+        /* ===== 主容器：固定 1280×720 ===== */
+        .app {
+            width: 1280px;
+            height: 720px;
+            background: #ffffff;
+            display: flex;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.12);
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        /* ============================================================
+           左列 (窄) — 宽60px，左侧外边距80px
+           ============================================================ */
+        .left-panel {
+            width: 60px;
+            height: 100%;
+            margin-left: 80px;
+            background: #f2f4f8;
+            padding: 10px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+            border-right: 1px solid #e4e8ee;
+            overflow: hidden;
+        }
+
+        .section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            gap: 4px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            height: 22px;
+            flex-shrink: 0;
+            gap: 4px;
+            margin-bottom: 2px;
+            background: #7f838f;
+            border-radius: 4px;
+            padding: 0 6px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+        }
+
+        .section-header .label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .box {
+            width: 48px;
+            height: 48px;
+            flex-shrink: 0;
+            background: #ffffff;
+            border-radius: 6px;
+            border: 1.5px solid #d2d8e2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 500;
+            color: #b0b8c5;
+            transition: background 0.15s, border-color 0.15s, transform 0.1s;
+            cursor: default;
+            user-select: none;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        }
+
+        .box:hover {
+            background: #f0f4fe;
+            border-color: #a8b8cc;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
+        }
+
+        .box span {
+            opacity: 0.55;
+            font-weight: 400;
+        }
+
+        .section-divider {
+            width: 100%;
+            height: 2px;
+            background: transparent;
+            flex-shrink: 0;
+        }
+
+        /* ============================================================
+           中列 (宽) — 500px，统一单色背景
+           ============================================================ */
+        .middle-panel {
+            width: 500px;
+            height: 100%;
+            margin-left: 40px;
+            background: #f2f4f8;
+            padding: 8px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            border-right: 1px solid #e4e8ee;
+            overflow: hidden;
+            justify-content: flex-start;
+        }
+
+        .middle-panel .section {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            width: 100%;
+            gap: 2px;
+            flex: 0 0 auto;
+        }
+
+        .middle-panel .section-header {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            height: 22px;
+            flex-shrink: 0;
+            gap: 4px;
+            background: #7f838f;
+            border-radius: 4px;
+            padding: 0 6px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+        }
+
+        .middle-panel .section-header .line {
+            flex: 1;
+            height: 2px;
+            background: #ffffff;
+            border-radius: 2px;
+            min-width: 0;
+            opacity: 0.7;
+        }
+
+        .middle-panel .section-header .label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .middle-panel .grid {
+            display: grid;
+            gap: 4px;
+            height: auto;
+            justify-content: start;
+            align-content: start;
+        }
+
+        .middle-panel .slot {
+            width: 48px;
+            height: 48px;
+            flex-shrink: 0;
+            background: #ffffff;
+            border: 1.5px solid #d2d8e2;
+            border-radius: 6px;
+            transition: background 0.15s, border-color 0.15s;
+            cursor: default;
+            user-select: none;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        }
+
+        .middle-panel .slot:hover {
+            background: #f0f4fe;
+            border-color: #a8b8cc;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
+        }
+
+        .middle-panel .grid-pocket {
+            grid-template-columns: repeat(5, 48px);
+        }
+        .middle-panel .grid-backpack {
+            grid-template-columns: repeat(9, 48px);
+        }
+        .middle-panel .grid-safe {
+            grid-template-columns: repeat(3, 48px);
+        }
+
+        /* ============================================================
+           右列 (宽) — 500px，靠右对齐，左侧分割线
+           ============================================================ */
+        .right-panel {
+            width: 500px;
+            height: 100%;
+            margin-left: auto;           /* 关键：靠右对齐 */
+            background: #f2f4f8;
+            padding: 8px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            overflow: hidden;
+            justify-content: flex-start;
+            border-left: 1px solid #e4e8ee; /* 右侧部分左侧分割线 */
+        }
+
+        /* 右列的分组样式，与中列保持一致 */
+        .right-panel .section {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            width: 100%;
+            gap: 2px;
+            flex: 0 0 auto;
+        }
+
+        .right-panel .section-header {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            height: 22px;
+            flex-shrink: 0;
+            gap: 4px;
+            background: #7f838f;
+            border-radius: 4px;
+            padding: 0 6px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+        }
+
+        .right-panel .section-header .label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .right-panel .grid {
+            display: grid;
+            gap: 4px;
+            height: auto;
+            justify-content: start;
+            align-content: start;
+        }
+
+        .right-panel .slot {
+            width: 48px;
+            height: 48px;
+            flex-shrink: 0;
+            background: #ffffff;
+            border: 1.5px solid #d2d8e2;
+            border-radius: 6px;
+            transition: background 0.15s, border-color 0.15s;
+            cursor: default;
+            user-select: none;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        }
+
+        .right-panel .slot:hover {
+            background: #f0f4fe;
+            border-color: #a8b8cc;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
+        }
+
+        /* 右列的网格为 3行 x 9列 */
+        .right-panel .grid-warehouse {
+            grid-template-columns: repeat(9, 48px);
+        }
+
+        /* ============================================================
+           响应式缩放 (保持比例)
+           ============================================================ */
+        @media (max-width: 1280px) or (max-height: 720px) {
+            .app {
+                transform: scale(0.92);
+            }
+        }
+        @media (max-width: 1180px) or (max-height: 660px) {
+            .app {
+                transform: scale(0.8);
+            }
+        }
+        @media (max-width: 1024px) or (max-height: 580px) {
+            .app {
+                transform: scale(0.68);
+            }
+        }
+        @media (max-width: 860px) or (max-height: 490px) {
+            .app {
+                transform: scale(0.55);
+            }
+        }
+        @media (max-width: 700px) or (max-height: 400px) {
+            .app {
+                transform: scale(0.42);
+            }
+        }
+        @media (max-width: 540px) or (max-height: 310px) {
+            .app {
+                transform: scale(0.32);
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app">
+
+        <!-- ====== 左列 ====== -->
+        <div class="left-panel">
+            <!-- 组1: 盔甲 -->
+            <div class="section">
+                <div class="section-header">
+                    <span class="label">盔甲</span>
+                </div>
+                <div class="box"><span>1</span></div>
+                <div class="box"><span>2</span></div>
+                <div class="box"><span>3</span></div>
+                <div class="box"><span>4</span></div>
+            </div>
+            <div class="section-divider"></div>
+            <!-- 组2: 快捷栏 -->
+            <div class="section">
+                <div class="section-header">
+                    <span class="label">快捷栏</span>
+                </div>
+                <div class="box"><span>5</span></div>
+                <div class="box"><span>6</span></div>
+                <div class="box"><span>7</span></div>
+                <div class="box"><span>8</span></div>
+            </div>
+            <div class="section-divider"></div>
+            <!-- 组3: 副手 -->
+            <div class="section">
+                <div class="section-header">
+                    <span class="label">副手</span>
+                </div>
+                <div class="box"><span>9</span></div>
+            </div>
+        </div>
+
+        <!-- ====== 中列 ====== -->
+        <div class="middle-panel">
+            <!-- 口袋 -->
+            <div class="section">
+                <div class="section-header">
+                    <span class="label">口袋</span>
+                </div>
+                <div class="grid grid-pocket">
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                </div>
+            </div>
+            <!-- 背包 -->
+            <div class="section">
+                <div class="section-header">
+                    <span class="label">背包</span>
+                </div>
+                <div class="grid grid-backpack">
+                    <!-- 3行 x 9列 -->
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                </div>
+            </div>
+            <!-- 安全箱 -->
+            <div class="section">
+                <div class="section-header">
+                    <span class="label">安全箱</span>
+                </div>
+                <div class="grid grid-safe">
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====== 右列 ====== -->
+        <div class="right-panel">
+            <!-- 箱子（容器）：3行 x 9列 -->
+            <div class="section">
+                <div class="section-header">
+                    <span class="label">仓库</span>
+                </div>
+                <div class="grid grid-warehouse">
+                    <!-- 3行 x 9列 = 27个格子 -->
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</body>
+</html>
