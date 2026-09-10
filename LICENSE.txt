@@ -1,3 +1,6 @@
+[注意] 本文件是 Minecraft Forge MDK 模板自带的许可说明，仅覆盖 Forge/MCP 等模板与数据部分。
+       本模组（三角联结 / DeltaNexus）自身的代码以 MIT License 发布，全文见同目录 LICENSE 文件。
+
 Unless noted below, Minecraft Forge, Forge Mod Loader, and all 
 parts herein are licensed under the terms of the LGPL 2.1 found
 here http://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt and 

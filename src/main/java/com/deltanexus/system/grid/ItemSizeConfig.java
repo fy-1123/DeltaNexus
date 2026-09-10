@@ -120,56 +120,7 @@ public class ItemSizeConfig {
     }
 
     private static void generateDefaults() {
-        add(Items.SHIELD, 1, 2);
-        add(Items.TOTEM_OF_UNDYING, 1, 2);
-        add(Items.CROSSBOW, 3, 1);
-        add(Items.BOW, 1, 3);
-        add(Items.TRIDENT, 1, 3);
-
-        add(Items.COAL_BLOCK, 3, 3);
-        add(Items.DIAMOND_BLOCK, 3, 3);
-        add(Items.GOLD_BLOCK, 3, 3);
-        add(Items.EMERALD_BLOCK, 3, 3);
-        add(Items.IRON_BLOCK, 3, 3);
-        add(Items.RAW_IRON_BLOCK, 3, 3);
-        add(Items.RAW_COPPER_BLOCK, 3, 3);
-        add(Items.RAW_GOLD_BLOCK, 3, 3);
-        add(Items.COPPER_BLOCK, 3, 3);
-
-        add(Items.LAPIS_BLOCK, 2, 2);
-        add(Items.REDSTONE_BLOCK, 2, 2);
-
-        add(Items.CHICKEN, 2, 2);
-        add(Items.COOKED_CHICKEN, 2, 2);
-        add(Items.RABBIT, 2, 2);
-        add(Items.COOKED_RABBIT, 2, 2);
-        add(Items.CAKE, 2, 2);
-
-        add(Items.BEEF, 1, 2);
-        add(Items.COOKED_BEEF, 1, 2);
-        add(Items.PORKCHOP, 1, 2);
-        add(Items.COOKED_PORKCHOP, 1, 2);
-
-        add(Items.MELON_SLICE, 2, 1);
-        add(Items.MUTTON, 2, 1);
-        add(Items.COOKED_MUTTON, 2, 1);
-        add(Items.BREAD, 2, 1);
-
-        add(Items.COAL, 2, 2);
-        add(Items.CHARCOAL, 2, 2);
-        add(Items.RAW_IRON, 2, 2);
-        add(Items.RAW_COPPER, 2, 2);
-        add(Items.RAW_GOLD, 2, 2);
-        add(Items.EMERALD, 2, 2);
-        add(Items.DIAMOND, 2, 2);
-        add(Items.REDSTONE, 2, 2);
-        add(Items.QUARTZ, 2, 2);
-        add(Items.ANCIENT_DEBRIS, 2, 3);
-
-        add(Items.IRON_INGOT, 2, 1);
-        add(Items.GOLD_INGOT, 2, 1);
-        add(Items.COPPER_INGOT, 2, 1);
-        add(Items.NETHERITE_INGOT, 2, 1);
+        add(Items.IRON_INGOT, 1, 1);
     }
 
     private static void add(Item item, int w, int h) {

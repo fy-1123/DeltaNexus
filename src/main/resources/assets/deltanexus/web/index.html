@@ -398,6 +398,7 @@
             <span class="nav-item" data-target="sec-safe"><span class="icon">📦</span>安全箱</span>
             <span class="nav-item" data-target="sec-player"><span class="icon">👤</span>玩家数据</span>
             <span class="nav-item" data-target="sec-perm"><span class="icon">🔐</span>权限管理</span>
+            <span class="nav-item" data-target="sec-trade"><span class="icon">🛒</span>交易行</span>
         </nav>
     </header>
 
@@ -414,7 +415,7 @@
             <div class="row"><label>并行队列数</label><input type="number" id="sQueue" min="1" max="100"><button class="btn green" onclick="saveQueue()">保存</button></div>
             <div class="row"><label>制造计时模式</label><select id="sMode"><option value="offline">离线模式（离线照常计时）</option><option value="online">在线模式（仅在线计时）</option></select><button class="btn green" onclick="saveMode()">保存</button></div>
             <div class="row"><label>货币类型</label>
-                <select id="sCurrency"><option value="item">物品</option><option value="scoreboard">计分板</option><option value="vault">Vault 经济</option><option value="playerpoints">PlayerPoints 点券</option></select>
+                <select id="sCurrency"><option value="scoreboard">计分板</option><option value="vault">Vault 经济</option><option value="playerpoints">PlayerPoints 点券</option></select>
                 <span id="currencyParams"></span><button class="btn green" onclick="saveCurrency()">保存</button>
             </div>
             <div class="row"><label>仓库行数</label><input type="number" id="sPages" min="1" max="64"><button class="btn green" onclick="savePages()">保存</button><span class="muted">每行 9 格，滚轮向下滚动，自动随升级树扩容</span></div>
@@ -527,6 +528,143 @@
             <table id="permTable"><thead><tr><th>玩家</th><th>仓库</th><th>工作台</th><th>特勤处</th><th>操作</th></tr></thead><tbody></tbody></table>
         </section>
 
+        <!-- 交易行 -->
+        <section id="sec-trade" class="section-panel">
+            <h2>交易行</h2>
+            <div class="row"><label>全局倍率</label><input type="number" id="tradeMult" step="0.01" min="0.01" style="width:90px">
+                <label>商品价格刷新间隔(秒)</label><input type="number" id="tradeFeed" min="1" style="width:90px">
+                <label>公式超时(ms)</label><input type="number" id="tradeTimeout" min="1" max="1000" style="width:90px">
+                <label><input type="checkbox" id="tradeSellEnabled" checked> 允许回收</label>
+                <label>价差保护</label><select id="tradeSpreadGuard" style="width:110px">
+                    <option value="warn">仅告警</option>
+                    <option value="block">禁止卖出</option>
+                    <option value="off">关闭</option>
+                </select>
+                <button class="btn green" onclick="tradeSaveSettings()">保存全局设置</button>
+                <span class="muted" id="tradeFeedInfo"></span>
+            </div>
+            <div class="row"><button class="btn small" onclick="tradeFeedRefresh()">立即刷新外部价格源</button>
+                <span class="muted">商品按表单式配置：基本信息 / 物品与匹配 / 价格三模式单选 / 库存上下限。</span>
+            </div>
+            <h3>分类</h3>
+            <div class="inline-form row">
+                <input id="trCatId" placeholder="分类id（唯一）" style="width:150px">
+                <input id="trCatName" placeholder="显示名" style="width:150px">
+                <button class="btn green" onclick="tradeCatAdd()">新增分类</button>
+            </div>
+            <table id="tradeCatTable"><thead><tr><th>id</th><th>名称</th><th>操作</th></tr></thead><tbody></tbody></table>
+            <h3>商品</h3>
+            <div class="inline-form row">
+                <button class="btn green" onclick="tradeNew()">＋ 新增商品</button>
+                <span class="muted">点表格行「编辑」打开表单修改；补货/删除可在行内直接操作。</span>
+            </div>
+            <div id="tradeEditor" class="inline-form" style="display:none; border:1px solid #46536B; border-radius:6px; padding:10px; margin:8px 0; background:#10131A;">
+                <h3 id="tradeEditorTitle" style="margin-top:0">商品配置</h3>
+                <div class="row">
+                    <label>商品ID</label><input id="trId" style="width:190px" placeholder="如 diamond（唯一）">
+                    <label>显示名</label><input id="trDisplay" style="width:170px">
+                </div>
+                <div class="row">
+                    <label>分类</label><select id="trCat" style="width:160px"></select>
+                    <label><input type="checkbox" id="trEnabled" checked> 上架</label>
+                    <label><input type="checkbox" id="trBuyable" checked> 可买入</label>
+                </div>
+                <h4 style="margin:10px 0 2px">物品与匹配</h4>
+                <div class="row">
+                    <label>物品ID</label><input id="trItemId" style="width:230px" placeholder="minecraft:diamond">
+                    <label>单位数量</label><input id="trUnit" type="number" min="1" value="1" style="width:70px">
+                </div>
+                <div class="row">
+                    <label>NBT模板(SNBT)</label><input id="trNbt" style="width:60%" placeholder='如 {Damage:0}，留空=无 NBT'>
+                </div>
+                <div class="row">
+                    <label>匹配模式</label>
+                    <select id="trMatch" onchange="trMatchChange()">
+                        <option value="id">id：只按物品</option>
+                        <option value="full_nbt">full_nbt：整份 NBT 精确</option>
+                        <option value="partial_nbt">partial_nbt：只比指定键</option>
+                    </select>
+                </div>
+                <div id="trKeysWrap" class="inline-form" style="display:none; margin:6px 0;">
+                    <div class="row muted">键规则：exact / contains 的值取自上方 NBT 模板；“指定”= 指定键名与对应值（不依赖模板）。</div>
+                    <div id="trKeysList"></div>
+                    <div class="row">
+                        <input id="trKeyName" style="width:150px" placeholder="键名，如 Damage">
+                        <select id="trKeyOp" onchange="trKeyAddOpChange()">
+                            <option value="exact">精确 exact</option>
+                            <option value="contains">包含 contains</option>
+                            <option value="specified">指定（键+值）</option>
+                        </select>
+                        <input id="trKeyValue" style="width:180px; display:none" placeholder="指定值，如 0 或 文本">
+                        <button class="btn small green" onclick="trKeyAdd()">＋ 加键</button>
+                    </div>
+                </div>
+                <div class="row">
+                    <label>耐久度要求</label>
+                    <label><input type="checkbox" id="trDurEnabled" onchange="trDurChange()"> 开启</label>
+                    <select id="trDurOp" style="width:80px" disabled>
+                        <option value="=">=</option>
+                        <option value="<">&lt;</option>
+                        <option value=">">&gt;</option>
+                        <option value="<=">&lt;=</option>
+                        <option value=">=">&gt;=</option>
+                    </select>
+                    <input id="trDurValue" type="number" min="0" style="width:110px" value="0" placeholder="剩余耐久" disabled>
+                    <span class="muted">对可损坏物品比较“剩余耐久 = 最大耐久 − Damage”，可与匹配模式共存（默认关闭）。</span>
+                </div>
+                <h4 style="margin:10px 0 2px">价格（买入/卖出/参考三向同时配置）</h4>
+                <div class="inline-form" style="border:1px solid #252B38; border-radius:6px; padding:8px; margin:6px 0;">
+                    <div class="row"><b>买入价</b><span class="muted">玩家向交易行购买，实际结算价</span></div>
+                    <div class="row">
+                        <label><input type="radio" name="trBuyMode" value="fixed" checked onchange="trPriceUi('buy')"> 固定价格</label>
+                        <label><input type="radio" name="trBuyMode" value="formula" onchange="trPriceUi('buy')"> 单行JS表达式</label>
+                        <label><input type="radio" name="trBuyMode" value="code" onchange="trPriceUi('buy')"> Code 完整代码</label>
+                        <label><input type="radio" name="trBuyMode" value="none" onchange="trPriceUi('buy')"> 不配置</label>
+                    </div>
+                    <div id="trBuyFixedWrap" class="row"><label>固定值</label><input id="trBuyFixed" type="number" min="0" step="0.01" style="width:130px" value="0"></div>
+                    <div id="trBuyFormulaWrap" class="row" style="display:none"><label>JS 表达式</label><input id="trBuyFormula" style="width:75%" placeholder='如 floor(clamp(feed("moligod").price("1029")*0.9,1,1000000))'></div>
+                    <div id="trBuyCodeWrap" class="row" style="display:none"><label>函数体</label><textarea id="trBuyCode" rows="5" style="width:100%" placeholder='return clamp(ctx.good.stock * 10, 1, 100000);'></textarea></div>
+                </div>
+                <div class="inline-form" style="border:1px solid #252B38; border-radius:6px; padding:8px; margin:6px 0;">
+                    <div class="row"><b>卖出价</b><span class="muted">玩家卖给交易行（v1 仅展示，预留）</span></div>
+                    <div class="row">
+                        <label><input type="radio" name="trSellMode" value="fixed" checked onchange="trPriceUi('sell')"> 固定价格</label>
+                        <label><input type="radio" name="trSellMode" value="formula" onchange="trPriceUi('sell')"> 单行JS表达式</label>
+                        <label><input type="radio" name="trSellMode" value="code" onchange="trPriceUi('sell')"> Code 完整代码</label>
+                        <label><input type="radio" name="trSellMode" value="none" onchange="trPriceUi('sell')"> 不配置</label>
+                    </div>
+                    <div id="trSellFixedWrap" class="row"><label>固定值</label><input id="trSellFixed" type="number" min="0" step="0.01" style="width:130px" value="0"></div>
+                    <div id="trSellFormulaWrap" class="row" style="display:none"><label>JS 表达式</label><input id="trSellFormula" style="width:75%" placeholder='如 floor(ctx.good.stock * 0.8)'></div>
+                    <div id="trSellCodeWrap" class="row" style="display:none"><label>函数体</label><textarea id="trSellCode" rows="5" style="width:100%" placeholder='return ctx.good.stock * 5;'></textarea></div>
+                </div>
+                <div class="inline-form" style="border:1px solid #252B38; border-radius:6px; padding:8px; margin:6px 0;">
+                    <div class="row"><b>参考价</b><span class="muted">市场参考/中间价（仅展示）</span></div>
+                    <div class="row">
+                        <label><input type="radio" name="trMarketMode" value="fixed" checked onchange="trPriceUi('market')"> 固定价格</label>
+                        <label><input type="radio" name="trMarketMode" value="formula" onchange="trPriceUi('market')"> 单行JS表达式</label>
+                        <label><input type="radio" name="trMarketMode" value="code" onchange="trPriceUi('market')"> Code 完整代码</label>
+                        <label><input type="radio" name="trMarketMode" value="none" onchange="trPriceUi('market')"> 不配置</label>
+                    </div>
+                    <div id="trMarketFixedWrap" class="row"><label>固定值</label><input id="trMarketFixed" type="number" min="0" step="0.01" style="width:130px" value="0"></div>
+                    <div id="trMarketFormulaWrap" class="row" style="display:none"><label>JS 表达式</label><input id="trMarketFormula" style="width:75%" placeholder='如 feed("moligod").price("1029")'></div>
+                    <div id="trMarketCodeWrap" class="row" style="display:none"><label>函数体</label><textarea id="trMarketCode" rows="5" style="width:100%" placeholder='return ctx.qty * 100;'></textarea></div>
+                </div>
+                <div class="row muted">变量：ctx.good{stock,stockMin,stockMax…} / ctx.limits / ctx.time / ctx.qty / ctx.feed(name) / clamp / Math</div>
+                <h4 style="margin:10px 0 2px">库存上下限</h4>
+                <div class="row">
+                    <label>下限(0不限)</label><input id="trStockMin" type="number" min="0" value="0" style="width:80px">
+                    <label>上限(0不限)</label><input id="trStockMax" type="number" min="0" value="0" style="width:80px">
+                    <label><input type="checkbox" id="trBlockMin" checked> 低于下限禁买</label>
+                </div>
+                <div class="row">
+                    <button class="btn green" onclick="tradeSave()">保存商品</button>
+                    <button class="btn" onclick="tradeEditorHide()">收起</button>
+                    <span class="muted" id="trEditorStatus"></span>
+                </div>
+            </div>
+            <table id="tradeGoodTable"><thead><tr><th>id / 名称</th><th>分类</th><th>状态</th><th>库存</th><th>买入价</th><th>卖出价</th><th>限购</th><th>补货</th><th>操作</th></tr></thead><tbody></tbody></table>
+        </section>
+
     </main>
 
     <script>
@@ -616,6 +754,7 @@
             renderSafeRestrictions();
             renderPlayers();
             renderPerms();
+            renderTrade();
         }
 
         // ============================================================
@@ -666,10 +805,7 @@
         function renderCurrencyParams() {
             const s = STATE.settings;
             const el = document.getElementById('currencyParams');
-            if (s.currency === 'item') el.innerHTML =
-                '<input id="cItem" placeholder="物品ID（如 minecraft:emerald）" class="wide" value="' + esc(s.currency_item) +
-                '">';
-            else if (s.currency === 'scoreboard') el.innerHTML =
+            if (s.currency === 'scoreboard') el.innerHTML =
                 '<input id="cObj" placeholder="计分板目标名" value="' + esc(s.currency_scoreboard) + '">';
             else if (s.currency === 'vault') el.innerHTML =
                 '<span class="muted">API:' + (s.vault_api ? '✓' : '✗') + ' 提供者:' + (s.vault_provider ? '✓' : '✗') +
@@ -719,7 +855,6 @@
         async function saveCurrency() {
             const t = document.getElementById('sCurrency').value;
             const body = { type: t };
-            if (t === 'item') body.item = (document.getElementById('cItem') || {}).value || '';
             if (t === 'scoreboard') body.objective = (document.getElementById('cObj') || {}).value || '';
             doAction('/api/setting/currency', body);
         }
@@ -1133,6 +1268,353 @@
         async function permRemove(name) {
             if (!confirm('确认移除 ' + name + ' 的权限覆盖（恢复全局默认）？')) return;
             doAction('/api/perm/remove', { name: name });
+        }
+
+        // ============================================================
+        //  交易行（0.2.0Beta）
+        // ============================================================
+        function tradeEscId(s) { return String(s == null ? '' : s).replace(/[^\w-]/g, '_'); }
+        function tradeEscJs(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
+        // ---- 商品表单式编辑器状态 ----
+        let _tradeKeys = [];
+        let _editorVisible = false;
+        function $id(s) { return document.getElementById(s); }
+
+        function renderTrade() {
+            const t = STATE.trade || { settings: {}, categories: [], goods: [], views: [], feeds: [] };
+            $id('tradeMult').value = t.settings.multiplier;
+            $id('tradeFeed').value = t.settings.feed_interval;
+            $id('tradeTimeout').value = t.settings.timeout;
+            $id('tradeSellEnabled').checked = t.settings.sell_enabled !== false;
+            $id('tradeSpreadGuard').value = t.settings.spread_guard || 'warn';
+            $id('tradeFeedInfo').textContent = (t.feeds || []).map(f => f.id + ' (' + f.rows + ' 行)').join('，') || '无外部价格源';
+
+            const viewMap = {};
+            (t.views || []).forEach(v => viewMap[v.id] = v);
+
+            let h = '';
+            (t.categories || []).forEach(c => {
+                const id = tradeEscJs(c.id);
+                h += '<tr><td>' + esc(c.id) + '</td><td><input id="trCatRename_' + tradeEscId(c.id) + '" value="' + esc(c.name) + '"></td>'
+                    + '<td><button class="btn small green" onclick="tradeCatRename(\'' + id + '\')">改名</button> '
+                    + '<button class="btn small red" onclick="tradeCatRemove(\'' + id + '\')">删除</button></td></tr>';
+            });
+            document.querySelector('#tradeCatTable tbody').innerHTML = h || '<tr><td colspan="3" class="muted">暂无分类</td></tr>';
+
+            // 编辑器分类下拉（同步最新分类）
+            const catSel = $id('trCat');
+            const prev = catSel.value;
+            catSel.innerHTML = (t.categories || []).map(c => '<option value="' + esc(c.id) + '">' + esc(c.display_name || c.name || c.id) + '</option>').join('');
+            if (prev && [...catSel.options].some(o => o.value === prev)) catSel.value = prev;
+
+            let g = '';
+            (t.goods || []).forEach(go => {
+                const v = viewMap[go.id] || {};
+                const idS = tradeEscJs(go.id);
+                const idH = tradeEscId(go.id);
+                let buyTxt;
+                if (!go.enabled) buyTxt = '停用';
+                else if (v.buy_code === 0) buyTxt = String(v.buy_price);
+                else if (v.buy_code === 1) buyTxt = '缺货';
+                else if (v.buy_code === 2) buyTxt = '低于下限';
+                else if (v.buy_code === 3) buyTxt = '定价不可用';
+                else buyTxt = '不可购买';
+                const sellTxt = (v.sell_price !== undefined && v.sell_price >= 0) ? String(v.sell_price) : '—';
+                const spreadWarn = (v.buy_price > 0 && v.sell_price > 0 && v.sell_price >= v.buy_price) ? ' ⚠' : '';
+                g += '<tr>'
+                    + '<td>' + esc(go.id) + '<br><span class="muted">' + esc(go.display_name || '') + '</span></td>'
+                    + '<td>' + esc(go.category || '') + '</td>'
+                    + '<td>' + esc(go.enabled ? '上架' : '停用') + ' / ' + esc(go.buyable ? '可买' : '禁买') + '</td>'
+                    + '<td>' + esc(v.stock !== undefined ? v.stock : go.stock) + '</td>'
+                    + '<td>' + esc(buyTxt) + '</td>'
+                    + '<td' + (spreadWarn ? ' style="color:#FF6B6B"' : '') + '>' + esc(sellTxt + spreadWarn) + '</td>'
+                    + '<td>' + esc(v.buy_limit) + '</td>'
+                    + '<td><input type="number" id="tradeStock_' + idH + '" min="0" style="width:64px" value="1">'
+                    + '<button class="btn small green" onclick="tradeStockOp(\'' + idS + '\',\'add\')">补货</button>'
+                    + '<button class="btn small" onclick="tradeStockOp(\'' + idS + '\',\'set\')">设为</button></td>'
+                    + '<td><button class="btn small" onclick="tradeEdit(\'' + idS + '\')">编辑</button> '
+                    + '<button class="btn small red" onclick="tradeGoodRemove(\'' + idS + '\')">删除</button></td></tr>';
+            });
+            const goodTbody = document.querySelector('#tradeGoodTable tbody');
+            goodTbody.innerHTML = g || '<tr><td colspan="9" class="muted">暂无商品：先在上方建分类，再点「＋ 新增商品」。</td></tr>';
+        }
+
+        async function tradeSaveSettings() {
+            doAction('/api/trade/settings', {
+                multiplier: parseFloat($id('tradeMult').value),
+                feed_interval: parseInt($id('tradeFeed').value),
+                timeout: parseInt($id('tradeTimeout').value),
+                sell_enabled: $id('tradeSellEnabled').checked,
+                spread_guard: $id('tradeSpreadGuard').value
+            });
+        }
+
+        async function tradeFeedRefresh() { doAction('/api/trade/feed/refresh'); }
+
+        async function tradeCatAdd() {
+            const id = $id('trCatId').value.trim();
+            if (!id) { status('请输入分类 id', false); return; }
+            doAction('/api/trade/category/add', { id: id, name: $id('trCatName').value.trim() });
+        }
+
+        async function tradeCatRename(id) {
+            doAction('/api/trade/category/rename', { id: id, name: $id('trCatRename_' + tradeEscId(id)).value.trim() });
+        }
+
+        async function tradeCatRemove(id) {
+            if (!confirm('删除分类 ' + id + '？其下商品将不再显示（商品配置保留）')) return;
+            doAction('/api/trade/category/remove', { id: id });
+        }
+
+        // ================= 商品编辑器 =================
+        function trMatchChange() {
+            const partial = $id('trMatch').value === 'partial_nbt';
+            $id('trKeysWrap').style.display = partial ? '' : 'none';
+            if (partial) trKeysRender();
+        }
+
+        function trKeyAddOpChange() {
+            $id('trKeyValue').style.display = $id('trKeyOp').value === 'specified' ? '' : 'none';
+        }
+
+        function trKeysRender() {
+            if (!_tradeKeys.length) { $id('trKeysList').innerHTML = '<div class="row muted">尚未添加指定键</div>'; return; }
+            let s = '';
+            _tradeKeys.forEach((k, i) => {
+                const isSpec = k.op === 'specified';
+                s += '<div class="row"><span style="width:150px">' + esc(k.k) + '</span>'
+                    + '<select onchange="trKeyOpSet(' + i + ',this.value)">'
+                    + '<option value="exact"' + (k.op === 'exact' ? ' selected' : '') + '>精确 exact</option>'
+                    + '<option value="contains"' + (k.op === 'contains' ? ' selected' : '') + '>包含 contains</option>'
+                    + '<option value="specified"' + (isSpec ? ' selected' : '') + '>指定（键+值）</option>'
+                    + '</select>'
+                    + (isSpec ? '<input value="' + esc(k.value || '') + '" placeholder="指定值" style="width:180px" oninput="trKeyValueSet(' + i + ',this.value)">' : '')
+                    + ' <button class="btn small red" onclick="trKeyRemove(' + i + ')">移除</button></div>';
+            });
+            $id('trKeysList').innerHTML = s;
+        }
+
+        function trKeyAdd() {
+            const n = $id('trKeyName').value.trim();
+            if (!n) { status('请输入键名', false); return; }
+            const op = $id('trKeyOp').value;
+            const value = op === 'specified' ? $id('trKeyValue').value.trim() : '';
+            if (op === 'specified' && !value) { status('“指定”模式需要填写对应值', false); return; }
+            _tradeKeys.push({ k: n, op: op, value: value });
+            $id('trKeyName').value = '';
+            $id('trKeyValue').value = '';
+            trKeysRender();
+        }
+
+        function trKeyOpSet(i, op) { _tradeKeys[i].op = op; trKeysRender(); }
+        function trKeyValueSet(i, v) { _tradeKeys[i].value = v; }
+        function trKeyRemove(i) { _tradeKeys.splice(i, 1); trKeysRender(); }
+
+        function trDurChange() {
+            const on = $id('trDurEnabled').checked;
+            $id('trDurOp').disabled = !on;
+            $id('trDurValue').disabled = !on;
+        }
+
+        function trCap(dir) { return dir.charAt(0).toUpperCase() + dir.slice(1); }
+
+        function trModeOf(dir) {
+            const els = document.querySelectorAll('input[name="tr' + trCap(dir) + 'Mode"]');
+            for (const e of els) if (e.checked) return e.value;
+            return 'none';
+        }
+
+        function trSetMode(dir, mode) {
+            document.querySelectorAll('input[name="tr' + trCap(dir) + 'Mode"]').forEach(e => e.checked = (e.value === mode));
+        }
+
+        function trPriceUi(dir) {
+            const mode = trModeOf(dir);
+            const cap = trCap(dir);
+            $id('tr' + cap + 'FixedWrap').style.display = mode === 'fixed' ? '' : 'none';
+            $id('tr' + cap + 'FormulaWrap').style.display = mode === 'formula' ? '' : 'none';
+            $id('tr' + cap + 'CodeWrap').style.display = mode === 'code' ? '' : 'none';
+        }
+
+        function trReadPrice(dir) {
+            const cap = trCap(dir);
+            const mode = trModeOf(dir);
+            if (mode === 'none') return null;
+            if (mode === 'fixed') return { mode: 'fixed', value: parseFloat($id('tr' + cap + 'Fixed').value) || 0 };
+            if (mode === 'formula') return { mode: 'formula', expr: $id('tr' + cap + 'Formula').value.trim() };
+            return { mode: 'code', script: $id('tr' + cap + 'Code').value };
+        }
+
+        function trWritePrice(dir, p) {
+            const cap = trCap(dir);
+            if (!p) { trSetMode(dir, 'none'); trPriceUi(dir); return; }
+            trSetMode(dir, p.mode || 'fixed');
+            $id('tr' + cap + 'Fixed').value = p.value || 0;
+            $id('tr' + cap + 'Formula').value = p.expr || '';
+            $id('tr' + cap + 'Code').value = p.script || '';
+            trPriceUi(dir);
+        }
+
+        function tradeEditorShow(title) {
+            $id('tradeEditorTitle').textContent = title;
+            $id('tradeEditor').style.display = '';
+            _editorVisible = true;
+            trPriceUi('buy');
+            trPriceUi('sell');
+            trPriceUi('market');
+            trMatchChange();
+            $id('tradeEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function tradeEditorHide() { $id('tradeEditor').style.display = 'none'; _editorVisible = false; }
+
+        function tradeNew() {
+            $id('trId').value = '';
+            $id('trId').readOnly = false;
+            $id('trDisplay').value = '';
+            $id('trEnabled').checked = true;
+            $id('trBuyable').checked = true;
+            $id('trItemId').value = '';
+            $id('trNbt').value = '';
+            $id('trUnit').value = 1;
+            $id('trMatch').value = 'id';
+            _tradeKeys = [];
+            $id('trKeyName').value = '';
+            $id('trKeyValue').value = '';
+            $id('trKeyOp').value = 'exact';
+            trKeyAddOpChange();
+            $id('trDurEnabled').checked = false;
+            $id('trDurOp').value = '=';
+            $id('trDurValue').value = 0;
+            trDurChange();
+            trWritePrice('buy', { mode: 'fixed', value: 0 });
+            trWritePrice('sell', { mode: 'fixed', value: 0 });
+            trWritePrice('market', { mode: 'fixed', value: 0 });
+            $id('trStockMin').value = 0;
+            $id('trStockMax').value = 0;
+            $id('trBlockMin').checked = true;
+            $id('trEditorStatus').textContent = '';
+            if (!STATE.trade || !STATE.trade.categories || !STATE.trade.categories.length) {
+                $id('trCat').innerHTML = '';
+            } else {
+                $id('trCat').value = STATE.trade.categories[0].id;
+            }
+            tradeEditorShow('新增商品');
+        }
+
+        function tradeEdit(id) {
+            const t = STATE.trade;
+            const go = (t.goods || []).find(x => x.id === id);
+            if (!go) { status('商品不存在或已过期，已刷新', false); return; }
+            $id('trId').value = go.id;
+            $id('trId').readOnly = true;
+            $id('trDisplay').value = go.display_name || '';
+            $id('trEnabled').checked = go.enabled !== false;
+            $id('trBuyable').checked = go.buyable !== false;
+            const it = go.item || {};
+            $id('trItemId').value = it.id || '';
+            $id('trNbt').value = it.nbt || '';
+            $id('trUnit').value = it.unit_count || 1;
+            $id('trMatch').value = it.match_mode || 'id';
+            _tradeKeys = [];
+            const mk = it.match_keys || {};
+            for (const k in mk) {
+                const v = mk[k];
+                if (typeof v === 'string') {
+                    if (v === 'ignore') continue;
+                    _tradeKeys.push({ k: k, op: v, value: '' });
+                } else if (v && typeof v === 'object') {
+                    _tradeKeys.push({ k: k, op: v.op || 'exact', value: v.value || '' });
+                }
+            }
+            const dur = it.durability || {};
+            $id('trDurEnabled').checked = !!dur.enabled;
+            $id('trDurOp').value = dur.op || '=';
+            $id('trDurValue').value = dur.value || 0;
+            trDurChange();
+            for (const dir of ['buy', 'sell', 'market']) {
+                trWritePrice(dir, (go.prices || {})[dir] || null);
+            }
+            const sl = go.stock_limits || {};
+            $id('trStockMin').value = sl.min || 0;
+            $id('trStockMax').value = sl.max || 0;
+            $id('trBlockMin').checked = sl.block_below_min !== false;
+            $id('trEditorStatus').textContent = '';
+            tradeEditorShow('编辑商品：' + id);
+        }
+
+        async function tradeSave() {
+            const id = $id('trId').value.trim();
+            const itemId = $id('trItemId').value.trim();
+            const cat = $id('trCat').value;
+            if (!id) { status('请填写商品 ID', false); return; }
+            if (!itemId) { status('请填写物品 ID', false); return; }
+            if (!cat) { status('请先创建并选择分类', false); return; }
+            const prices = {};
+            for (const dir of ['buy', 'sell', 'market']) {
+                const p = trReadPrice(dir);
+                if (p) prices[dir] = p;
+            }
+            if (!prices.buy && $id('trBuyable').checked) {
+                status('可买入商品必须先配置买入价（方向=买入价，选固定/表达式/Code）', false);
+                return;
+            }
+            const item = { id: itemId, nbt: $id('trNbt').value.trim(), unit_count: parseInt($id('trUnit').value) || 1, match_mode: $id('trMatch').value };
+            if (item.match_mode === 'partial_nbt' && _tradeKeys.length) {
+                const mk = {};
+                _tradeKeys.forEach(k => {
+                    if (k.op === 'specified' || (k.value && k.value.length)) {
+                        mk[k.k] = { op: k.op, value: k.value || '' };
+                    } else {
+                        mk[k.k] = k.op;
+                    }
+                });
+                item.match_keys = mk;
+            }
+            if ($id('trDurEnabled').checked) {
+                item.durability = {
+                    enabled: true,
+                    op: $id('trDurOp').value,
+                    value: Math.max(0, parseInt($id('trDurValue').value) || 0)
+                };
+            }
+            const sl = {
+                min: Math.max(0, parseInt($id('trStockMin').value) || 0),
+                max: Math.max(0, parseInt($id('trStockMax').value) || 0),
+                block_below_min: $id('trBlockMin').checked
+            };
+            const good = {
+                id: id,
+                category: cat,
+                display_name: $id('trDisplay').value.trim(),
+                enabled: $id('trEnabled').checked,
+                buyable: $id('trBuyable').checked,
+                item: item,
+                prices: prices,
+                stock_limits: sl
+            };
+            $id('trEditorStatus').textContent = '保存中…';
+            const r = await api('/api/trade/good/save', { good: good });
+            status(r.msg || (r.ok ? '完成' : '失败'), !!r.ok);
+            if (r.ok) {
+                $id('trEditorStatus').textContent = '';
+                await loadAll();
+                tradeEditorHide();
+            } else {
+                $id('trEditorStatus').textContent = r.msg || '保存失败';
+            }
+        }
+
+        async function tradeGoodRemove(id) {
+            if (!confirm('删除商品 ' + id + '？')) return;
+            doAction('/api/trade/good/remove', { id: id });
+        }
+
+        async function tradeStockOp(id, op) {
+            const c = parseInt($id('tradeStock_' + tradeEscId(id)).value);
+            if (isNaN(c) || c < 0) { status('数量不合法', false); return; }
+            doAction('/api/trade/stock', { id: id, op: op, count: c });
         }
 
         // ============================================================

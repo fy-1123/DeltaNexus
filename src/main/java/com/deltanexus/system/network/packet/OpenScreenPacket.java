@@ -26,6 +26,8 @@ public class OpenScreenPacket {
     public static final int SCREEN_WORKBENCH = 1;
     /** 特勤处（2.0.4）。 */
     public static final int SCREEN_SPECIAL = 2;
+    /** 交易行（0.2.0Beta；目录经 SyncTradeCatalogPacket 先行下发）。 */
+    public static final int SCREEN_TRADE = 3;
 
     public final int screenType;
     public final String workbenchId;
@@ -69,6 +71,9 @@ public class OpenScreenPacket {
                 // 不重新请求，避免与 V 键的请求形成循环
                 net.minecraft.client.Minecraft.getInstance().setScreen(
                         new com.deltanexus.system.client.gui.SpecialOpsScreen());
+            } else if (msg.screenType == SCREEN_TRADE) {
+                // 交易行（0.2.0Beta）：目录已由 SyncTradeCatalogPacket 先行送达
+                com.deltanexus.system.client.gui.TradeScreen.open();
             }
         }
     }

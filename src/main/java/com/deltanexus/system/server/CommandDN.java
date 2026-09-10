@@ -74,12 +74,13 @@ public final class CommandDN {
         return builder.buildFuture();
     };
 
-    /** 权限类型补全（warehouse/workbench/special/safe_box/all，1.1.0 / 2.0.3 / 2.1）。 */
+    /** 权限类型补全（warehouse/workbench/special/safe_box/trade/all，1.1.0 / 2.0.3 / 2.1 / 0.2.0Beta）。 */
     private static final SuggestionProvider<CommandSourceStack> PERM_TYPES = (ctx, builder) -> {
         builder.suggest("warehouse", Component.literal("仓库"));
         builder.suggest("workbench", Component.literal("配方工作台"));
         builder.suggest("special", Component.literal("特勤处"));
         builder.suggest("safe_box", Component.literal("安全箱"));
+        builder.suggest("trade", Component.literal("交易行"));
         builder.suggest("all", Component.literal("全部"));
         return builder.buildFuture();
     };
@@ -153,7 +154,9 @@ public final class CommandDN {
                         .then(Commands.literal("special")
                                 .executes(ctx -> openSpecialOps(ctx.getSource())))
                         .then(Commands.literal("manufacture")
-                                .executes(ctx -> openManufacture(ctx.getSource()))))
+                                .executes(ctx -> openManufacture(ctx.getSource())))
+                        .then(Commands.literal("trade")
+                                .executes(ctx -> openTrade(ctx.getSource()))))
                 // reload
                 .then(Commands.literal("reload")
                         .requires(s -> s.hasPermission(4))
@@ -182,10 +185,6 @@ public final class CommandDN {
                                 .then(Commands.literal("online")
                                         .executes(ctx -> mode(ctx.getSource(), "online"))))
                         .then(Commands.literal("currency")
-                                .then(Commands.literal("item")
-                                        .then(Commands.argument("item_id", StringArgumentType.greedyString()).suggests(ITEM_IDS)
-                                                .executes(ctx -> currencyItem(ctx.getSource(),
-                                                        StringArgumentType.getString(ctx, "item_id")))))
                                 .then(Commands.literal("scoreboard")
                                         .then(Commands.argument("objective", StringArgumentType.word())
                                                 .executes(ctx -> currencyScoreboard(ctx.getSource(),
@@ -631,6 +630,8 @@ public final class CommandDN {
                         .then(Commands.literal("on").executes(ctx -> webOn(ctx.getSource())))
                         .then(Commands.literal("off").executes(ctx -> webOff(ctx.getSource())))
                         .then(Commands.literal("help").executes(ctx -> helpWeb(ctx.getSource()))))
+                // trade（0.2.0Beta：交易行管理：分类/商品/价格/上下限/补货/外部源）
+                .then(TradeAdminHandler.tradeNode().requires(s -> s.hasPermission(2)))
                 // help（仅总览，各指令详细帮助用 /dn <指令> help）
                 .then(Commands.literal("help")
                         .executes(ctx -> help(ctx.getSource()))));
@@ -656,14 +657,25 @@ public final class CommandDN {
         return 1;
     }
 
+    /** 打开交易行（0.2.0Beta）：服务端权限校验 + 目录下发 + OpenScreen。 */
+    private static int openTrade(CommandSourceStack source) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        TradeService.open(player);
+        return 1;
+    }
+
     private static int reload(CommandSourceStack source) {
         RecipeCache.get().reload();
         UpgradeConfig.get().reload();
         WorkbenchRegistry.get().reload();
         PermissionManager.reload();
         com.deltanexus.system.config.SafeBoxRestrictions.reload();
+        com.deltanexus.system.trade.TradeConfig.get().reload();
+        com.deltanexus.system.trade.TradeStockStore.load();
         source.sendSuccess(() -> Component.translatable("msg.dn.reload.done",
                 RecipeCache.get().size(), UpgradeConfig.get().maxLevel(), WorkbenchRegistry.get().size()), true);
+        // 交易行目录可能因配置/源刷新变化：向在线玩家重推
+        TradeService.sendSyncToAll(source.getServer());
         // 检测机制：外部修改升级树后重载，解锁容量超过当前行数容量时自动扩容并同步在线玩家
         if (ManufacturingService.autoExpandRows()) {
             ManufacturingService.applyRowsToOnline(source.getServer());
@@ -697,15 +709,6 @@ public final class CommandDN {
         ModConfig.SERVER_SPEC.save();
         source.sendSuccess(() -> Component.translatable("msg.dn.config.set",
                 Component.translatable("gui.dn.config.queue").getString(), size), true);
-        return 1;
-    }
-
-    private static int currencyItem(CommandSourceStack source, String itemId) {
-        ModConfig.CURRENCY_TYPE.set("item");
-        ModConfig.CURRENCY_ITEM.set(itemId.trim());
-        ModConfig.SERVER_SPEC.save();
-        source.sendSuccess(() -> Component.translatable("msg.dn.config.set",
-                Component.translatable("gui.dn.config.currency").getString(), itemId.trim()), true);
         return 1;
     }
 
@@ -859,7 +862,7 @@ public final class CommandDN {
                 return "scoreboard，计分板 " + ModConfig.currencyScoreboard();
             }
             default -> {
-                return "item，物品 " + ModConfig.currencyItem();
+                return "scoreboard，计分板 " + ModConfig.currencyScoreboard();
             }
         }
     }
@@ -1337,6 +1340,8 @@ public final class CommandDN {
         data.setWarehouseLevel(0);
         data.setUnlockedSlots(base);
         data.setSafeBoxLevel(0);
+        // 0.2.0Beta：管理员重置视为显式意图 → 清除数据备份，避免登录兜底把旧数据恢复回来
+        com.deltanexus.system.capability.CapabilityAttacher.clearBackupFor(target.getUUID());
         notifyTarget(target, "msg.dn.data.notify.reset");
         ManufacturingService.sendSyncWarehouse(target);
         ManufacturingService.syncSafeBox(target);
@@ -1539,6 +1544,7 @@ public final class CommandDN {
                 .append(" 工作台=").append(PermissionManager.defaultWorkbench() ? "允许" : "拒绝")
                 .append(" 特勤处=").append(PermissionManager.defaultSpecial() ? "允许" : "拒绝")
                 .append(" 安全箱=").append(PermissionManager.defaultSafeBox() ? "允许" : "拒绝")
+                .append(" 交易行=").append(PermissionManager.defaultTrade() ? "允许" : "拒绝")
                 .append("，OP 始终允许\n");
         if (PermissionManager.overrides().isEmpty()) {
             sb.append("§7无玩家覆盖，全部按全局默认§r");
@@ -1553,6 +1559,8 @@ public final class CommandDN {
                         .append(permLabel(safeVal(v, PermissionManager.TYPE_SPECIAL), PermissionManager.defaultSpecial()))
                         .append(" 安全箱=")
                         .append(permLabel(safeVal(v, PermissionManager.TYPE_SAFE_BOX), PermissionManager.defaultSafeBox()))
+                        .append(" 交易行=")
+                        .append(permLabel(safeVal(v, PermissionManager.TYPE_TRADE), PermissionManager.defaultTrade()))
                         .append("\n");
             }
         }
@@ -1585,6 +1593,7 @@ public final class CommandDN {
             Boolean wb = PermissionManager.getOverride(name, PermissionManager.TYPE_WORKBENCH);
             Boolean sp2 = PermissionManager.getOverride(name, PermissionManager.TYPE_SPECIAL);
             Boolean sb2 = PermissionManager.getOverride(name, PermissionManager.TYPE_SAFE_BOX);
+            Boolean tr2 = PermissionManager.getOverride(name, PermissionManager.TYPE_TRADE);
             final String fName = name;
             source.sendSuccess(() -> Component.literal("§e" + fName + "§r: 仓库="
                     + (wh != null ? (wh ? "允许(覆盖)" : "拒绝(覆盖)") : (PermissionManager.defaultWarehouse() ? "允许(默认)" : "拒绝(默认)"))
@@ -1593,7 +1602,9 @@ public final class CommandDN {
                     + " 特勤处="
                     + (sp2 != null ? (sp2 ? "允许(覆盖)" : "拒绝(覆盖)") : (PermissionManager.defaultSpecial() ? "允许(默认)" : "拒绝(默认)"))
                     + " 安全箱="
-                    + (sb2 != null ? (sb2 ? "允许(覆盖)" : "拒绝(覆盖)") : (PermissionManager.defaultSafeBox() ? "允许(默认)" : "拒绝(默认)"))), false);
+                    + (sb2 != null ? (sb2 ? "允许(覆盖)" : "拒绝(覆盖)") : (PermissionManager.defaultSafeBox() ? "允许(默认)" : "拒绝(默认)"))
+                    + " 交易行="
+                    + (tr2 != null ? (tr2 ? "允许(覆盖)" : "拒绝(覆盖)") : (PermissionManager.defaultTrade() ? "允许(默认)" : "拒绝(默认)"))), false);
             shown++;
         }
         if (skipped > 0) {
@@ -1614,7 +1625,7 @@ public final class CommandDN {
         }
         int t = parsePermType(type);
         if (t < -1) {
-            source.sendFailure(Component.literal("type 仅支持 warehouse/workbench/special/safe_box/all"));
+            source.sendFailure(Component.literal("type 仅支持 warehouse/workbench/special/safe_box/trade/all"));
             return 0;
         }
         int applied = 0, skipped = 0;
@@ -1677,7 +1688,7 @@ public final class CommandDN {
         }
         int t = parsePermType(type);
         if (t < -1) {
-            source.sendFailure(Component.literal("type 仅支持 warehouse/workbench/special/all"));
+            source.sendFailure(Component.literal("type 仅支持 warehouse/workbench/special/safe_box/trade/all"));
             return 0;
         }
         PermissionManager.setDefault(t, value);
@@ -1690,13 +1701,14 @@ public final class CommandDN {
         return allow.equalsIgnoreCase("allow");
     }
 
-    /** 解析权限类型：warehouse=0 / workbench=1 / special=2 / safe_box=3 / all=-1；非法返回 -2。 */
+    /** 解析权限类型：warehouse=0 / workbench=1 / special=2 / safe_box=3 / trade=4 / all=-1；非法返回 -2。 */
     private static int parsePermType(String type) {
         return switch (type.toLowerCase(Locale.ROOT)) {
             case "warehouse" -> PermissionManager.TYPE_WAREHOUSE;
             case "workbench" -> PermissionManager.TYPE_WORKBENCH;
             case "special" -> PermissionManager.TYPE_SPECIAL;
             case "safe_box", "safebox" -> PermissionManager.TYPE_SAFE_BOX;
+            case "trade" -> PermissionManager.TYPE_TRADE;
             case "all" -> -1;
             default -> -2;
         };

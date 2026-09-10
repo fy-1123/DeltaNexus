@@ -45,7 +45,10 @@ public final class PermissionManager {
     public static final int TYPE_SPECIAL = 2;
     /** 安全箱（2.1：独立权限，不再跟随仓库）。 */
     public static final int TYPE_SAFE_BOX = 3;
-    public static final String[] TYPE_KEYS = {"warehouse", "workbench", "special", "safe_box"};
+    /** 交易行（0.2.0Beta）。 */
+    public static final int TYPE_TRADE = 4;
+    /** 权限类型键（与下标一一对应；指令/Web 展示用）。 */
+    public static final String[] TYPE_KEYS = {"warehouse", "workbench", "special", "safe_box", "trade"};
 
     private static final Path PATH = FMLPaths.CONFIGDIR.get().resolve("deltanexus/permissions.json");
 
@@ -57,7 +60,9 @@ public final class PermissionManager {
     private static volatile boolean defaultSpecial = true;
     /** 安全箱。 */
     private static volatile boolean defaultSafeBox = true;
-    /** 玩家名（小写） -> {warehouse, workbench, special, safe_box}；null = 跟随全局默认（部分覆盖不冻结另一项）。 */
+    /** 交易行。 */
+    private static volatile boolean defaultTrade = true;
+    /** 玩家名（小写） -> {warehouse, workbench, special, safe_box, trade}；null = 跟随全局默认（部分覆盖不冻结另一项）。 */
     private static final Map<String, Boolean[]> OVERRIDES = new ConcurrentHashMap<>();
     /** 禁用 mod 功能的玩家名（小写）（2.1：禁用后无法使用任何 mod 功能，UI 恢复原版）。 */
     private static final Set<String> FEATURES_DISABLED = ConcurrentHashMap.newKeySet();
@@ -79,6 +84,7 @@ public final class PermissionManager {
             defaultWorkbench = true;
             defaultSpecial = true;
             defaultSafeBox = true;
+            defaultTrade = true;
             return;
         }
         opExempt = root.has("op_exempt") ? root.get("op_exempt").getAsBoolean() : true;
@@ -86,6 +92,7 @@ public final class PermissionManager {
         defaultWorkbench = boolOf(root, "default_workbench", true);
         defaultSpecial = boolOf(root, "default_special", true);
         defaultSafeBox = boolOf(root, "default_safe_box", true);
+        defaultTrade = boolOf(root, "default_trade", true);
         if (root.has("players") && root.get("players").isJsonObject()) {
             for (Map.Entry<String, JsonElement> e : root.getAsJsonObject("players").entrySet()) {
                 JsonElement v = e.getValue();
@@ -97,14 +104,15 @@ public final class PermissionManager {
                         o.has("warehouse") ? o.get("warehouse").getAsBoolean() : null,
                         o.has("workbench") ? o.get("workbench").getAsBoolean() : null,
                         o.has("special") ? o.get("special").getAsBoolean() : null,
-                        o.has("safe_box") ? o.get("safe_box").getAsBoolean() : null});
+                        o.has("safe_box") ? o.get("safe_box").getAsBoolean() : null,
+                        o.has("trade") ? o.get("trade").getAsBoolean() : null});
                 if (o.has("features") && !o.get("features").getAsBoolean()) {
                     FEATURES_DISABLED.add(e.getKey().toLowerCase(Locale.ROOT));
                 }
             }
         }
-        DeltaNexus.LOGGER.info("[DN] 权限配置热加载完成：OP豁免={} 默认 仓库={} 工作台={} 特勤处={} 安全箱={}，覆盖 {} 人，禁用功能 {} 人",
-                opExempt, defaultWarehouse, defaultWorkbench, defaultSpecial, defaultSafeBox,
+        DeltaNexus.LOGGER.info("[DN] 权限配置热加载完成：OP豁免={} 默认 仓库={} 工作台={} 特勤处={} 安全箱={} 交易行={}，覆盖 {} 人，禁用功能 {} 人",
+                opExempt, defaultWarehouse, defaultWorkbench, defaultSpecial, defaultSafeBox, defaultTrade,
                 OVERRIDES.size(), FEATURES_DISABLED.size());
     }
 
@@ -133,6 +141,7 @@ public final class PermissionManager {
         root.addProperty("default_workbench", defaultWorkbench);
         root.addProperty("default_special", defaultSpecial);
         root.addProperty("default_safe_box", defaultSafeBox);
+        root.addProperty("default_trade", defaultTrade);
         JsonObject players = new JsonObject();
         for (Map.Entry<String, Boolean[]> e : OVERRIDES.entrySet()) {
             JsonObject o = new JsonObject();
@@ -148,6 +157,9 @@ public final class PermissionManager {
             }
             if (v.length > TYPE_SAFE_BOX && v[TYPE_SAFE_BOX] != null) {
                 o.addProperty("safe_box", v[TYPE_SAFE_BOX]);
+            }
+            if (v.length > TYPE_TRADE && v[TYPE_TRADE] != null) {
+                o.addProperty("trade", v[TYPE_TRADE]);
             }
             // 2.1：禁用 mod 功能的玩家标记 features=false
             if (FEATURES_DISABLED.contains(e.getKey())) {
@@ -224,6 +236,15 @@ public final class PermissionManager {
         return v != null ? v : defaultSafeBox;
     }
 
+    /** 交易行：独立权限，默认允许（与仓库权限同策略，可被 /dn perm 覆盖）。 */
+    public static boolean canOpenTrade(ServerPlayer player) {
+        if (player == null || opAllowed(player)) {
+            return true;
+        }
+        Boolean v = overrideOf(player, TYPE_TRADE);
+        return v != null ? v : defaultTrade;
+    }
+
     /**
      * 玩家是否可使用 mod 功能（2.1）：禁用后无法使用任何 mod 功能，UI 恢复原版。
      * OP 同样受限（功能禁用为硬开关，不受 opExempt 影响）。
@@ -274,13 +295,13 @@ public final class PermissionManager {
     // 修改（指令 / Web 调用）
     // ------------------------------------------------------------------
 
-    /** 设置玩家权限覆盖（type = TYPE_WAREHOUSE / TYPE_WORKBENCH / TYPE_SPECIAL / TYPE_SAFE_BOX / -1 表示全部；
+    /** 设置玩家权限覆盖（type = TYPE_WAREHOUSE / TYPE_WORKBENCH / TYPE_SPECIAL / TYPE_SAFE_BOX / TYPE_TRADE / -1 表示全部；
      *  未指定的类型保持 null（跟随全局默认，不冻结）。 */
     public static synchronized void setOverride(String name, int type, boolean allow) {
         String key = normalize(name);
-        Boolean[] v = OVERRIDES.computeIfAbsent(key, k -> new Boolean[]{null, null, null, null});
-        if (v.length < 4) {
-            v = java.util.Arrays.copyOf(v, 4);
+        Boolean[] v = OVERRIDES.computeIfAbsent(key, k -> new Boolean[]{null, null, null, null, null});
+        if (v.length < 5) {
+            v = java.util.Arrays.copyOf(v, 5);
             OVERRIDES.put(key, v);
         }
         if (type == TYPE_WAREHOUSE || type < 0) {
@@ -295,6 +316,9 @@ public final class PermissionManager {
         if (type == TYPE_SAFE_BOX || type < 0) {
             v[TYPE_SAFE_BOX] = allow;
         }
+        if (type == TYPE_TRADE || type < 0) {
+            v[TYPE_TRADE] = allow;
+        }
         saveNow();
     }
 
@@ -307,7 +331,7 @@ public final class PermissionManager {
         return removed;
     }
 
-    /** 设置全局默认（type = TYPE_WAREHOUSE / TYPE_WORKBENCH / TYPE_SPECIAL / TYPE_SAFE_BOX / -1 表示全部）。 */
+    /** 设置全局默认（type = TYPE_WAREHOUSE / TYPE_WORKBENCH / TYPE_SPECIAL / TYPE_SAFE_BOX / TYPE_TRADE / -1 表示全部）。 */
     public static synchronized void setDefault(int type, boolean allow) {
         if (type == TYPE_WAREHOUSE || type < 0) {
             defaultWarehouse = allow;
@@ -321,6 +345,9 @@ public final class PermissionManager {
         if (type == TYPE_SAFE_BOX || type < 0) {
             defaultSafeBox = allow;
         }
+        if (type == TYPE_TRADE || type < 0) {
+            defaultTrade = allow;
+        }
         saveNow();
     }
 
@@ -329,6 +356,7 @@ public final class PermissionManager {
             case TYPE_WAREHOUSE -> defaultWarehouse;
             case TYPE_SPECIAL -> defaultSpecial;
             case TYPE_SAFE_BOX -> defaultSafeBox;
+            case TYPE_TRADE -> defaultTrade;
             default -> defaultWorkbench;
         };
     }
@@ -348,6 +376,11 @@ public final class PermissionManager {
     /** 安全箱。 */
     public static boolean defaultSafeBox() {
         return defaultSafeBox;
+    }
+
+    /** 交易行。 */
+    public static boolean defaultTrade() {
+        return defaultTrade;
     }
 
     /** 覆盖玩家名集合（小写）。 */

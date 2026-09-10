@@ -1,9 +1,11 @@
 package com.deltanexus.system.client.gui;
 
 import com.deltanexus.system.DeltaNexus;
+import com.deltanexus.system.client.TradeSellIndex;
 import com.deltanexus.system.common.FormatUtil;
 import com.deltanexus.system.menu.WarehouseMenu;
 import com.deltanexus.system.network.PacketHandler;
+import com.deltanexus.system.network.packet.C2STradeSellPacket;
 import com.deltanexus.system.network.packet.C2SWarehouseScrollPacket;
 import com.deltanexus.system.network.packet.SyncSafeBoxPacket;
 import com.deltanexus.system.network.packet.SyncWarehousePacket;
@@ -12,6 +14,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * 仓库 GUI（2.0.8 UI 重构：三列布局 + 原位滚动）。
@@ -35,6 +38,19 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
     private int pendingScroll = 0;
     private long lastScrollSent = 0;
 
+    // ---- 交易行卖出（0.2.0Beta）：出售模式 / 多选 / 二次确认 ----
+    /** 出售模式开关（开启后点击仓库格为选中而非拖拽）。 */
+    private boolean sellMode = false;
+    /** 已点「出售」，等待「确认」。 */
+    private boolean sellConfirm = false;
+    /** 选中项：来源槽位 -> 选中信息（数量 + 记录时单价，滚动后预估仍准确）。 */
+    private final java.util.Map<SellKey, SellSel> sellSelection = new java.util.LinkedHashMap<>();
+    /** 每格匹配结果缓存（按 目录修订号 + 同步修订号 失效）。 */
+    private final java.util.Map<SellKey, TradeSellIndex.Match> sellMatchCache = new java.util.HashMap<>();
+    private long sellCacheKey = Long.MIN_VALUE;
+    /** 仓库同步修订号（每次 SyncWarehousePacket 自增，用于失效匹配缓存）。 */
+    private long syncRevision = 0;
+
     public WarehouseScreen(WarehouseMenu menu, Inventory inv, Component title) {
         super(menu, inv, title);
         this.sync = lastSync;
@@ -43,6 +59,9 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
     /** 同步包到达：实时刷新（升级后无需重开 GUI）。 */
     public void onSync(SyncWarehousePacket packet) {
         this.sync = packet;
+        // 视口/解锁变化后失效匹配缓存（选中项按全局索引保留，确认时服务端会重新校验）
+        this.syncRevision++;
+        this.sellMatchCache.clear();
     }
 
     /** 当前视口起始行（以同步包为准：原位滚动后 menu.scrollRow 不再重建）。 */
@@ -178,7 +197,12 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
         int unlocked = Math.max(0, unlockedRows());
         int endRow = Math.min(scrollRow() + WarehouseMenu.WAREHOUSE_ROWS, unlocked);
         String rowInfo = (scrollRow() + 1) + " - " + Math.max(scrollRow() + 1, endRow) + " / " + unlocked;
-        gg.drawCenteredString(font, rowInfo, L.whX + 81, L.whY + 218, DnTheme.ACCENT);
+        // 0.2.0Beta：出售按钮（左） + 右侧显示“预计总额”或行信息
+        drawSellButton(gg, mouseX, mouseY);
+        String rightText = !sellSelection.isEmpty()
+                ? Component.translatable("gui.dn.trade.sell.estimate", FormatUtil.compact(estimateTotal())).getString()
+                : rowInfo;
+        gg.drawString(font, rightText, L.whX + 162 - font.width(rightText), L.whY + 218, DnTheme.ACCENT);
     }
 
     private void drawTitle(GuiGraphics gg, int x, int y, int w, String key, int color) {
@@ -206,6 +230,7 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
         }
         renderBackground(gg);
         super.render(gg, mouseX, mouseY, partialTick);
+        renderSellOverlay(gg);
         renderTooltip(gg, mouseX, mouseY);
     }
 
@@ -217,6 +242,29 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
                 && this.hoveredSlot.index < WarehouseMenu.WAREHOUSE_SLOTS
                 && !isWarehouseSlotUnlocked(this.hoveredSlot.getSlotIndex())) {
             return;
+        }
+        // 出售模式：为悬停槽位（仓库/背包/安全箱）追加回收信息（仅悬停格懒计算）
+        if (sellMode && this.hoveredSlot != null && !this.hoveredSlot.getItem().isEmpty()) {
+            SellKey key = sellKeyOf(this.hoveredSlot);
+            if (key != null) {
+                java.util.List<Component> lines = new java.util.ArrayList<>(
+                        this.getTooltipFromItem(this.minecraft, this.hoveredSlot.getItem()));
+                TradeSellIndex.Match m = matchAt(key);
+                if (m != null) {
+                    lines.add(Component.translatable("gui.dn.trade.sell.tooltip",
+                            m.displayName, FormatUtil.compact(m.unitPrice)));
+                    SellSel sel = sellSelection.get(key);
+                    if (sel != null) {
+                        lines.add(Component.translatable("gui.dn.trade.sell.selected", sel.qty));
+                    }
+                } else {
+                    lines.add(Component.translatable("gui.dn.trade.sell.unsellable"));
+                }
+                java.util.List<net.minecraft.util.FormattedCharSequence> fcs =
+                        lines.stream().map(Component::getVisualOrderText).toList();
+                gg.renderTooltip(font, fcs, mouseX, mouseY);
+                return;
+            }
         }
         super.renderTooltip(gg, mouseX, mouseY);
     }
@@ -264,6 +312,247 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
      * vanilla 在容器界面「光标持有物品 + 滚轮」时会强制把滚轮坐标视为屏幕中心，
      * 此处以真实鼠标位置滚动仓库，避免指针行为异常。
      */
+    // ==================================================================
+    // 交易行卖出（0.2.0Beta）：多选 → 出售 → 确认
+    // ==================================================================
+
+    /** 出售按钮热区（行信息条左侧）。 */
+    private BtnRect sellBtnRect() {
+        PlayerLayout L = PlayerLayout.compute(width, height, true);
+        return new BtnRect(L.whX - 4, L.whY + 214, 54, 17);
+    }
+
+    private boolean isWarehouseViewSlot(int menuIndex) {
+        return menuIndex >= 0 && menuIndex < WarehouseMenu.WAREHOUSE_SLOTS;
+    }
+
+    /** 槽位来源：0=仓库 1=背包/快捷栏 2=安全箱；-1=不参与回收（盔甲/副手/其他）。 */
+    private int sellSourceOf(net.minecraft.world.inventory.Slot slot) {
+        if (slot == null) {
+            return -1;
+        }
+        if (isWarehouseViewSlot(slot.index)) {
+            return C2STradeSellPacket.SOURCE_WAREHOUSE;
+        }
+        if (slot.container instanceof Inventory && slot.getContainerSlot() < 36) {
+            return C2STradeSellPacket.SOURCE_INVENTORY;
+        }
+        int safeStart = menu.safeStart;
+        if (slot.index >= safeStart && slot.index < safeStart + Math.max(0, menu.safeCount())) {
+            return C2STradeSellPacket.SOURCE_SAFE_BOX;
+        }
+        return -1;
+    }
+
+    /** 槽位在来源内的索引。 */
+    private int sellIndexOf(net.minecraft.world.inventory.Slot slot, int source) {
+        return source == C2STradeSellPacket.SOURCE_WAREHOUSE ? slot.getSlotIndex() : slot.getContainerSlot();
+    }
+
+    private SellKey sellKeyOf(net.minecraft.world.inventory.Slot slot) {
+        int source = sellSourceOf(slot);
+        return source < 0 ? null : new SellKey(source, sellIndexOf(slot, source));
+    }
+
+    /** 按（来源, 索引）取当前菜单内的物品。 */
+    private ItemStack stackAt(SellKey key) {
+        for (var slot : menu.slots) {
+            int source = sellSourceOf(slot);
+            if (source == key.source && sellIndexOf(slot, source) == key.index) {
+                return slot.getItem();
+            }
+        }
+        return ItemStack.EMPTY;
+    }
+
+    /** 该槽位匹配的回收商品（按目录/同步修订号缓存；覆盖仓库/背包/安全箱）。 */
+    private TradeSellIndex.Match matchAt(SellKey key) {
+        TradeSellIndex idx = TradeSellIndex.get();
+        long cacheKey = syncRevision * 1_000_003L + idx.revision();
+        if (cacheKey != sellCacheKey) {
+            sellMatchCache.clear();
+            sellCacheKey = cacheKey;
+        }
+        if (sellMatchCache.containsKey(key)) {
+            return sellMatchCache.get(key);
+        }
+        ItemStack st = stackAt(key);
+        TradeSellIndex.Match m = st.isEmpty() ? null : idx.match(st);
+        sellMatchCache.put(key, m);
+        return m;
+    }
+
+    /** 左键：选中/取消整堆；右键：整堆 ⇄ 仅 1 个。 */
+    private void toggleSellSelection(SellKey key, boolean rightClick, int stackCount) {
+        TradeSellIndex.Match m = matchAt(key);
+        if (m == null) {
+            return;
+        }
+        SellSel cur = sellSelection.get(key);
+        if (rightClick) {
+            if (cur == null) {
+                sellSelection.put(key, new SellSel(1, m.unitPrice, m.goodId));
+            } else if (cur.qty > 1) {
+                sellSelection.put(key, new SellSel(1, m.unitPrice, m.goodId));
+            } else {
+                sellSelection.put(key, new SellSel(stackCount, m.unitPrice, m.goodId));
+            }
+            return;
+        }
+        if (cur == null) {
+            sellSelection.put(key, new SellSel(stackCount, m.unitPrice, m.goodId));
+        } else {
+            sellSelection.remove(key);
+        }
+    }
+
+    private long estimateTotal() {
+        long sum = 0L;
+        for (SellSel s : sellSelection.values()) {
+            sum += s.unitPrice * (long) s.qty;
+        }
+        return sum;
+    }
+
+    private void sendSell() {
+        java.util.List<C2STradeSellPacket.Entry> list = new java.util.ArrayList<>();
+        sellSelection.forEach((key, sel) ->
+                list.add(new C2STradeSellPacket.Entry(key.source, key.index, sel.qty)));
+        if (!list.isEmpty()) {
+            PacketHandler.sendToServer(new C2STradeSellPacket(list));
+        }
+        sellSelection.clear();
+        sellConfirm = false;
+    }
+
+    private void clearSellState() {
+        sellMode = false;
+        sellConfirm = false;
+        sellSelection.clear();
+        sellMatchCache.clear();
+    }
+
+    private void drawSellButton(GuiGraphics gg, int mouseX, int mouseY) {
+        BtnRect r = sellBtnRect();
+        boolean hover = r.contains(mouseX, mouseY);
+        String label = sellConfirm
+                ? Component.translatable("gui.dn.trade.sell.confirm").getString()
+                : (sellSelection.isEmpty()
+                        ? Component.translatable("gui.dn.trade.sell.button").getString()
+                        : Component.translatable("gui.dn.trade.sell.button_count", sellSelection.size()).getString());
+        int top = sellConfirm ? (hover ? 0xFFB23A3A : 0xFF8E2B2B) : (hover ? 0xFF3A4655 : 0xFF2A3040);
+        int bot = sellConfirm ? (hover ? 0xFF8E2B2B : 0xFF6E1F1F) : (hover ? 0xFF2E3748 : 0xFF20242F);
+        gg.fillGradient(r.x, r.y, r.x + r.w, r.y + r.h, top, bot);
+        gg.renderOutline(r.x, r.y, r.w, r.h, sellConfirm ? 0xFFFF6B6B : DnTheme.PANEL_BORDER_IN);
+        gg.drawCenteredString(font, label, r.x + r.w / 2, r.y + (r.h - 8) / 2,
+                sellConfirm ? 0xFFFFFFFF : DnTheme.TEXT_MAIN);
+    }
+
+    /** 选中（金框 + 数量角标）与可回收（绿框）高亮；覆盖仓库、背包/快捷栏、安全箱。 */
+    private void renderSellOverlay(GuiGraphics gg) {
+        if (!sellMode) {
+            return;
+        }
+        boolean safeOk = SafeBoxOverlay.safeAllowed(SafeBoxOverlay.lastState());
+        for (var slot : menu.slots) {
+            int source = sellSourceOf(slot);
+            if (source < 0 || slot.getItem().isEmpty()) {
+                continue;
+            }
+            if (source == C2STradeSellPacket.SOURCE_WAREHOUSE && !isWarehouseSlotUnlocked(slot.getSlotIndex())) {
+                continue;
+            }
+            if (source == C2STradeSellPacket.SOURCE_SAFE_BOX && !safeOk) {
+                continue;
+            }
+            SellKey key = new SellKey(source, sellIndexOf(slot, source));
+            TradeSellIndex.Match m = matchAt(key);
+            if (m == null) {
+                continue;
+            }
+            SellSel sel = sellSelection.get(key);
+            if (sel != null) {
+                gg.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, 0x55FFD700);
+                gg.renderOutline(slot.x - 1, slot.y - 1, 18, 18, 0xFFFFD700);
+                gg.renderOutline(slot.x, slot.y, 16, 16, 0xFFFFD700);
+                String badge = sel.qty >= slot.getItem().getCount() ? "堆" : String.valueOf(sel.qty);
+                gg.pose().pushPose();
+                gg.pose().translate(slot.x + 1, slot.y + 9, 200);
+                gg.pose().scale(0.5f, 0.5f, 1f);
+                gg.drawString(font, badge, 0, 0, 0xFFFFF0A0, true);
+                gg.pose().popPose();
+            } else {
+                gg.renderOutline(slot.x - 1, slot.y - 1, 18, 18, 0x806BD47A);
+            }
+        }
+    }
+
+    @Override
+    public boolean mouseClicked(double mx, double my, int button) {
+        BtnRect btn = sellBtnRect();
+        if (btn.contains(mx, my)) {
+            if (!sellMode) {
+                // 进入出售模式
+                sellMode = true;
+                sellConfirm = false;
+                sellSelection.clear();
+            } else if (button == 1) {
+                // 右键按钮：退出出售模式
+                clearSellState();
+            } else if (sellConfirm) {
+                sendSell();
+            } else if (sellSelection.isEmpty()) {
+                clearSellState();
+            } else {
+                sellConfirm = true;
+            }
+            return true;
+        }
+        if (sellMode) {
+            if (sellConfirm) {
+                sellConfirm = false;
+                return true;
+            }
+            var slot = this.getSlotUnderMouse();
+            if (slot != null) {
+                SellKey key = sellKeyOf(slot);
+                if (key != null && !slot.getItem().isEmpty() && matchAt(key) != null) {
+                    toggleSellSelection(key, button == 1, slot.getItem().getCount());
+                    return true;
+                }
+            }
+        }
+        return super.mouseClicked(mx, my, button);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (sellMode && keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
+            if (sellConfirm) {
+                sellConfirm = false;
+            } else {
+                clearSellState();
+            }
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    /** 选中信息（数量 + 记录时单价，便于滚动后预估）。 */
+    private record SellSel(int qty, long unitPrice, String goodId) {
+    }
+
+    /** 回收来源槽位标识（source：0=仓库 1=背包 2=安全箱）。 */
+    private record SellKey(int source, int index) {
+    }
+
+    /** 整数矩形热区。 */
+    private record BtnRect(int x, int y, int w, int h) {
+        boolean contains(double px, double py) {
+            return px >= x && px < x + w && py >= y && py < y + h;
+        }
+    }
+
     @net.minecraftforge.fml.common.Mod.EventBusSubscriber(
             modid = DeltaNexus.MODID, value = net.minecraftforge.api.distmarker.Dist.CLIENT)
     public static final class ScrollInterceptor {

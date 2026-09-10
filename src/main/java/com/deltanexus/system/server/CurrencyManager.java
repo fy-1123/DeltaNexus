@@ -2,25 +2,27 @@ package com.deltanexus.system.server;
 
 import com.deltanexus.system.DeltaNexus;
 import com.deltanexus.system.config.ModConfig;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.registries.ForgeRegistries;
 
 /**
- * 货币管理器（任务四）：支持四种货币来源。
+ * 货币管理器：支持三种货币来源（0.2.0Beta 起移除 item 物品货币）。
  *
  * <ul>
- *   <li>{@code item}          —— 物品货币（config currency_item，默认绿宝石）</li>
- *   <li>{@code scoreboard}    —— 计分板货币（config currency_scoreboard 目标）</li>
+ *   <li>{@code scoreboard}    —— 计分板货币（config currency_scoreboard 目标，默认 dn_money；
+ *                               服务器启动时自动创建目标）</li>
  *   <li>{@code vault}         —— Vault 经济（Mohist 混合端 Bukkit API，反射访问；
  *                                Vault 本身不提供货币，需 EssentialsX/CMI 等插件注册经济提供者）</li>
  *   <li>{@code playerpoints}  —— PlayerPoints 点券（Bukkit 插件，反射访问 PlayerPointsAPI，
  *                                与 WarZDM 动态商店点券同一来源）</li>
  * </ul>
+ *
+ * <p>扣款 {@link #spend} 与收款 {@link #pay} 成对；计分板为 int 分数，收/扣均做溢出与负值保护。</p>
  */
 public final class CurrencyManager {
+
+    /** 计分板分数上限（避免加减溢出变负数）。 */
+    private static final long SCORE_MAX = Integer.MAX_VALUE;
+    private static final long SCORE_MIN = Integer.MIN_VALUE;
 
     private CurrencyManager() {
     }
@@ -59,10 +61,9 @@ public final class CurrencyManager {
     /** 当前货币余额。 */
     public static long getBalance(ServerPlayer player) {
         return switch (type()) {
-            case "scoreboard" -> getScore(player);
             case "vault" -> VaultBridge.getBalance(player);
             case "playerpoints" -> PlayerPointsBridge.look(player);
-            default -> countItem(player, ModConfig.currencyItem());
+            default -> getScore(player);
         };
     }
 
@@ -77,10 +78,39 @@ public final class CurrencyManager {
             return true;
         }
         return switch (type()) {
-            case "scoreboard" -> spendScore(player, amount);
             case "vault" -> VaultBridge.withdraw(player, amount);
             case "playerpoints" -> PlayerPointsBridge.take(player, amount);
-            default -> removeItem(player, ModConfig.currencyItem(), (int) amount);
+            default -> spendScore(player, amount);
+        };
+    }
+
+    /** 收款能力预检（vault/playerpoints 需插件可用；计分板恒可用）。 */
+    public static boolean canPay(ServerPlayer player, long amount) {
+        if (amount < 0) {
+            return false;
+        }
+        if (amount == 0) {
+            return true;
+        }
+        return switch (type()) {
+            case "vault" -> VaultBridge.hasProvider();
+            case "playerpoints" -> PlayerPointsBridge.isAvailable();
+            default -> true;
+        };
+    }
+
+    /**
+     * 给玩家加钱（卖出/奖励用），成功返回 true。
+     * <p>计分板：直接加分（溢出保护）；Vault：depositPlayer；PlayerPoints：give。</p>
+     */
+    public static boolean pay(ServerPlayer player, long amount) {
+        if (amount <= 0) {
+            return true;
+        }
+        return switch (type()) {
+            case "vault" -> VaultBridge.deposit(player, amount);
+            case "playerpoints" -> PlayerPointsBridge.give(player, amount);
+            default -> addScore(player, amount);
         };
     }
 
@@ -130,48 +160,6 @@ public final class CurrencyManager {
     }
 
     // ------------------------------------------------------------------
-    // 物品货币
-    // ------------------------------------------------------------------
-
-    public static int countItem(net.minecraft.world.entity.player.Player player, String itemId) {
-        Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.tryParse(itemId));
-        if (item == null) {
-            return 0;
-        }
-        int total = 0;
-        var inv = player.getInventory();
-        for (int i = 0; i < inv.getContainerSize(); i++) {
-            ItemStack stack = inv.getItem(i);
-            if (!stack.isEmpty() && stack.is(item)) {
-                total += stack.getCount();
-            }
-        }
-        return total;
-    }
-
-    public static boolean removeItem(net.minecraft.world.entity.player.Player player, String itemId, int count) {
-        Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.tryParse(itemId));
-        if (item == null) {
-            return false;
-        }
-        var inv = player.getInventory();
-        int remaining = count;
-        for (int i = 0; i < inv.getContainerSize() && remaining > 0; i++) {
-            ItemStack stack = inv.getItem(i);
-            if (!stack.isEmpty() && stack.is(item)) {
-                int take = Math.min(remaining, stack.getCount());
-                stack.shrink(take);
-                remaining -= take;
-                if (stack.isEmpty()) {
-                    inv.setItem(i, ItemStack.EMPTY);
-                }
-            }
-        }
-        player.inventoryMenu.broadcastChanges();
-        return remaining <= 0;
-    }
-
-    // ------------------------------------------------------------------
     // 计分板货币
     // ------------------------------------------------------------------
 
@@ -207,12 +195,56 @@ public final class CurrencyManager {
             return false;
         }
         var score = player.getScoreboard().getOrCreatePlayerScore(player.getScoreboardName(), objective);
-        long newValue = score.getScore() - amount;
+        long newValue = (long) score.getScore() - amount;
         if (newValue < 0) {
             return false;
         }
         score.setScore((int) newValue);
         return true;
+    }
+
+    /** 加分（卖出/奖励）；溢出（超过 int 上限）返回 false。 */
+    private static boolean addScore(ServerPlayer player, long amount) {
+        var objective = scoreObjective(player);
+        if (objective == null) {
+            return false;
+        }
+        var score = player.getScoreboard().getOrCreatePlayerScore(player.getScoreboardName(), objective);
+        long newValue = (long) score.getScore() + amount;
+        if (newValue > SCORE_MAX) {
+            return false;
+        }
+        score.setScore((int) newValue);
+        return true;
+    }
+
+    /**
+     * 服务器启动就绪：显式创建计分板货币目标（已存在则跳过）并打日志。
+     * 由 ServerStartedEvent 调用；非 scoreboard 货币时仅记录当前类型。
+     */
+    public static void ensureReady(net.minecraft.server.MinecraftServer server) {
+        if (server == null) {
+            return;
+        }
+        if (!"scoreboard".equals(type())) {
+            DeltaNexus.LOGGER.info("[DN] 货币类型 {}，跳过计分板目标创建", type());
+            return;
+        }
+        String name = ModConfig.currencyScoreboard();
+        try {
+            var scoreboard = server.getScoreboard();
+            if (scoreboard.getObjective(name) == null) {
+                scoreboard.addObjective(name,
+                        net.minecraft.world.scores.criteria.ObjectiveCriteria.DUMMY,
+                        net.minecraft.network.chat.Component.literal(name),
+                        net.minecraft.world.scores.criteria.ObjectiveCriteria.RenderType.INTEGER);
+                DeltaNexus.LOGGER.info("[DN] 已创建计分板货币目标 '{}'", name);
+            } else {
+                DeltaNexus.LOGGER.info("[DN] 计分板货币目标 '{}' 已存在", name);
+            }
+        } catch (Exception e) {
+            DeltaNexus.LOGGER.warn("[DN] 创建计分板货币目标 '{}' 失败: {}", name, e.getMessage());
+        }
     }
 
     // ------------------------------------------------------------------
@@ -514,6 +546,30 @@ public final class CurrencyManager {
                 return false;
             }
         }
+
+        /** 存入（卖出/奖励收款）。 */
+        static boolean deposit(ServerPlayer player, long amount) {
+            try {
+                Object eco = economy();
+                Object target = bukkitPlayer(player);
+                if (eco == null || target == null) {
+                    return false;
+                }
+                Class<?> offlineClass = offlinePlayerClass(eco);
+                var m = eco.getClass().getMethod("depositPlayer", offlineClass, double.class);
+                m.setAccessible(true);
+                Object result = m.invoke(eco, target, (double) amount);
+                if (result == null) {
+                    return false;
+                }
+                var m2 = result.getClass().getMethod("transactionSuccess");
+                m2.setAccessible(true);
+                return (Boolean) m2.invoke(result);
+            } catch (Throwable t) {
+                DeltaNexus.LOGGER.debug("[DN] Vault 存款失败: {}", t.toString());
+                return false;
+            }
+        }
     }
 
     // ------------------------------------------------------------------
@@ -594,6 +650,23 @@ public final class CurrencyManager {
                 return (Boolean) m.invoke(a, player.getUUID(), (int) amount);
             } catch (Throwable t) {
                 DeltaNexus.LOGGER.debug("[DN] PlayerPoints 扣款失败: {}", t.toString());
+                return false;
+            }
+        }
+
+        /** 发放点券（卖出/奖励收款）。 */
+        static boolean give(ServerPlayer player, long amount) {
+            try {
+                Object a = api();
+                if (a == null) {
+                    return false;
+                }
+                var m = a.getClass().getMethod("give", java.util.UUID.class, int.class);
+                m.setAccessible(true);
+                m.invoke(a, player.getUUID(), (int) amount);
+                return true;
+            } catch (Throwable t) {
+                DeltaNexus.LOGGER.debug("[DN] PlayerPoints 发放失败: {}", t.toString());
                 return false;
             }
         }

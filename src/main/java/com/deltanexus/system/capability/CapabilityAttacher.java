@@ -98,31 +98,85 @@ public final class CapabilityAttacher {
     private static final java.util.Map<java.util.UUID, net.minecraft.nbt.CompoundTag> DEATH_BACKUP =
             new ConcurrentHashMap<>();
 
+    /** 本轮生命周期内已写过濒死快照的玩家（复活后清除，避免每 tick 重复写盘）。 */
+    private static final java.util.Set<UUID> DEATH_SNAPSHOT_DONE = ConcurrentHashMap.newKeySet();
+
     private static Path backupPath(UUID uuid) {
         return BACKUP_DIR.resolve(uuid + ".dat");
+    }
+
+    /**
+     * 濒死检测（0.2.0Beta 修复 setHealth 死亡丢数据）：
+     * 有些死亡路径（插件/命令直接 {@code setHealth(0)}、异常清血）不触发
+     * {@link net.minecraftforge.event.entity.living.LivingDeathEvent}，
+     * 因此在玩家 tick 里检测「已死亡/濒死」并立即快照，作为 die() 之外的可靠兜底。
+     */
+    @SubscribeEvent
+    public static void onPlayerTick(net.minecraftforge.event.TickEvent.PlayerTickEvent event) {
+        if (event.phase != net.minecraftforge.event.TickEvent.Phase.END) {
+            return;
+        }
+        if (!(event.player instanceof net.minecraft.server.level.ServerPlayer sp)) {
+            return;
+        }
+        boolean dying = sp.isDeadOrDying() || sp.getHealth() <= 0.0F;
+        if (dying) {
+            if (DEATH_SNAPSHOT_DONE.add(sp.getUUID())) {
+                snapshot(sp, "濒死");
+            }
+        } else {
+            DEATH_SNAPSHOT_DONE.remove(sp.getUUID());
+        }
     }
 
     /** 玩家死亡：备份 capability 完整数据（内存 + 磁盘，供重生/登录兜底恢复）。 */
     @SubscribeEvent
     public static void onPlayerDeath(net.minecraftforge.event.entity.living.LivingDeathEvent event) {
         if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
-            player.getCapability(PLAYER_DATA).ifPresent(d -> {
-                try {
-                    net.minecraft.nbt.CompoundTag tag = d instanceof PlayerDataImpl impl
-                            ? impl.serializeFull() : d.serializeNBT();
-                    if (tag != null && !tag.isEmpty()) {
-                        DEATH_BACKUP.put(player.getUUID(), tag);
-                        writeBackupFile(player.getUUID(), tag);
-                        DeltaNexus.LOGGER.info("[DN] 玩家 {} 数据已备份：等级 {}，安全箱 Lv{}，磁盘 {}",
-                                player.getGameProfile().getName(),
-                                d.getWarehouseLevel(), d.getSafeBoxLevel(),
-                                backupPath(player.getUUID()));
-                    }
-                } catch (Exception e) {
-                    DeltaNexus.LOGGER.warn("[DN] 死亡备份失败: {}", e.getMessage());
-                }
-            });
+            snapshot(player, "死亡");
         }
+    }
+
+    /** 玩家登出：再写一份快照（保证每个有进度的玩家"至少保留一份"最新数据）。 */
+    @SubscribeEvent
+    public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer sp) {
+            snapshot(sp, "登出");
+        }
+    }
+
+    /**
+     * 写一份玩家数据快照（内存 + 磁盘）。
+     *
+     * <p><b>绝不写入空数据</b>：空标签或"无进度"的数据不会覆盖已有备份，
+     * 这样任何"被清空"的异常路径都不会把唯一副本覆盖掉。</p>
+     */
+    private static void snapshot(net.minecraft.server.level.ServerPlayer player, String reason) {
+        player.getCapability(PLAYER_DATA).ifPresent(d -> {
+            try {
+                net.minecraft.nbt.CompoundTag tag = d instanceof PlayerDataImpl impl
+                        ? impl.serializeFull() : d.serializeNBT();
+                if (tag == null || tag.isEmpty()) {
+                    return;
+                }
+                if (d instanceof PlayerDataImpl impl && isEmptyData(impl)) {
+                    // 无进度：不覆盖旧备份（可能正是被清空的现场）
+                    return;
+                }
+                DEATH_BACKUP.put(player.getUUID(), tag);
+                writeBackupFile(player.getUUID(), tag);
+                DeltaNexus.LOGGER.info("[DN] 玩家 {} 数据快照（{}）：等级 {}，安全箱 Lv{} → {}",
+                        player.getGameProfile().getName(), reason,
+                        d.getWarehouseLevel(), d.getSafeBoxLevel(), backupPath(player.getUUID()));
+            } catch (Exception e) {
+                DeltaNexus.LOGGER.warn("[DN] 数据快照失败: {}", e.getMessage());
+            }
+        });
+    }
+
+    /** 管理员重置玩家数据时清除备份（否则登录兜底会把旧数据恢复回来）。 */
+    public static void clearBackupFor(UUID uuid) {
+        clearBackup(uuid);
     }
 
     /** 写磁盘备份（SNBT；失败仅告警，不影响内存备份）。 */
@@ -198,13 +252,13 @@ public final class CapabilityAttacher {
                 if (backup != null) {
                     try {
                         impl.deserializeNBT(backup);
-                        clearBackup(entity.getUUID());
+                        // 0.2.0Beta：恢复后**保留**备份（每个玩家至少留一份数据，防再次被清空）
                         restored[0] = true;
-                        DeltaNexus.LOGGER.info("[DN] 已从死亡备份恢复玩家 {}：等级 {}，安全箱 Lv{}",
+                        DeltaNexus.LOGGER.info("[DN] 已从数据备份恢复玩家 {}：等级 {}，安全箱 Lv{}",
                                 entity instanceof Player p ? p.getGameProfile().getName() : entity.getUUID(),
                                 impl.getWarehouseLevel(), impl.getSafeBoxLevel());
                     } catch (Exception e) {
-                        DeltaNexus.LOGGER.warn("[DN] 死亡备份恢复失败: {}", e.getMessage());
+                        DeltaNexus.LOGGER.warn("[DN] 数据备份恢复失败: {}", e.getMessage());
                     }
                 }
             }
@@ -239,9 +293,9 @@ public final class CapabilityAttacher {
                 data.setUnlockedSlots(Math.min(ModConfig.baseSlots(), data.getCapacity()));
             }
         });
-        // 2.0.4/2.0.7：死亡备份兜底恢复（Clone 未触发且新数据无进度时；登录后无论是否恢复都清除陈旧备份）
+        // 2.0.4/2.0.7：数据备份兜底恢复（Clone 未触发且新数据无进度时）
+        // 0.2.0Beta：不再恢复后清除备份（每个玩家至少保留一份）；管理员 /dn data reset 会显式清除
         restoreFromBackup(event.getEntity());
-        clearBackup(event.getEntity().getUUID());
         if (!com.deltanexus.system.config.ModConfig.onlineMode()) {
             return;
         }

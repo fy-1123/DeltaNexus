@@ -28,3 +28,7 @@ forge*changelog.txt
 *.log
 *.log.zip
 LOG.LOG
+
+# 实现摘要临时目录（子代理产出，不入库）
+.dnplan/
+.dsh-work/

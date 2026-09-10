@@ -23,21 +23,25 @@ public final class KeyBindings {
 
     public static final String CATEGORY = "key.categories.deltanexus";
 
-    /** 打开仓库（B 键）。 */
+    /** 打开仓库。 */
     public static final KeyMapping OPEN_WAREHOUSE = new KeyMapping(
-            "key.dn.open_warehouse", GLFW.GLFW_KEY_B, CATEGORY);
+            "key.dn.open_warehouse", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY);
 
-    /** 打开工作台总览（G 键）。 */
+    /** 打开工作台总览。 */
     public static final KeyMapping OPEN_WORKBENCH = new KeyMapping(
-            "key.dn.open_workbench", GLFW.GLFW_KEY_G, CATEGORY);
+            "key.dn.open_workbench", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY);
 
-    /** 打开特勤处（V 键，2.0.3）。 */
+    /** 打开特勤处。 */
     public static final KeyMapping OPEN_SPECIAL = new KeyMapping(
-            "key.dn.open_special", GLFW.GLFW_KEY_V, CATEGORY);
+            "key.dn.open_special", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY);
 
-    /** 旋转光标物品（R 键，2.0.0 格式背包；2.0.4 起可自定义绑定）。 */
+    /** 旋转光标物品（R 键，2.0.0Alpha 格式背包）。 */
     public static final KeyMapping ROTATE_ITEM = new KeyMapping(
             "key.dn.rotate_item", GLFW.GLFW_KEY_R, CATEGORY);
+
+    /** 打开交易行（0.2.0Beta：默认不绑定）。 */
+    public static final KeyMapping OPEN_TRADE = new KeyMapping(
+            "key.dn.open_trade", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY);
 
     private KeyBindings() {
     }
@@ -47,6 +51,7 @@ public final class KeyBindings {
         event.register(OPEN_WORKBENCH);
         event.register(OPEN_SPECIAL);
         event.register(ROTATE_ITEM);
+        event.register(OPEN_TRADE);
     }
 
     /**
@@ -57,7 +62,7 @@ public final class KeyBindings {
         try {
             Minecraft mc = Minecraft.getInstance();
             for (KeyMapping ours : new KeyMapping[]{OPEN_WAREHOUSE, OPEN_WORKBENCH,
-                    OPEN_SPECIAL, ROTATE_ITEM}) {
+                    OPEN_SPECIAL, ROTATE_ITEM, OPEN_TRADE}) {
                 InputConstants.Key ourKey = ours.getKey();
                 for (KeyMapping mapping : mc.options.keyMappings) {
                     if (mapping != ours && mapping.getKey().equals(ourKey)) {

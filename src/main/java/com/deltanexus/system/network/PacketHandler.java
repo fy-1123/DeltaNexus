@@ -11,6 +11,9 @@ import com.deltanexus.system.network.packet.C2SRequestWorkbenchDataPacket;
 import com.deltanexus.system.network.packet.C2SRequestSafeBoxPacket;
 import com.deltanexus.system.network.packet.C2SSafeBoxClickPacket;
 import com.deltanexus.system.network.packet.C2SStartTaskPacket;
+import com.deltanexus.system.network.packet.C2STradeBuyPacket;
+import com.deltanexus.system.network.packet.C2STradeOpenPacket;
+import com.deltanexus.system.network.packet.C2STradeSellPacket;
 import com.deltanexus.system.network.packet.C2SUpgradeSafeBoxPacket;
 import com.deltanexus.system.network.packet.C2SUpgradeWarehousePacket;
 import com.deltanexus.system.network.packet.C2SWarehouseScrollPacket;
@@ -20,6 +23,7 @@ import com.deltanexus.system.network.packet.SyncGridSizesPacket;
 import com.deltanexus.system.network.packet.SyncManufacturePacket;
 import com.deltanexus.system.network.packet.SyncSafeBoxPacket;
 import com.deltanexus.system.network.packet.SyncServerUiPacket;
+import com.deltanexus.system.network.packet.SyncTradeCatalogPacket;
 import com.deltanexus.system.network.packet.SyncWarehousePacket;
 import com.deltanexus.system.network.packet.SyncWorkbenchDataPacket;
 import net.minecraft.resources.ResourceLocation;
@@ -44,8 +48,10 @@ import java.util.function.Supplier;
 public final class PacketHandler {
 
     /** 2.0.8：协议升级（移除 C2SOpenSafeBoxPacket，旧客户端不兼容）。
-     *  2.2：SyncServerUiPacket 新增功能开关字段（featuresEnabled），旧客户端不兼容。 */
-    public static final String PROTOCOL = "dn1";
+     *  2.2：SyncServerUiPacket 新增功能开关字段（featuresEnabled），旧客户端不兼容。
+     *  0.2.0Beta：交易行（SyncTradeCatalogPacket 增补 match_mode/match_keys；新增 C2STradeSellPacket），
+     *       协议升至 dn2，旧客户端不兼容。 */
+    public static final String PROTOCOL = "dn2";
 
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(DeltaNexus.MODID, "main"),
@@ -107,6 +113,17 @@ public final class PacketHandler {
         register(C2SPickupGridStackPacket.class,
                 C2SPickupGridStackPacket::encode, C2SPickupGridStackPacket::decode, C2SPickupGridStackPacket::handle,
                 NetworkDirection.PLAY_TO_SERVER);
+        // 交易行（0.2.0Beta）：打开 / 买入
+        register(C2STradeOpenPacket.class,
+                C2STradeOpenPacket::encode, C2STradeOpenPacket::decode, C2STradeOpenPacket::handle,
+                NetworkDirection.PLAY_TO_SERVER);
+        register(C2STradeBuyPacket.class,
+                C2STradeBuyPacket::encode, C2STradeBuyPacket::decode, C2STradeBuyPacket::handle,
+                NetworkDirection.PLAY_TO_SERVER);
+        // 交易行（0.2.0Beta）：仓库界面卖出（多槽位）
+        register(C2STradeSellPacket.class,
+                C2STradeSellPacket::encode, C2STradeSellPacket::decode, C2STradeSellPacket::handle,
+                NetworkDirection.PLAY_TO_SERVER);
 
         // 服务端 -> 客户端
         register(OpenScreenPacket.class,
@@ -134,6 +151,10 @@ public final class PacketHandler {
         // 服务端 GUI 白名单同步（2.0.9：登录与热重载时推送，与客户端白名单取并集）
         register(SyncServerUiPacket.class,
                 SyncServerUiPacket::encode, SyncServerUiPacket::decode, SyncServerUiPacket::handle,
+                NetworkDirection.PLAY_TO_CLIENT);
+        // 交易行目录（0.2.0Beta：打开前/成交后/补货后下发）
+        register(SyncTradeCatalogPacket.class,
+                SyncTradeCatalogPacket::encode, SyncTradeCatalogPacket::decode, SyncTradeCatalogPacket::handle,
                 NetworkDirection.PLAY_TO_CLIENT);
     }
 

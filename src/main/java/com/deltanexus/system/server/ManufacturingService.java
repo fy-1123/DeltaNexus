@@ -247,7 +247,8 @@ public final class ManufacturingService {
                 data.getWarehouseLevel(),
                 UpgradeConfig.get().maxLevel(),
                 (int) currencyHeld,
-                ModConfig.currencyItem(),
+                // 0.2.0Beta：item 货币已移除，该字段保留占位（客户端仅在旧 item 模式下使用）
+                "",
                 player.hasPermissions(4),
                 next == null ? 0 : next.level,
                 next == null ? 0 : next.costMoney,

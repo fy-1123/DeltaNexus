@@ -74,8 +74,8 @@ public final class ModConfig {
                 .defineInRange("max_queue_size", 5, 1, 100);
 
         CURRENCY_TYPE = b
-                .comment("货币类型：item（物品）/ scoreboard（计分板）/ vault（Vault 经济，需安装经济插件提供者如 EssentialsX）/ playerpoints（PlayerPoints 点券）")
-                .define("currency_type", "item");
+                .comment("货币类型：scoreboard（计分板，默认）/ vault（Vault 经济，需安装经济插件提供者如 EssentialsX）/ playerpoints（PlayerPoints 点券）；item 已移除（旧值自动迁移为 scoreboard）")
+                .define("currency_type", "scoreboard");
 
         CURRENCY_SCOREBOARD = b
                 .comment("计分板货币目标名（currency_type=scoreboard 时使用）")
@@ -324,11 +324,32 @@ public final class ModConfig {
         return Math.max(1, safeGet(MAX_QUEUE_SIZE, 5));
     }
 
+    /** 货币类型：scoreboard / vault / playerpoints（item 已移除，旧配置自动迁移为 scoreboard）。 */
     public static String currencyType() {
         try {
-            return CURRENCY_TYPE.get().trim().toLowerCase(java.util.Locale.ROOT);
+            String t = CURRENCY_TYPE.get().trim().toLowerCase(java.util.Locale.ROOT);
+            // item 模式已移除：历史配置一律按 scoreboard 处理（并见 migrateCurrencyIfNeeded）
+            return "item".equals(t) ? "scoreboard" : t;
         } catch (Exception e) {
-            return "item";
+            return "scoreboard";
+        }
+    }
+
+    /**
+     * 启动迁移：旧配置 {@code currency_type = "item"} 自动改写为 scoreboard（计分板货币）。
+     * 由 ServerStartedEvent 调用（此时配置已加载）。
+     */
+    public static void migrateCurrencyIfNeeded() {
+        try {
+            if ("item".equalsIgnoreCase(CURRENCY_TYPE.get())) {
+                CURRENCY_TYPE.set("scoreboard");
+                SERVER_SPEC.save();
+                com.deltanexus.system.DeltaNexus.LOGGER.warn(
+                        "[DN] 检测到已移除的 item 货币模式，已自动迁移为 scoreboard（目标 {}）；"
+                                + "如需其他货币请用 /dn setting currency", currencyScoreboard());
+            }
+        } catch (Exception e) {
+            com.deltanexus.system.DeltaNexus.LOGGER.debug("[DN] 货币迁移检查跳过: {}", e.toString());
         }
     }
 

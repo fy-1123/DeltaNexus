@@ -365,6 +365,15 @@ public final class WebEditorServer {
             case "/api/perm/default" -> onServer(() -> permDefault(body));
             case "/api/perm/op" -> onServer(() -> permOp(body));
             case "/api/perm/feature" -> onServer(() -> permFeature(body));
+            // 交易行（0.2.0Beta）
+            case "/api/trade/settings" -> onServer(() -> tradeSettings(body));
+            case "/api/trade/category/add" -> onServer(() -> tradeCategoryAdd(body));
+            case "/api/trade/category/rename" -> onServer(() -> tradeCategoryRename(body));
+            case "/api/trade/category/remove" -> onServer(() -> tradeCategoryRemove(body));
+            case "/api/trade/good/save" -> onServer(() -> tradeGoodSave(body));
+            case "/api/trade/good/remove" -> onServer(() -> tradeGoodRemove(body));
+            case "/api/trade/stock" -> onServer(() -> tradeStock(body));
+            case "/api/trade/feed/refresh" -> onServer(() -> tradeFeedRefresh());
             default -> err("未知接口: " + path);
         };
     }
@@ -554,7 +563,76 @@ public final class WebEditorServer {
         }
         perms.add("players", permPlayers);
         root.add("permissions", perms);
+        // 交易行（0.2.0Beta）
+        root.add("trade", tradeJson());
         return root;
+    }
+
+    /** 交易行概览段：定义 + 运行时库存 + 已解析价格（目录同源）+ 外部源。 */
+    private static JsonObject tradeJson() {
+        com.deltanexus.system.trade.TradeConfig cfg = com.deltanexus.system.trade.TradeConfig.get();
+        JsonObject trade = new JsonObject();
+        JsonObject settings = new JsonObject();
+        com.deltanexus.system.trade.TradeConfig.Settings s = cfg.settings();
+        settings.addProperty("multiplier", s.multiplier);
+        settings.addProperty("feed_interval", s.feedRefreshIntervalS);
+        settings.addProperty("timeout", s.evalTimeoutMs);
+        settings.addProperty("sell_enabled", s.sellEnabled);
+        settings.addProperty("spread_guard", s.sellSpreadGuard);
+        trade.add("settings", settings);
+
+        JsonArray cats = new JsonArray();
+        for (com.deltanexus.system.trade.TradeCategory c : cfg.categoriesSnapshot()) {
+            cats.add(c.toJson());
+        }
+        trade.add("categories", cats);
+
+        JsonArray defs = new JsonArray();
+        for (com.deltanexus.system.trade.TradeGood g : cfg.goodsSnapshot()) {
+            JsonObject o = g.toJson();
+            o.addProperty("stock", com.deltanexus.system.trade.TradeStockStore.get(g.id));
+            defs.add(o);
+        }
+        trade.add("goods", defs);
+
+        // 当前可购买状态（与服务端目录同源，页面直接展示价格/限购原因）
+        JsonArray views = new JsonArray();
+        try {
+            com.deltanexus.system.network.packet.SyncTradeCatalogPacket catalog =
+                    com.deltanexus.system.server.TradeService.buildCatalog();
+            for (com.deltanexus.system.network.packet.SyncTradeCatalogPacket.Good v : catalog.goods) {
+                JsonObject o = new JsonObject();
+                o.addProperty("id", v.id);
+                o.addProperty("buy_price", v.buyCode == 0 ? v.buyPrice : -1);
+                o.addProperty("buy_code", v.buyCode);
+                o.addProperty("buy_limit", v.buyLimit);
+                o.addProperty("sell_price", v.sellCode == 0 ? v.sellPrice : -1);
+                o.addProperty("market_price", v.marketCode == 0 ? v.marketPrice : -1);
+                o.addProperty("stock", v.stock);
+                views.add(o);
+            }
+        } catch (Exception e) {
+            // 求价异常不应拖垮 overview
+            DeltaNexus.LOGGER.warn("[DN] 交易行目录求值失败: {}", e.getMessage());
+        }
+        trade.add("views", views);
+
+        JsonArray feeds = new JsonArray();
+        for (com.deltanexus.system.trade.MarketFeed f : com.deltanexus.system.trade.TradeFeedRegistry.all()) {
+            JsonObject o = new JsonObject();
+            o.addProperty("id", f.id());
+            o.addProperty("desc", f.description());
+            try {
+                com.deltanexus.system.trade.FeedSnapshot snap = f.snapshot();
+                o.addProperty("rows", snap.size());
+                o.addProperty("loaded_at", snap.loadedAtEpochMs());
+            } catch (Exception e) {
+                o.addProperty("rows", 0);
+            }
+            feeds.add(o);
+        }
+        trade.add("feeds", feeds);
+        return trade;
     }
 
     private static JsonObject recipeJson(Recipe r) {
@@ -597,10 +675,13 @@ public final class WebEditorServer {
         WorkbenchRegistry.get().reload();
         PermissionManager.reload();
         SafeBoxRestrictions.reload();
+        com.deltanexus.system.trade.TradeConfig.get().reload();
+        com.deltanexus.system.trade.TradeStockStore.load();
         boolean expanded = ManufacturingService.autoExpandRows();
         if (expanded) {
             ManufacturingService.applyRowsToOnline(currentServer);
         }
+        com.deltanexus.system.server.TradeService.sendSyncToAll(currentServer);
         return ok(msg("msg.dn.reload.done", RecipeCache.get().size(), UpgradeConfig.get().maxLevel(), WorkbenchRegistry.get().size())
                 + (expanded ? "；" + msg("msg.dn.tree.rows_expanded", UpgradeConfig.get().maxUnlockSlots(),
                 ModConfig.warehouseRows(), ModConfig.warehouseRows() * 9) : ""));
@@ -915,16 +996,6 @@ public final class WebEditorServer {
     private static JsonObject settingCurrency(JsonObject body) {
         String type = str(body, "type");
         switch (type) {
-            case "item" -> {
-                String item = str(body, "item");
-                if (item.isEmpty()) {
-                    return err("缺少物品 ID");
-                }
-                ModConfig.CURRENCY_TYPE.set("item");
-                ModConfig.CURRENCY_ITEM.set(item);
-                ModConfig.SERVER_SPEC.save();
-                return ok(msg("msg.dn.config.set", msg("gui.dn.config.currency"), item));
-            }
             case "scoreboard" -> {
                 String obj = str(body, "objective");
                 if (obj.isEmpty()) {
@@ -953,7 +1024,7 @@ public final class WebEditorServer {
                 return ok(msg("msg.dn.config.set", msg("gui.dn.config.currency"), "playerpoints"));
             }
             default -> {
-                return err("type 仅支持 item/scoreboard/vault/playerpoints");
+                return err("type 仅支持 scoreboard/vault/playerpoints（item 已移除）");
             }
         }
     }
@@ -1337,9 +1408,157 @@ public final class WebEditorServer {
         data.setWarehouseLevel(0);
         data.setUnlockedSlots(base);
         data.setSafeBoxLevel(0);
+        // 0.2.0Beta：重置即清除数据备份（与 /dn data reset 一致）
+        com.deltanexus.system.capability.CapabilityAttacher.clearBackupFor(p.getUUID());
         ManufacturingService.sendSyncWarehouse(p);
         ManufacturingService.syncSafeBox(p);
         return ok(msg("msg.dn.data.reset", name, base));
+    }
+
+    // ------------------------------------------------------------------
+    // 交易行（0.2.0Beta）Web 管理
+    // ------------------------------------------------------------------
+
+    private static void tradeBroadcast() {
+        com.deltanexus.system.server.TradeService.sendSyncToAll(currentServer);
+    }
+
+    private static JsonObject tradeSettings(JsonObject body) {
+        com.deltanexus.system.trade.TradeConfig cfg = com.deltanexus.system.trade.TradeConfig.get();
+        com.deltanexus.system.trade.TradeConfig.Settings s = cfg.settings();
+        if (body.has("multiplier")) {
+            s.multiplier = Math.max(0.01, body.get("multiplier").getAsDouble());
+        }
+        if (body.has("feed_interval")) {
+            s.feedRefreshIntervalS = Math.max(1, body.get("feed_interval").getAsInt());
+        }
+        if (body.has("timeout")) {
+            s.evalTimeoutMs = Math.max(1, Math.min(1000, body.get("timeout").getAsInt()));
+        }
+        if (body.has("sell_enabled")) {
+            s.sellEnabled = body.get("sell_enabled").getAsBoolean();
+        }
+        if (body.has("spread_guard")) {
+            String m = body.get("spread_guard").getAsString().trim().toLowerCase(java.util.Locale.ROOT);
+            if (m.equals("warn") || m.equals("block") || m.equals("off")) {
+                s.sellSpreadGuard = m;
+            }
+        }
+        cfg.saveDebounced();
+        tradeBroadcast();
+        return ok("交易行全局设置已保存（倍率 " + s.multiplier + " / feed " + s.feedRefreshIntervalS
+                + "s / 超时 " + s.evalTimeoutMs + "ms / 回收 " + (s.sellEnabled ? "开" : "关")
+                + " / 价差保护 " + s.sellSpreadGuard + "）");
+    }
+
+    private static JsonObject tradeCategoryAdd(JsonObject body) {
+        String id = str(body, "id");
+        String name = str(body, "name");
+        if (id.isEmpty()) {
+            return err("缺少分类 id");
+        }
+        if (com.deltanexus.system.trade.TradeConfig.get().hasCategory(id)) {
+            return err("分类 " + id + " 已存在");
+        }
+        com.deltanexus.system.trade.TradeConfig.get().categoriesMutable()
+                .put(id, new com.deltanexus.system.trade.TradeCategory(id, name.isEmpty() ? id : name));
+        com.deltanexus.system.trade.TradeConfig.get().saveDebounced();
+        tradeBroadcast();
+        return ok("已新增分类 " + id);
+    }
+
+    private static JsonObject tradeCategoryRename(JsonObject body) {
+        String id = str(body, "id");
+        String name = str(body, "name");
+        com.deltanexus.system.trade.TradeCategory c = com.deltanexus.system.trade.TradeConfig.get().category(id);
+        if (c == null) {
+            return err("分类 " + id + " 不存在");
+        }
+        c.name = name.isEmpty() ? id : name;
+        com.deltanexus.system.trade.TradeConfig.get().saveDebounced();
+        tradeBroadcast();
+        return ok("分类 " + id + " 已重命名");
+    }
+
+    private static JsonObject tradeCategoryRemove(JsonObject body) {
+        String id = str(body, "id");
+        if (!com.deltanexus.system.trade.TradeConfig.get().hasCategory(id)) {
+            return err("分类 " + id + " 不存在");
+        }
+        com.deltanexus.system.trade.TradeConfig.get().categoriesMutable().remove(id);
+        com.deltanexus.system.trade.TradeConfig.get().saveDebounced();
+        tradeBroadcast();
+        return ok("已删除分类 " + id + "（其下商品已停显，请到商品内移除/改分类）");
+    }
+
+    private static JsonObject tradeGoodSave(JsonObject body) {
+        if (!body.has("good") || !body.get("good").isJsonObject()) {
+            return err("缺少 good 对象");
+        }
+        com.deltanexus.system.trade.TradeConfig cfg = com.deltanexus.system.trade.TradeConfig.get();
+        com.deltanexus.system.trade.TradeGood g =
+                com.deltanexus.system.trade.TradeGood.fromJson(body.getAsJsonObject("good"));
+        if (g.id.isEmpty()) {
+            return err("商品缺少 id");
+        }
+        if (g.categoryId.isEmpty()) {
+            if (cfg.categoriesSnapshot().isEmpty()) {
+                return err("请先创建至少一个分类");
+            }
+            g.categoryId = cfg.categoriesSnapshot().get(0).id;
+        }
+        if (!cfg.hasCategory(g.categoryId)) {
+            return err("分类 " + g.categoryId + " 不存在");
+        }
+        String issue = g.validate(cfg);
+        if (issue != null) {
+            return err("商品配置不合法: " + issue);
+        }
+        cfg.goodsMutable().put(g.id, g);
+        cfg.saveDebounced();
+        tradeBroadcast();
+        return ok("商品 " + g.id + " 已保存");
+    }
+
+    private static JsonObject tradeGoodRemove(JsonObject body) {
+        String id = str(body, "id");
+        if (!com.deltanexus.system.trade.TradeConfig.get().hasGood(id)) {
+            return err("商品 " + id + " 不存在");
+        }
+        com.deltanexus.system.trade.TradeConfig.get().goodsMutable().remove(id);
+        com.deltanexus.system.trade.TradeConfig.get().saveDebounced();
+        tradeBroadcast();
+        return ok("已删除商品 " + id);
+    }
+
+    private static JsonObject tradeStock(JsonObject body) {
+        String id = str(body, "id");
+        String op = str(body, "op");
+        int count = body.has("count") ? Math.max(0, body.get("count").getAsInt()) : 0;
+        if (!com.deltanexus.system.trade.TradeConfig.get().hasGood(id)) {
+            return err("商品 " + id + " 不存在");
+        }
+        int after;
+        if ("set".equalsIgnoreCase(op)) {
+            after = com.deltanexus.system.trade.TradeStockStore.set(id, count);
+        } else {
+            after = com.deltanexus.system.trade.TradeStockStore.add(id, count);
+        }
+        tradeBroadcast();
+        return ok("商品 " + id + " 库存现为 " + after);
+    }
+
+    private static JsonObject tradeFeedRefresh() {
+        int n = 0;
+        for (com.deltanexus.system.trade.MarketFeed f : com.deltanexus.system.trade.TradeFeedRegistry.all()) {
+            try {
+                f.refreshIfStale(0);
+                n++;
+            } catch (Exception e) {
+                DeltaNexus.LOGGER.warn("[DN] Web 请求刷新交易行源 '{}' 异常: {}", f.id(), e.getMessage());
+            }
+        }
+        return ok("已请求刷新 " + n + " 个外部价格源");
     }
 
     private static String str(JsonObject body, String key) {

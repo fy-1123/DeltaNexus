@@ -585,6 +585,173 @@ public class InventoryGridHandler {
     public static boolean isSlave(ItemStack s) { return !s.isEmpty() && s.hasTag() && s.getTag().getBoolean(IS_SLAVE); }
 
     // ------------------------------------------------------------------
+    // 交易行交付（0.2.0Beta）：把物品安全放入玩家仓库（格式背包网格兼容）
+    // ------------------------------------------------------------------
+
+    /**
+     * 把 {@code incoming} 放入玩家仓库（系统商店买入交付）。
+     *
+     * <p>与 {@link ItemStackHandler#insertItem}/{@code IPlayerData.setWarehouseItem} 的裸调不同：
+     * 本方法遵守格式背包的全部规则——只落在已解锁槽位、足迹不越界、不覆盖真实物品或存活占位物
+     * （可覆盖“孤立占位物”：其主格已空），同类同 NBT 优先合并进既有主格，并按物品占用尺寸
+     * 逐格写入占位物，调用后仓库状态与网格引擎视角完全一致。</p>
+     *
+     * @param simulate true = 纯预测，不改动仓库；返回“放不下的剩余量”
+     * @return 放不下的剩余 ItemStack（{@link ItemStack#EMPTY} = 全部可放入/已放入）
+     */
+    public static ItemStack placeIntoWarehouse(Player player, ItemStack incoming, boolean simulate) {
+        IPlayerData data = ManufacturingService.data(player);
+        if (data == null || incoming == null || incoming.isEmpty()) {
+            return incoming == null ? ItemStack.EMPTY : incoming.copy();
+        }
+        ItemStackHandler handler = data.getWarehouseHandler();
+        if (!isGridContainer(player, handler)) {
+            return incoming.copy();
+        }
+        int width = gridWidth(player, handler);
+        int size = handler.getSlots();
+        int totalRows = (size + width - 1) / width;
+        int max = incoming.getMaxStackSize();
+        int rem = incoming.getCount();
+
+        boolean[] usable = new boolean[size];
+        for (int i = 0; i < size; i++) {
+            usable[i] = isSlotUsable(player, handler, i);
+        }
+        // 现状占用：真实主格（含无占位物时按“锚定足迹”保守预留）+ 存活占位物
+        boolean[] occupied = new boolean[size];
+        for (int i = 0; i < size; i++) {
+            ItemStack st = handler.getStackInSlot(i);
+            if (st.isEmpty()) {
+                continue;
+            }
+            if (isSlave(st)) {
+                int m = st.getOrCreateTag().getInt(MASTER_SLOT);
+                ItemStack master = (m >= 0 && m < size) ? handler.getStackInSlot(m) : ItemStack.EMPTY;
+                if (!master.isEmpty() && !isSlave(master)) {
+                    occupied[i] = true; // 活占位物：足迹被占
+                }
+                // 孤立占位物（主格已空）视为空位，可覆盖
+                continue;
+            }
+            occupied[i] = true;
+            ItemDim dim = getBaseDim(st);
+            if (!dim.is1x1()) {
+                int c = i % width, r = i / width;
+                for (int dx = 0; dx < dim.w; dx++) {
+                    for (int dy = 0; dy < dim.h; dy++) {
+                        if (dx == 0 && dy == 0) {
+                            continue;
+                        }
+                        int sid = (r + dy) * width + (c + dx);
+                        if (sid >= 0 && sid < size && !occupied[sid]) {
+                            occupied[sid] = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 1) 合并进可叠加的同类主格（仅解锁区）
+        if (rem > 0) {
+            for (int i = 0; i < size && rem > 0; i++) {
+                if (!usable[i]) {
+                    continue;
+                }
+                ItemStack st = handler.getStackInSlot(i);
+                if (st.isEmpty() || isSlave(st)) {
+                    continue;
+                }
+                if (!ItemStack.isSameItemSameTags(st, incoming) || st.getCount() >= st.getMaxStackSize()) {
+                    continue;
+                }
+                int add = Math.min(st.getMaxStackSize() - st.getCount(), rem);
+                if (!simulate) {
+                    st.grow(add);
+                    handler.setStackInSlot(i, st);
+                }
+                rem -= add;
+            }
+        }
+
+        // 2) 新足迹：每个落点一个 chunk（≤ 最大堆叠），行优先找零冲突解锁区
+        while (rem > 0) {
+            int chunk = Math.min(max, rem);
+            ItemDim dim = getBaseDim(incoming);
+            int spot = findFreeSpot(occupied, usable, width, size, totalRows, dim);
+            if (spot < 0) {
+                break;
+            }
+            if (!simulate) {
+                ItemStack placed = incoming.copy();
+                placed.setCount(chunk);
+                handler.setStackInSlot(spot, placed);
+                int c = spot % width, r = spot / width;
+                for (int dx = 0; dx < dim.w; dx++) {
+                    for (int dy = 0; dy < dim.h; dy++) {
+                        if (dx == 0 && dy == 0) {
+                            continue;
+                        }
+                        int sid = (r + dy) * width + (c + dx);
+                        if (sid >= 0 && sid < size) {
+                            handler.setStackInSlot(sid, createSlave(spot));
+                        }
+                    }
+                }
+            }
+            rem -= chunk;
+            markFootprint(spot, occupied, width, size, dim);
+        }
+
+        if (rem <= 0) {
+            return ItemStack.EMPTY;
+        }
+        ItemStack left = incoming.copy();
+        left.setCount(rem);
+        return left;
+    }
+
+    /** 行优先找零冲突落点（足迹格必须解锁且未被占用）。 */
+    private static int findFreeSpot(boolean[] occupied, boolean[] usable, int width, int size,
+                                    int totalRows, ItemDim dim) {
+        for (int j = 0; j < size; j++) {
+            if (!usable[j]) {
+                continue;
+            }
+            int c = j % width, r = j / width;
+            if (c + dim.w > width || r + dim.h > totalRows) {
+                continue;
+            }
+            boolean ok = true;
+            for (int dx = 0; dx < dim.w && ok; dx++) {
+                for (int dy = 0; dy < dim.h && ok; dy++) {
+                    int sid = (r + dy) * width + (c + dx);
+                    if (sid >= size || !usable[sid] || occupied[sid]) {
+                        ok = false;
+                    }
+                }
+            }
+            if (ok) {
+                return j;
+            }
+        }
+        return -1;
+    }
+
+    /** 落点确定后把足迹标记为占用（预测与真插入共用）。 */
+    private static void markFootprint(int spot, boolean[] occupied, int width, int size, ItemDim dim) {
+        int c = spot % width, r = spot / width;
+        for (int dx = 0; dx < dim.w; dx++) {
+            for (int dy = 0; dy < dim.h; dy++) {
+                int sid = (r + dy) * width + (c + dx);
+                if (sid >= 0 && sid < size) {
+                    occupied[sid] = true;
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
     // 客户端：超大物品渲染 + 旋转（2.0.7 拆分至 GridClientRendering，
     // 专用服务器不再加载 Screen 等客户端类型，修复 DEDICATED_SERVER 启动崩溃）
     // ------------------------------------------------------------------

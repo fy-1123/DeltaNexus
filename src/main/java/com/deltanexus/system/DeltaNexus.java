@@ -29,6 +29,9 @@ public class DeltaNexus {
     public static final String MODID = "deltanexus";
     public static final Logger LOGGER = LogManager.getLogger(MODID);
 
+    /** mod 事件总线（构造期缓存，供 commonSetup 发布交易行源注册事件等）。 */
+    private static net.minecraftforge.eventbus.api.IEventBus MOD_BUS;
+
     @SuppressWarnings("removal")
     public DeltaNexus() {
         ModConfig.register();
@@ -42,6 +45,7 @@ public class DeltaNexus {
         com.deltanexus.system.grid.GridClassConfig.load();
 
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
+        MOD_BUS = modBus;
         ModMenus.MENUS.register(modBus);
         com.deltanexus.system.grid.GridItems.ITEMS.register(modBus);
         com.deltanexus.system.grid.GridEnchantments.ENCHANTMENTS.register(modBus);
@@ -52,16 +56,23 @@ public class DeltaNexus {
 
         // 2.0.7：注册回归测试（GameTestRegistry.register；普通服务器无害，仅 GameTestServer 执行）
         com.deltanexus.system.test.DnRegressionTests.register();
+        // 0.2.0Beta：交易行回归测试
+        com.deltanexus.system.test.TradeRegressionTests.register();
     }
 
     private static void commonSetup(FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
-            // 首次启动写出默认配置（工作台 -> 配方 -> 升级树 -> 权限 -> 安全箱限制），存在则跳过
+            // 首次启动写出默认配置（工作台 -> 配方 -> 升级树 -> 权限 -> 安全箱限制 -> 交易行），存在则跳过
             com.deltanexus.system.common.WorkbenchRegistry.get().writeDefaultIfMissing();
             RecipeCache.get().writeDefaultsIfMissing();
             UpgradeConfig.get().writeDefaultIfMissing();
             com.deltanexus.system.server.PermissionManager.writeDefaultIfMissing();
             com.deltanexus.system.config.SafeBoxRestrictions.writeDefaultIfMissing();
+            // 交易行（0.2.0Beta）：定义文件 + 运行时库存文件；发布外部价格源注册事件（moligod companion 等监听）
+            com.deltanexus.system.trade.TradeConfig.writeDefaultIfMissing();
+            if (MOD_BUS != null) {
+                MOD_BUS.post(new com.deltanexus.system.trade.RegisterMarketFeedsEvent());
+            }
             LOGGER.info("[DN] 配置初始化完成：倍率 {}x / 队列 {} / 货币类型 {} / 安全箱默认 {}x{}",
                     ModConfig.timeMultiplier(), ModConfig.maxQueueSize(), ModConfig.currencyType(),
                     ModConfig.safeBoxWidth(), ModConfig.safeBoxHeight());
@@ -82,6 +93,9 @@ public class DeltaNexus {
 
         @SubscribeEvent
         public static void onServerStarted(ServerStartedEvent event) {
+            // 0.2.0Beta：item 货币已移除 → 旧配置自动迁移为 scoreboard，并确保计分板目标存在
+            ModConfig.migrateCurrencyIfNeeded();
+            CurrencyManager.ensureReady(event.getServer());
             // 服务器就绪后输出货币系统状态（配置与插件均已加载）
             String type = ModConfig.currencyType();
             String status;
@@ -92,8 +106,7 @@ public class DeltaNexus {
                 case "playerpoints" -> status = CurrencyManager.isPlayerPointsAvailable()
                         ? "playerpoints，点券插件已连接"
                         : "playerpoints，插件不可用";
-                case "scoreboard" -> status = "scoreboard，计分板 " + ModConfig.currencyScoreboard();
-                default -> status = "item，物品 " + ModConfig.currencyItem();
+                default -> status = "scoreboard，计分板 " + ModConfig.currencyScoreboard();
             }
             LOGGER.info("[DN] 货币系统就绪：{}", status);
             if ("vault".equals(type) && !CurrencyManager.isVaultAvailable()) {
