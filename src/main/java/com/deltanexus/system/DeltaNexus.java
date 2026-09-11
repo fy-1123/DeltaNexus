@@ -35,13 +35,13 @@ public class DeltaNexus {
     @SuppressWarnings("removal")
     public DeltaNexus() {
         ModConfig.register();
-        // 客户端 UI 配置（2.0.10 修复：此前 register() 从未调用，client-ui.toml 一直未生成，
+        // 客户端 UI 配置（2.0.10Alpha 修复：此前 register() 从未调用，client-ui.toml 一直未生成，
         // 白名单仅靠代码默认回退值生效）。CLIENT 类型仅客户端物理端加载，服务端注册无害。
         com.deltanexus.system.config.ClientUiConfig.register();
-        // 格式背包（2.0.0，集成自 expansionpack）：快捷栏规则 COMMON 配置 + 物品尺寸 JSON
+        // 格式背包（2.0.0Alpha，集成自 expansionpack）：快捷栏规则 COMMON 配置 + 物品尺寸 JSON
         com.deltanexus.system.grid.GridConfig.register();
         com.deltanexus.system.grid.ItemSizeConfig.load();
-        // 格式背包（2.0.3）：物品「类」背景色配置
+        // 格式背包（2.0.3Alpha）：物品「类」背景色配置
         com.deltanexus.system.grid.GridClassConfig.load();
 
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
@@ -51,10 +51,10 @@ public class DeltaNexus {
         com.deltanexus.system.grid.GridEnchantments.ENCHANTMENTS.register(modBus);
         modBus.addListener(DeltaNexus::commonSetup);
 
-        // 网络通道（协议版本 "dn1"：2.0.0 新增格子格式旋转包）
+        // 网络通道（协议版本 "dn1"：2.0.0Alpha 新增格子格式旋转包）
         PacketHandler.register();
 
-        // 2.0.7：注册回归测试（GameTestRegistry.register；普通服务器无害，仅 GameTestServer 执行）
+        // 2.0.7Alpha：注册回归测试（GameTestRegistry.register；普通服务器无害，仅 GameTestServer 执行）
         com.deltanexus.system.test.DnRegressionTests.register();
         // 0.2.0Beta：交易行回归测试
         com.deltanexus.system.test.TradeRegressionTests.register();
@@ -82,7 +82,7 @@ public class DeltaNexus {
     /**
      * 服务器生命周期事件（FORGE 总线）。
      * 注意：{@link #commonSetup} 在 mod 加载阶段执行，此时 Bukkit 插件尚未启用，
-     * 货币类型与 Vault 提供者都不可靠（TOML 配置 2.0.10 起为 COMMON 类型，加载阶段已就绪）；
+     * 货币类型与 Vault 提供者都不可靠（TOML 配置 2.0.10Alpha 起为 COMMON 类型，加载阶段已就绪）；
      * 因此就绪状态在 {@link ServerStartedEvent}（世界加载完毕、插件全部启用后）统一输出。
      */
     @Mod.EventBusSubscriber(modid = DeltaNexus.MODID)
@@ -113,7 +113,7 @@ public class DeltaNexus {
                 LOGGER.warn("[DN] 当前货币类型为 vault 但未找到 Vault 经济提供者，"
                         + "请安装 Vault 及 EssentialsX/CMI 等经济插件");
             }
-            // 2.0.7：启动摘要（控制台分节排版，与 /dn info 口径一致）
+            // 2.0.7Alpha：启动摘要（控制台分节排版，与 /dn info 口径一致）
             LOGGER.info("[DN] 制造：倍率 {}x / 队列 {} / 模式 {}", ModConfig.timeMultiplier(),
                     ModConfig.maxQueueSize(), ModConfig.onlineMode() ? "在线" : "离线");
             LOGGER.info("[DN] 仓库：Lv{} / {} 行 / 0级解锁 {} 格 / 总容量 {} 格", UpgradeConfig.get().maxLevel(),

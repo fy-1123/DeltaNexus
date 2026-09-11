@@ -21,7 +21,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * 格式背包客户端渲染与输入（2.0.7 拆分）。
+ * 格式背包客户端渲染与输入（2.0.7Alpha 拆分）。
  *
  * <p>原 {@link InventoryGridHandler} 将服务端网格事件与客户端渲染事件混在同一
  * {@code @Mod.EventBusSubscriber} 类中，参数类型（{@code ScreenEvent.*} 传递依赖
@@ -39,7 +39,7 @@ public final class GridClientRendering {
     private GridClientRendering() {
     }
 
-    /** 渲染一件跨格物品：背景墙（按所属类着色，2.0.3）+ 缩放图标 + 数量角标（容器界面与安全箱覆盖层共用）。 */
+    /** 渲染一件跨格物品：背景墙（按所属类着色，2.0.3Alpha）+ 缩放图标 + 数量角标（容器界面与安全箱覆盖层共用）。 */
     public static void renderGridStack(GuiGraphics gui, ItemStack stack, int x, int y,
                                        InventoryGridHandler.ItemDim dim, boolean rotated) {
         int[] bg = GridClassConfig.bgOf(stack);
@@ -49,12 +49,12 @@ public final class GridClientRendering {
     /** 渲染一件跨格物品（自定义背景色）。 */
     public static void renderGridStack(GuiGraphics gui, ItemStack stack, int x, int y,
                                        InventoryGridHandler.ItemDim dim, boolean rotated, int[] bg) {
-        // 2.0.10：背景墙覆盖完整格足迹（每格 18px），与槽位底图严格对齐——
+        // 2.0.10Alpha：背景墙覆盖完整格足迹（每格 18px），与槽位底图严格对齐——
         // 旧实现 tw=16+(w-1)*18 少算了 2px，再整体左移 1px，导致右/下边缘出现 1px 缝隙
         int cw = dim.w() * 18;
         int ch = dim.h() * 18;
 
-        // 绘制一大坨背景墙（底色按物品所属类，2.0.3）
+        // 绘制一大坨背景墙（底色按物品所属类，2.0.3Alpha）
         gui.pose().pushPose(); gui.pose().translate(0, 0, 360);
         gui.fill(x, y, x + cw, y + ch, bg[1]);                       // 外衬
         gui.fill(x + 1, y + 1, x + cw - 1, y + ch - 1, bg[0]);       // 主墙
@@ -88,11 +88,11 @@ public final class GridClientRendering {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onRenderPost(ScreenEvent.Render.Post event) {
         if (!(event.getScreen() instanceof AbstractContainerScreen<?> screen)) return;
-        // 2.1：玩家功能被禁用 → 不做网格渲染（界面恢复原版）
+        // 2.1Alpha：玩家功能被禁用 → 不做网格渲染（界面恢复原版）
         if (!com.deltanexus.system.config.ClientUiConfig.featuresEnabled()) return;
-        // 白名单界面（2.0.8）：保持原版 GUI 样式与交互，不做网格渲染
+        // 白名单界面（2.0.8Alpha）：保持原版 GUI 样式与交互，不做网格渲染
         if (com.deltanexus.system.config.ClientUiConfig.isVanillaUi(screen.getClass())) return;
-        // 2.0.10 创造模式修复：创造玩家按 E 时 InventoryScreen 是跳板帧
+        // 2.0.10Alpha 创造模式修复：创造玩家按 E 时 InventoryScreen 是跳板帧
         // （containerTick 随后自动切换为 CreativeModeInventoryScreen），跳板帧不渲染网格，避免闪现；
         // 创造玩家打开的其他容器界面（仓库等）不受影响
         Minecraft mc0 = Minecraft.getInstance();
@@ -106,7 +106,7 @@ public final class GridClientRendering {
         Set<Integer> renderedArea = new HashSet<>();
 
         for (Slot slot : screen.getMenu().slots) {
-            // 屏外隐藏槽位（2.0.8：背包界面 2x2 合成格/结果格移至屏外）不渲染
+            // 屏外隐藏槽位（2.0.8Alpha：背包界面 2x2 合成格/结果格移至屏外）不渲染
             if (slot.x < -500 || slot.y < -500) continue;
             if (renderedArea.contains(slot.index)) continue;
             if (isCreative || (slot.container instanceof net.minecraft.world.entity.player.Inventory && slot.getContainerSlot() >= 36)) continue;
@@ -135,8 +135,8 @@ public final class GridClientRendering {
                     }
                     renderGridStack(gui, stack, x, y, dim, rotated);
                 } else {
-                    // 2.0.5：1x1 物品统一走网格渲染（类色墙 + 图标 + 数量角标）
-                    // 2.0.7：显式 isClassed 判定（不再依赖 bgOf 数组引用比较）
+                    // 2.0.5Alpha：1x1 物品统一走网格渲染（类色墙 + 图标 + 数量角标）
+                    // 2.0.7Alpha：显式 isClassed 判定（不再依赖 bgOf 数组引用比较）
                     if (GridClassConfig.isClassed(stack)) {
                         renderGridStack(gui, stack, x, y, new InventoryGridHandler.ItemDim(1, 1), rotated, GridClassConfig.bgOf(stack));
                     }
@@ -146,7 +146,7 @@ public final class GridClientRendering {
     }
 
     /**
-     * 2.0.3：点击跨格物品的非左上角格（占位物格）时，拦截原版点击，
+     * 2.0.3Alpha：点击跨格物品的非左上角格（占位物格）时，拦截原版点击，
      * 发送 {@code C2SPickupGridStackPacket} 由服务端处理。
      */
     @SubscribeEvent(priority = EventPriority.HIGHEST)
@@ -157,11 +157,15 @@ public final class GridClientRendering {
         if (!(event.getScreen() instanceof AbstractContainerScreen<?> screen)) {
             return;
         }
-        // 2.1：玩家功能被禁用 → 不拦截点击（界面恢复原版）
+        // 0.2.1Beta：仓库出售模式冻结物品——跨格「非左上角捡起」也不得生效
+        if (screen instanceof com.deltanexus.system.client.gui.WarehouseScreen ws && ws.isSellMode()) {
+            return;
+        }
+        // 2.1Alpha：玩家功能被禁用 → 不拦截点击（界面恢复原版）
         if (!com.deltanexus.system.config.ClientUiConfig.featuresEnabled()) {
             return;
         }
-        // 白名单界面（2.0.8）：保持原版交互逻辑
+        // 白名单界面（2.0.8Alpha）：保持原版交互逻辑
         if (com.deltanexus.system.config.ClientUiConfig.isVanillaUi(screen.getClass())) {
             return;
         }
@@ -185,7 +189,7 @@ public final class GridClientRendering {
     }
 
     /**
-     * 2.0.5：旋转光标物品（R 键，可绑定按键）。使用屏幕键盘事件 + KeyMapping 匹配，
+     * 2.0.5Alpha：旋转光标物品（R 键，可绑定按键）。使用屏幕键盘事件 + KeyMapping 匹配，
      * 保证在容器界面内可靠触发（tick 通道在部分环境不可靠）。
      */
     @SubscribeEvent(priority = EventPriority.HIGHEST)
@@ -193,11 +197,15 @@ public final class GridClientRendering {
         if (!(event.getScreen() instanceof AbstractContainerScreen<?> screen)) {
             return;
         }
-        // 2.1：玩家功能被禁用 → 不拦截按键（界面恢复原版）
+        // 0.2.1Beta：仓库出售模式冻结物品——光标物品旋转也不得生效
+        if (screen instanceof com.deltanexus.system.client.gui.WarehouseScreen ws && ws.isSellMode()) {
+            return;
+        }
+        // 2.1Alpha：玩家功能被禁用 → 不拦截按键（界面恢复原版）
         if (!com.deltanexus.system.config.ClientUiConfig.featuresEnabled()) {
             return;
         }
-        // 白名单界面（2.0.8）：保持原版交互逻辑（不拦截按键）
+        // 白名单界面（2.0.8Alpha）：保持原版交互逻辑（不拦截按键）
         if (com.deltanexus.system.config.ClientUiConfig.isVanillaUi(screen.getClass())) {
             return;
         }

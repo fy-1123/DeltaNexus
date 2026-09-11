@@ -16,7 +16,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 /**
- * 客户端界面替换看门狗（2.0.10）：Tick 级兜底，与 Opener（ScreenEvent.Opening）
+ * 客户端界面替换看门狗（2.0.10Alpha）：Tick 级兜底，与 Opener（ScreenEvent.Opening）
  * 构成双保险。
  *
  * <p>背景：ScreenEvent.Opening 在部分 Forge 补丁版本上存在未触发/触发异常的
@@ -45,7 +45,7 @@ public final class ClientGuiWatchdog {
             return;
         }
         try {
-            // 2.1：玩家功能被禁用（featuresEnabled=false）→ 所有界面恢复原版，不做替换
+            // 2.1Alpha：玩家功能被禁用（featuresEnabled=false）→ 所有界面恢复原版，不做替换
             if (!ClientUiConfig.featuresEnabled()) {
                 return;
             }

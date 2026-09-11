@@ -57,7 +57,7 @@ public class GiveItemPacket {
         context.setPacketHandled(true);
     }
 
-    /** 客户端处理（2.0.7 拆分：专用服务器不加载本类）。 */
+    /** 客户端处理（2.0.7Alpha 拆分：专用服务器不加载本类）。 */
     @net.minecraftforge.api.distmarker.OnlyIn(net.minecraftforge.api.distmarker.Dist.CLIENT)
     private static class ClientHandler {
         static void handle(GiveItemPacket msg) {

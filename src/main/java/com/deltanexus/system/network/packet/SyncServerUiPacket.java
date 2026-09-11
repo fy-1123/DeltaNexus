@@ -8,20 +8,20 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * 服务端 -> 客户端：服务端 GUI 白名单同步（2.0.9）+ 玩家功能开关（2.1）。
+ * 服务端 -> 客户端：服务端 GUI 白名单同步（2.0.9Alpha）+ 玩家功能开关（2.1Alpha）。
  *
  * <p>服务端白名单定义在 config/deltanexus/ModConfig.toml（ui_whitelist，服务端权威）；
  * 登录时同步到客户端，与客户端白名单（deltanexus/client-ui.toml）取并集——
  * 界面命中任意一份白名单即使用原版 GUI。配置热重载后广播刷新。</p>
  *
- * <p>2.1：新增 {@code featuresEnabled}——该玩家是否被禁用全部 mod 功能
+ * <p>2.1Alpha：新增 {@code featuresEnabled}——该玩家是否被禁用全部 mod 功能
  * （config/deltanexus/permissions.json players.&lt;name&gt;.features=false，/dn feature 管理）。
  * 禁用后客户端不替换任何界面（背包/容器恢复原版）、不渲染网格与安全箱。</p>
  */
 public class SyncServerUiPacket {
 
     public final List<String> whitelist;
-    /** 2.1：该玩家是否可用 mod 功能（false = 禁用全部，UI 恢复原版）。 */
+    /** 2.1Alpha：该玩家是否可用 mod 功能（false = 禁用全部，UI 恢复原版）。 */
     public final boolean featuresEnabled;
 
     public SyncServerUiPacket(List<String> whitelist) {

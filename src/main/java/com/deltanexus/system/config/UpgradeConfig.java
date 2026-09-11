@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 仓库升级树配置（config/deltanexus/upgrade_tree.json，1.1.0 起含安全箱升级树）。
+ * 仓库升级树配置（config/deltanexus/upgrade_tree.json，1.1.0Alpha 起含安全箱升级树）。
  *
  * <pre>{@code
  * { "warehouse_upgrades": [
@@ -29,7 +29,7 @@ import java.util.Map;
  *
  * <p>仓库升级树：unlock_slots（累计解锁槽位数）。</p>
  *
- * <p>安全箱升级树（2.0.1 起）：解锁**行 x 列**（unlock_rows / unlock_cols，各 1~3，
+ * <p>安全箱升级树（2.0.1Alpha 起）：解锁**行 x 列**（unlock_rows / unlock_cols，各 1~3，
  * 解锁格数 = 行 x 列，按 3x3 网格左上角排布）；旧版 unlock_slots 自动迁移为规范化行列
  * （1x1 / 1x2 / 1x3 / 2x2 / 2x3 / 3x3）。0 级 = 配置默认尺寸（safe_box_width x safe_box_height）。</p>
  */
@@ -70,9 +70,9 @@ public class UpgradeConfig {
         public int level;
         public int costMoney;
         public int unlockSlots;
-        /** 安全箱升级树（2.0.1）：解锁行数（1 ~ 3；0 = 未设置，沿用 unlock_slots 迁移）。 */
+        /** 安全箱升级树（2.0.1Alpha）：解锁行数（1 ~ 3；0 = 未设置，沿用 unlock_slots 迁移）。 */
         public int unlockRows;
-        /** 安全箱升级树（2.0.1）：解锁列数（1 ~ 3；0 = 未设置）。 */
+        /** 安全箱升级树（2.0.1Alpha）：解锁列数（1 ~ 3；0 = 未设置）。 */
         public int unlockCols;
         /** 升级所需材料列表（支持 NBT 匹配）。 */
         public final List<RequiredItem> requiredItems = new ArrayList<>();
@@ -99,7 +99,7 @@ public class UpgradeConfig {
             u.level = obj.has("level") ? Math.max(1, obj.get("level").getAsInt()) : 1;
             u.costMoney = obj.has("cost_money") ? Math.max(0, obj.get("cost_money").getAsInt()) : 0;
             if (obj.has("unlock_rows") && obj.has("unlock_cols")) {
-                // 2.0.1 新格式：解锁行 x 列（解锁格数 = 行 x 列）
+                // 2.0.1Alpha 新格式：解锁行 x 列（解锁格数 = 行 x 列）
                 u.unlockRows = Math.max(1, Math.min(3, obj.get("unlock_rows").getAsInt()));
                 u.unlockCols = Math.max(1, Math.min(3, obj.get("unlock_cols").getAsInt()));
                 u.unlockSlots = u.unlockRows * u.unlockCols;
@@ -134,7 +134,7 @@ public class UpgradeConfig {
 
     private final Path path;
     private final List<UpgradeLevel> upgrades = new ArrayList<>();
-    /** 安全箱升级树（1.1.0）：等级 -> 解锁格数（1~9，尺寸按 safeDims 规范化）。 */
+    /** 安全箱升级树（1.1.0Alpha）：等级 -> 解锁格数（1~9，尺寸按 safeDims 规范化）。 */
     private final List<UpgradeLevel> safeUpgrades = new ArrayList<>();
 
     private UpgradeConfig(Path path) {
@@ -180,7 +180,7 @@ public class UpgradeConfig {
                 upgrades.size(), safeUpgrades.size());
     }
 
-    /** 安全箱树兼容迁移（2.0.1）：旧 unlock_slots 换算为规范化行列（1x1/1x2/1x3/2x2/2x3/3x3）。 */
+    /** 安全箱树兼容迁移（2.0.1Alpha）：旧 unlock_slots 换算为规范化行列（1x1/1x2/1x3/2x2/2x3/3x3）。 */
     private void migrateSafeDims() {
         for (UpgradeLevel u : safeUpgrades) {
             if (u.unlockRows <= 0 || u.unlockCols <= 0) {
@@ -347,7 +347,7 @@ public class UpgradeConfig {
     }
 
     // ------------------------------------------------------------------
-    // 安全箱升级树（1.1.0）
+    // 安全箱升级树（1.1.0Alpha）
     // ------------------------------------------------------------------
 
     public List<UpgradeLevel> safeAll() {
@@ -522,7 +522,7 @@ public class UpgradeConfig {
         upgrades.add(l1);
         upgrades.add(l2);
 
-        // 安全箱默认升级树（2.0.1 行列制：0 级 = 配置默认尺寸 1x1；1/2/3 级依次扩至 2x2 / 2x3 / 3x3）
+        // 安全箱默认升级树（2.0.1Alpha 行列制：0 级 = 配置默认尺寸 1x1；1/2/3 级依次扩至 2x2 / 2x3 / 3x3）
         UpgradeLevel s1 = new UpgradeLevel();
         s1.level = 1;
         s1.costMoney = 500;

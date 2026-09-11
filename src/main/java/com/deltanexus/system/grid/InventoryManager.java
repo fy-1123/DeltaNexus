@@ -4,7 +4,7 @@ import net.minecraft.world.item.*;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 
 /**
- * 物品体积工具（2.0.0，集成自 expansionpack）。
+ * 物品体积工具（2.0.0Alpha）。
  *
  * <p>体积规则：钻石/下界合金 4 格、三叉戟 3 格、剑斧镐铲锄 2 格、其余 1 格；
  * 占位物（blocked_slot）体积为 0。</p>

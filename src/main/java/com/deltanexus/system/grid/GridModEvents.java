@@ -27,7 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 充能核心附魔玩法事件（2.0.0，集成自 expansionpack）：
+ * 充能核心附魔玩法事件（2.0.0Alpha）：
  * 红石充能（主手工具+副手红石 / 护甲+主手红石）、能量护盾、挖掘加速、能量 tooltip。
  */
 @Mod.EventBusSubscriber(modid = DeltaNexus.MODID)

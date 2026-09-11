@@ -20,7 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 三角联结回归测试（2.0.7）。
+ * 三角联结回归测试（2.0.7Alpha）。
  *
  * <p>仅在 GameTestServer（{@code gradlew runGameTestServer}）中执行，不影响正常服务器/客户端。
  * 注册方式：{@link #register()} 由 {@code DeltaNexus} 构造器调用

@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * 服务端 -> 客户端：格式背包配置同步（2.0.2 / 2.0.3）。
+ * 服务端 -> 客户端：格式背包配置同步（2.0.2Alpha / 2.0.3Alpha）。
  *
  * <p>携带全部自定义物品尺寸、快捷栏规则，以及物品「类」配置（类颜色 + 物品归属），
  * 客户端以运行时覆盖应用（不写客户端配置文件），保证服务端指令/Web 修改后
@@ -26,9 +26,9 @@ public class SyncGridSizesPacket {
     public final Map<String, int[]> sizes;
     /** 快捷栏规则（可能为 null，客户端回退本地配置）。 */
     public final List<String> hotbarRules;
-    /** 类名 -> RGB（2.0.3）。 */
+    /** 类名 -> RGB（2.0.3Alpha）。 */
     public final Map<String, int[]> classes;
-    /** 物品 -> 类名（2.0.3）。 */
+    /** 物品 -> 类名（2.0.3Alpha）。 */
     public final Map<String, String> itemClass;
 
     public SyncGridSizesPacket(Map<String, int[]> sizes, List<String> hotbarRules,
@@ -55,7 +55,7 @@ public class SyncGridSizesPacket {
                 buf.writeUtf(r);
             }
         }
-        // 2.0.3：类配置
+        // 2.0.3Alpha：类配置
         buf.writeVarInt(msg.classes.size());
         for (Map.Entry<String, int[]> e : msg.classes.entrySet()) {
             buf.writeUtf(e.getKey());
@@ -103,7 +103,7 @@ public class SyncGridSizesPacket {
         context.setPacketHandled(true);
     }
 
-    /** 客户端处理（2.0.7 拆分：专用服务器不加载本类）。 */
+    /** 客户端处理（2.0.7Alpha 拆分：专用服务器不加载本类）。 */
     @net.minecraftforge.api.distmarker.OnlyIn(net.minecraftforge.api.distmarker.Dist.CLIENT)
     private static class ClientHandler {
         static void handle(SyncGridSizesPacket msg) {

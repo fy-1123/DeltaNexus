@@ -1,0 +1,34 @@
+MIT License
+
+Copyright (c) 2026 FTY (DeltaNexus / 三角联结)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---------------------------------------------------------------------------
+第三方组件（Third-party components）
+---------------------------------------------------------------------------
+1. Mojang / Minecraft Forge / ForgeGradle / MCP 数据与 MDK 模板文件
+   （如 LICENSE.txt、gradle 包装脚本等）不属于本协议覆盖范围，
+   其授权见 LICENSE.txt 原文（LGPL 2.1 等）。
+
+2. Rhino 1.7.15 (https://github.com/mozilla/rhino)
+   - 用途：交易行价格引擎（formula / code 模式）的 JavaScript 沙箱。
+   - 授权：Mozilla Public License 2.0（亦提供 GPL 2.0 备选）。
+   - 分发方式：随模组 jar 内置其**已编译类**（build.gradle `embedRhino`），未做源码修改。
+   - MPL 2.0 全文：https://www.mozilla.org/en-US/MPL/2.0/

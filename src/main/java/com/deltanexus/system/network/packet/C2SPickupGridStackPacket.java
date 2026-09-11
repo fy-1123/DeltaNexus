@@ -11,9 +11,9 @@ import net.minecraftforge.network.NetworkEvent;
 import java.util.function.Supplier;
 
 /**
- * 客户端 -> 服务端：点击跨格物品的非左上角格（占位物格）时，将主物品整件捡起到光标（2.0.3）。
+ * 客户端 -> 服务端：点击跨格物品的非左上角格（占位物格）时，将主物品整件捡起到光标（2.0.3Alpha）。
  *
- * <p>占位物由网格求解自愈；不做「移动到点击格」（2.0.4 曾误加，2.0.5 撤销）。</p>
+ * <p>占位物由网格求解自愈；不做「移动到点击格」（2.0.4Alpha 曾误加，2.0.5Alpha 撤销）。</p>
  */
 public class C2SPickupGridStackPacket {
 

@@ -82,7 +82,7 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
         }
     }
 
-    /** 安全箱存储：写入受解锁格数与 NBT 限制校验（1.1.0；固定 9 格，未解锁/命中限制不可放入）。 */
+    /** 安全箱存储：写入受解锁格数与 NBT 限制校验（1.1.0Alpha；固定 9 格，未解锁/命中限制不可放入）。 */
     private class SafeBoxHandler extends ItemStackHandler {
         SafeBoxHandler(int size) {
             super(size);
@@ -179,7 +179,7 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
     }
 
     // ------------------------------------------------------------------
-    // 安全箱（1.1.0）
+    // 安全箱（1.1.0Alpha）
     // ------------------------------------------------------------------
 
     @Override
@@ -212,7 +212,7 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
         return Math.max(1, Math.min(9, Math.max(configDefault, treeSlots)));
     }
 
-    /** 安全箱显示宽度（1 ~ 3 列；2.0.1 起按升级树解锁列数，0 级 = 配置默认宽度）。 */
+    /** 安全箱显示宽度（1 ~ 3 列；2.0.1Alpha 起按升级树解锁列数，0 级 = 配置默认宽度）。 */
     @Override
     public int getSafeBoxWidth() {
         if (safeBoxLevel <= 0) {
@@ -225,7 +225,7 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
         return Math.max(1, Math.min(3, dims[0]));
     }
 
-    /** 安全箱显示高度（1 ~ 3 行；2.0.1 起按升级树解锁行数，0 级 = 配置默认高度）。 */
+    /** 安全箱显示高度（1 ~ 3 行；2.0.1Alpha 起按升级树解锁行数，0 级 = 配置默认高度）。 */
     @Override
     public int getSafeBoxHeight() {
         if (safeBoxLevel <= 0) {
@@ -239,7 +239,7 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
     }
 
     /**
-     * 安全箱槽位是否解锁（2.0.3 行列形状）：按「行 x 列」形状解锁，
+     * 安全箱槽位是否解锁（2.0.3Alpha 行列形状）：按「行 x 列」形状解锁，
      * 即第 r 行 c 列（3x3 网格）当且仅当 r < 高度 && c < 宽度时可用
      * （2x2 = 2 行 2 列 = 110|110|000，不再是最前 N 格前缀）。
      */
@@ -291,7 +291,7 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
         wh.put(KEY_ITEMS, warehouse.serializeNBT());
         root.put(KEY_WAREHOUSE, wh);
 
-        // 安全箱（1.1.0）：等级 + 物品（固定 9 格）
+        // 安全箱（1.1.0Alpha）：等级 + 物品（固定 9 格）
         CompoundTag safe = new CompoundTag();
         safe.putInt(KEY_SAFE_LEVEL, safeBoxLevel);
         safe.put(KEY_ITEMS, safeBox.serializeNBT());
@@ -350,7 +350,7 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
                             itemsTag.getInt("Size"), getCapacity());
                 }
             }
-            // 安全箱（1.1.0；旧存档无此段则保持默认等级 0 + 空物品）
+            // 安全箱（1.1.0Alpha；旧存档无此段则保持默认等级 0 + 空物品）
             if (tag.contains(KEY_SAFE_BOX)) {
                 CompoundTag safe = tag.getCompound(KEY_SAFE_BOX);
                 if (safe.contains(KEY_SAFE_LEVEL)) {

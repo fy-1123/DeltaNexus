@@ -88,10 +88,10 @@ public final class ManufacturingService {
     }
 
     /**
-     * 「特勤处」（2.0.2）：仓库/安全箱升级独立界面。不打开容器菜单，
+     * 「特勤处」（2.0.2Alpha）：仓库/安全箱升级独立界面。不打开容器菜单，
      * 仅发送仓库同步包（含升级数据：等级/费用/材料/货币），客户端自行渲染。
-     * 2.0.3：独立权限校验（special）。
-     * 2.0.4：指令路径追加 OpenScreenPacket（SCREEN_SPECIAL），客户端据此打开界面。
+     * 2.0.3Alpha：独立权限校验（special）。
+     * 2.0.4Alpha：指令路径追加 OpenScreenPacket（SCREEN_SPECIAL），客户端据此打开界面。
      */
     public static void openSpecialOps(ServerPlayer player) {
         if (!PermissionManager.canUseFeatures(player)) {
@@ -107,9 +107,9 @@ public final class ManufacturingService {
                 OpenScreenPacket.SCREEN_SPECIAL, "", "", player.hasPermissions(4)));
     }
 
-    /** 打开仓库指定起始行（2.0.1 滚动渲染，替代翻页）。先发同步包（含起始行）再开菜单：
+    /** 打开仓库指定起始行（2.0.1Alpha 滚动渲染，替代翻页）。先发同步包（含起始行）再开菜单：
      *  同一通道有序送达，客户端菜单构造可读到正确起始行。 */
-    public static void openWarehouse(ServerPlayer player, int scrollRow) {        // 权限校验（1.1.0）：指令/按键同源；OP 与全局默认/玩家覆盖见 PermissionManager
+    public static void openWarehouse(ServerPlayer player, int scrollRow) {        // 权限校验（1.1.0Alpha）：指令/按键同源；OP 与全局默认/玩家覆盖见 PermissionManager
         if (!PermissionManager.canUseFeatures(player)) {
             msg(player, "msg.dn.feature.disabled");
             return;
@@ -126,7 +126,7 @@ public final class ManufacturingService {
         ensureWarehouseCapacity(player);
         int rows = ModConfig.warehouseRows();
         // 起始行三重上限防御：配置行数 + 玩家实际容量行数 + 已解锁行数
-        // （2.0.9：未解锁行不可滚动不可见；防菜单槽位越界 + 防伪造包滚入未解锁区）
+        // （2.0.9Alpha：未解锁行不可滚动不可见；防菜单槽位越界 + 防伪造包滚入未解锁区）
         int effectiveRows = effectiveRows(data, rows);
         int maxScroll = Math.max(0, Math.min(unlockedRows(data), effectiveRows)
                 - WarehouseMenu.WAREHOUSE_ROWS);
@@ -144,7 +144,7 @@ public final class ManufacturingService {
     }
 
     /**
-     * 已解锁行数（2.0.9）：解锁为前缀式位图，最高置位格即已解锁格数，
+     * 已解锁行数（2.0.9Alpha）：解锁为前缀式位图，最高置位格即已解锁格数，
      * 向上取整换算行数。与服务端渲染层（WarehouseScreen#unlockedRows）口径一致，
      * 用于限制滚动上限——未解锁行不可滚入。
      */
@@ -156,7 +156,7 @@ public final class ManufacturingService {
     }
 
     /**
-     * 2.0.8 原位滚动：仓库菜单已打开时直接替换视口槽位（不重建菜单）。
+     * 2.0.8Alpha 原位滚动：仓库菜单已打开时直接替换视口槽位（不重建菜单）。
      * 修复旧实现（重开菜单）导致的：光标物品掉落、鼠标指针/悬停状态重置、界面闪烁。
      * 菜单已关闭等边缘场景回退 {@link #openWarehouse}。
      */
@@ -172,7 +172,7 @@ public final class ManufacturingService {
             return;
         }
         int effectiveRows = effectiveRows(data, ModConfig.warehouseRows());
-        // 2.0.9：滚动上限同样限定在已解锁行内（防伪造包滚入未解锁区，与客户端口径一致）
+        // 2.0.9Alpha：滚动上限同样限定在已解锁行内（防伪造包滚入未解锁区，与客户端口径一致）
         int maxScroll = Math.max(0, Math.min(unlockedRows(data), effectiveRows)
                 - WarehouseMenu.WAREHOUSE_ROWS);
         int clamped = net.minecraft.util.Mth.clamp(scrollRow, 0, maxScroll);
@@ -182,7 +182,7 @@ public final class ManufacturingService {
             wm.broadcastChanges();
             sendSyncWarehouse(player, clamped);
         }
-        // 2.0.8 修复：菜单未打开（界面关闭瞬间的在途滚轮包）时静默丢弃——
+        // 2.0.8Alpha 修复：菜单未打开（界面关闭瞬间的在途滚轮包）时静默丢弃——
         // 旧行为会重开仓库界面，导致用户刚关闭的界面被意外弹出
     }
 
@@ -225,7 +225,7 @@ public final class ManufacturingService {
                         countMatching(player, req), req.matchType.key()));
             }
         }
-        // 安全箱（1.1.0）：等级/尺寸/下一级费用与材料
+        // 安全箱（1.1.0Alpha）：等级/尺寸/下一级费用与材料
         int safeLevel = data.getSafeBoxLevel();
         UpgradeConfig.UpgradeLevel safeNext = UpgradeConfig.get().safeNext(safeLevel);
         List<SyncWarehousePacket.Material> safeMaterials = new ArrayList<>();
@@ -324,7 +324,7 @@ public final class ManufacturingService {
     }
 
     // ------------------------------------------------------------------
-    // 格式背包配置（2.0.2：指令/Web 修改 + 客户端同步）
+    // 格式背包配置（2.0.2Alpha：指令/Web 修改 + 客户端同步）
     // ------------------------------------------------------------------
 
     /** 向单个玩家推送格式背包配置（物品尺寸 + 快捷栏规则 + 类配置）。 */
@@ -336,7 +336,7 @@ public final class ManufacturingService {
                 com.deltanexus.system.grid.GridClassConfig.allItemClasses()));
     }
 
-    /** 向指定玩家同步服务端 GUI 白名单与功能开关（2.0.9 / 2.1：登录、重载、功能开关变更时调用）。 */
+    /** 向指定玩家同步服务端 GUI 白名单与功能开关（2.0.9Alpha / 2.1Alpha：登录、重载、功能开关变更时调用）。 */
     public static void sendUiWhitelist(ServerPlayer player) {
         PacketHandler.sendToPlayer(player, new com.deltanexus.system.network.packet.SyncServerUiPacket(
                 com.deltanexus.system.config.ModConfig.serverUiWhitelist(),
@@ -358,8 +358,8 @@ public final class ManufacturingService {
     }
 
     /**
-     * 服务端配置热重载：广播 GUI 白名单（2.0.9，在线玩家即时生效）。
-     * 2.0.10 修复：ModConfigEvent 是 MOD 总线事件，此前未指定 bus（默认 FORGE）
+     * 服务端配置热重载：广播 GUI 白名单（2.0.9Alpha，在线玩家即时生效）。
+     * 2.0.10Alpha 修复：ModConfigEvent 是 MOD 总线事件，此前未指定 bus（默认 FORGE）
      * 导致订阅器从未被调用，服务端白名单热重载广播失效。现挂 MOD 总线。
      */
     @net.minecraftforge.fml.common.Mod.EventBusSubscriber(
@@ -370,7 +370,7 @@ public final class ManufacturingService {
 
         @net.minecraftforge.eventbus.api.SubscribeEvent
         public static void onConfigReload(net.minecraftforge.fml.event.config.ModConfigEvent.Reloading event) {
-            // 仅 ModConfig（2.0.10 起为 COMMON）且服务器运行中才广播：
+            // 仅 ModConfig（2.0.10Alpha 起为 COMMON）且服务器运行中才广播：
             // 纯客户端重载 currentServer() 为 null 跳过；单机集成服务器正常广播给本机玩家
             if (event.getConfig().getSpec() == com.deltanexus.system.config.ModConfig.SERVER_SPEC
                     && currentServer() != null) {
@@ -382,7 +382,7 @@ public final class ManufacturingService {
     }
 
     // ------------------------------------------------------------------
-    // 安全箱（1.1.0）
+    // 安全箱（1.1.0Alpha）
     // ------------------------------------------------------------------
 
     /** 安全箱升级：货币走 CurrencyManager，材料为物品；校验通过后一次性扣除（与仓库升级一致）。 */
@@ -465,7 +465,7 @@ public final class ManufacturingService {
     /**
      * 安全箱槽位交互（服务端权威执行，背包/容器/仓库界面通用）：
      * 0 = 点击（光标与槽位交换/合并），1 = 潜行点击（槽位物品整体移入背包）。
-     * 2.1：不再限定仅背包菜单（InventoryMenu）——dn 容器界面（DnContainerScreen）
+     * 2.1Alpha：不再限定仅背包菜单（InventoryMenu）——dn 容器界面（DnContainerScreen）
      * 同样渲染安全箱面板并发送本包；服务端按权限与解锁状态权威判定。
      */
     public static void safeBoxClick(ServerPlayer player, int slot, int action) {
@@ -494,7 +494,7 @@ public final class ManufacturingService {
         if (action == C2SSafeBoxClickPacket.ACTION_SHIFT) {
             // 潜行点击：槽位物品整体移入背包（放不下则掉落）
             ItemStack stack = safe.getStackInSlot(slot);
-            // 格式背包（2.0.0）：占位物格不可交互（整件物品由主格代表）
+            // 格式背包（2.0.0Alpha）：占位物格不可交互（整件物品由主格代表）
             if (com.deltanexus.system.grid.InventoryGridHandler.isSlave(stack)) {
                 syncSafeBox(player);
                 return;
@@ -511,7 +511,7 @@ public final class ManufacturingService {
                 }
             }
             player.inventoryMenu.broadcastChanges();
-            // 格式背包（2.0.0）：整理网格（重建占位物）
+            // 格式背包（2.0.0Alpha）：整理网格（重建占位物）
             com.deltanexus.system.grid.InventoryGridHandler.arrange(player, safe);
             syncSafeBox(player);
             return;
@@ -519,7 +519,7 @@ public final class ManufacturingService {
         // 点击：光标与槽位交换/合并（与容器点击语义一致）
         ItemStack cursor = player.containerMenu.getCarried();
         ItemStack inSlot = safe.getStackInSlot(slot);
-        // 格式背包（2.0.0）：占位物格视为不可交互（整件物品由主格代表）
+        // 格式背包（2.0.0Alpha）：占位物格视为不可交互（整件物品由主格代表）
         if (com.deltanexus.system.grid.InventoryGridHandler.isSlave(inSlot)) {
             syncSafeBox(player);
             return;
@@ -527,13 +527,13 @@ public final class ManufacturingService {
         if (cursor.isEmpty() && inSlot.isEmpty()) {
             return;
         }
-        // NBT 限制（1.1.0）：命中限制规则的物品禁止放入安全箱
+        // NBT 限制（1.1.0Alpha）：命中限制规则的物品禁止放入安全箱
         if (com.deltanexus.system.config.SafeBoxRestrictions.isRestricted(cursor)) {
             msg(player, "msg.dn.safe.restricted");
             syncSafeBox(player);
             return;
         }
-        // 2.0.10：1x1 安全箱（仅 1 格）不能塞入大于 1x1 的物品——
+        // 2.0.10Alpha：1x1 安全箱（仅 1 格）不能塞入大于 1x1 的物品——
         // 拒绝放入，物品回到鼠标指针（与仓库界面 SafeBoxSlot 口径一致）
         if (!cursor.isEmpty()
                 && data.getSafeBoxUnlockedSlots() <= 1
@@ -560,12 +560,12 @@ public final class ManufacturingService {
             player.containerMenu.setCarried(inSlot.copy());
         }
         player.inventoryMenu.broadcastChanges();
-        // 格式背包（2.0.0）：点击后立即整理网格（冲突重排/补占位物）
+        // 格式背包（2.0.0Alpha）：点击后立即整理网格（冲突重排/补占位物）
         com.deltanexus.system.grid.InventoryGridHandler.arrange(player, safe);
         syncSafeBox(player);
     }
 
-    /** 统计背包与仓库中满足 NBT 要求的材料总数（2.0.3：特勤处升级/制作台制造识别仓库）。 */
+    /** 统计背包与仓库中满足 NBT 要求的材料总数（2.0.3Alpha：特勤处升级/制作台制造识别仓库）。 */
     private static int countMatching(ServerPlayer player, UpgradeConfig.RequiredItem req) {
         Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.tryParse(req.item));
         if (item == null) {
@@ -611,7 +611,7 @@ public final class ManufacturingService {
 
     /**
      * 材料来源遍历：玩家背包 + 仓库已解锁槽（跳过占位物）。
-     * 2.0.3：特勤处升级与制作台制造均可使用仓库中的材料。
+     * 2.0.3Alpha：特勤处升级与制作台制造均可使用仓库中的材料。
      */
     private static void forEachMaterialSource(ServerPlayer player, java.util.function.ObjIntConsumer<ItemStack> consumer) {
         var inv = player.getInventory();
@@ -722,7 +722,7 @@ public final class ManufacturingService {
         int maxQueue = ModConfig.maxQueueSize();
         List<SyncManufacturePacket.RecipeInfo> recipes = new ArrayList<>();
         for (Recipe r : RecipeCache.get().getByWorkbench(wb.id)) {
-            // 1.1.0：图标保留 NBT（改名物品显示改名后的名字，与总览/仓库升级展示一致）
+            // 1.1.0Alpha：图标保留 NBT（改名物品显示改名后的名字，与总览/仓库升级展示一致）
             ItemStack icon = r.iconItem();
             recipes.add(new SyncManufacturePacket.RecipeInfo(
                     r.recipeId, r.type, icon, r.baseDuration,
@@ -809,7 +809,7 @@ public final class ManufacturingService {
         return true;
     }
 
-    /** 材料是否充足（2.0.3：背包 + 仓库已解锁槽）。 */
+    /** 材料是否充足（2.0.3Alpha：背包 + 仓库已解锁槽）。 */
     private static boolean hasEnough(net.minecraft.world.entity.player.Player player, Recipe.Ingredient ing) {
         int[] need = {ing.count};
         if (!(player instanceof ServerPlayer sp)) {
@@ -827,7 +827,7 @@ public final class ManufacturingService {
         return need[0] <= 0;
     }
 
-    /** 扣除制造材料（2.0.3：背包 + 仓库已解锁槽，先背包后仓库）。 */
+    /** 扣除制造材料（2.0.3Alpha：背包 + 仓库已解锁槽，先背包后仓库）。 */
     private static void removeMatching(net.minecraft.world.entity.player.Player player, Recipe.Ingredient ing) {
         if (!(player instanceof ServerPlayer sp)) {
             return;
@@ -993,7 +993,7 @@ public final class ManufacturingService {
             msg(player, "msg.dn.feature.disabled");
             return;
         }
-        // 权限校验（1.1.0）：G 键客户端本地打开界面，服务端在此拒绝数据下发
+        // 权限校验（1.1.0Alpha）：G 键客户端本地打开界面，服务端在此拒绝数据下发
         if (!PermissionManager.canOpenWorkbench(player)) {
             msg(player, "msg.dn.perm.denied.workbench");
             return;
@@ -1008,7 +1008,7 @@ public final class ManufacturingService {
             updateTasks(player, wb.id);  // 被动结算：请求总览时先更新任务状态（完成检测）
             Deque<Task> queue = pdata != null ? pdata.getTasks(wb.id) : new java.util.ArrayDeque<>();
             for (Recipe r : RecipeCache.get().getByWorkbench(wb.id)) {
-                // 1.1.0：输入物品保留配方 NBT（如改名的纸显示改名后的名字，与仓库升级物品展示一致）
+                // 1.1.0Alpha：输入物品保留配方 NBT（如改名的纸显示改名后的名字，与仓库升级物品展示一致）
                 List<ItemStack> inputs = new ArrayList<>();
                 for (Recipe.Ingredient ing : r.input) {
                     Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.tryParse(ing.item));
@@ -1021,7 +1021,7 @@ public final class ManufacturingService {
                         inputs.add(stack);
                     }
                 }
-                // 1.1.0：输出/图标保留 NBT（toItemStack 已含 NBT，不再剥离）
+                // 1.1.0Alpha：输出/图标保留 NBT（toItemStack 已含 NBT，不再剥离）
                 List<ItemStack> outputs = new ArrayList<>();
                 for (Recipe.Output out : r.output) {
                     ItemStack stack = out.toItemStack();
@@ -1275,7 +1275,7 @@ public final class ManufacturingService {
     }
 
     // ------------------------------------------------------------------
-    // 安全箱升级树管理（1.1.0，/dn safe 与 Web 调用）
+    // 安全箱升级树管理（1.1.0Alpha，/dn safe 与 Web 调用）
     // ------------------------------------------------------------------
 
     /** 设置安全箱升级费用（不存在则创建）。 */
@@ -1285,7 +1285,7 @@ public final class ManufacturingService {
         UpgradeConfig.get().saveNow();
     }
 
-    /** 设置安全箱升级解锁行 x 列（各 1 ~ 3，2.0.1 行列制；不存在则创建）。 */
+    /** 设置安全箱升级解锁行 x 列（各 1 ~ 3，2.0.1Alpha 行列制；不存在则创建）。 */
     public static void setSafeTreeDims(int level, int rows, int cols) {
         UpgradeConfig.UpgradeLevel u = UpgradeConfig.get().safeGetOrCreate(level);
         u.unlockRows = Math.max(1, Math.min(3, rows));

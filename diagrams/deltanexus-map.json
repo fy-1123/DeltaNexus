@@ -1,0 +1,1662 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "三角联结 DeltaNexus — Java 结构与核心依赖",
+    "quality_profile": "standard",
+    "viewBox": [
+      2480,
+      1060
+    ],
+    "views": [
+      {
+        "id": "boot",
+        "label": "入口注册链",
+        "focus": [
+          "DeltaNexus",
+          "ModMenus",
+          "PacketHandler",
+          "ConfigData",
+          "WebEditor"
+        ],
+        "note": "DeltaNexus 启动注册通道/菜单并写默认 JSON 配置。"
+      },
+      {
+        "id": "request",
+        "label": "仓库主流程",
+        "focus": [
+          "ClientEvents",
+          "C2SGroup",
+          "ManufacturingService",
+          "WarehouseMenu",
+          "S2CGroup",
+          "WarehouseScreen"
+        ],
+        "note": "B 键 → C2S → 服务端开仓库 → S2C 回发刷新。"
+      },
+      {
+        "id": "manufacture",
+        "label": "制造流程",
+        "focus": [
+          "WorkbenchScreen",
+          "C2SGroup",
+          "ManufacturingService",
+          "TaskData",
+          "S2CGroup",
+          "ManufactureScreen"
+        ],
+        "note": "选配方 → 开始制造 → 时间戳任务 → 进度同步。"
+      },
+      {
+        "id": "web",
+        "label": "网页编辑器",
+        "focus": [
+          "WebCfg",
+          "WebEditor",
+          "ConfigData",
+          "TaskData",
+          "PermissionManager"
+        ],
+        "note": "浏览器经内嵌 HTTP 服务读写 JSON 配置与权限。"
+      }
+    ]
+  },
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "分层与职责",
+      "items": [
+        "GUI 只渲染/收发包，业务由 ManufacturingService 受理"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "核心设计",
+      "items": [
+        "配置热加载 + 时间戳零 Tick 任务 + 增量网络包"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "聚合网络包",
+      "items": [
+        "C2S×13 + S2C×8（Sync*/GiveItem/OpenScreen），成员见上文字段"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "关键关系",
+      "items": [
+        "界面↔网络包↔服务端↔Capability 数据；menu 槽位权威校验"
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "KeyBindings",
+      "type": "frontend",
+      "label": "KeyBindings",
+      "sublabel": "按键定义（B/G/V/R）",
+      "pos": [
+        64,
+        250
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "ClientEvents",
+      "type": "frontend",
+      "label": "ClientEvents",
+      "sublabel": "FORGE 事件：按键开界面",
+      "pos": [
+        64,
+        334
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "ClientSetup",
+      "type": "frontend",
+      "label": "ClientSetup",
+      "sublabel": "客户端 MOD 事件",
+      "pos": [
+        64,
+        418
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "WarehouseScreen",
+      "type": "frontend",
+      "label": "WarehouseScreen",
+      "sublabel": "仓库 GUI",
+      "pos": [
+        64,
+        502
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "WorkbenchScreen",
+      "type": "frontend",
+      "label": "WorkbenchScreen",
+      "sublabel": "工作台总览 GUI",
+      "pos": [
+        64,
+        586
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "ManufactureScreen",
+      "type": "frontend",
+      "label": "ManufactureScreen",
+      "sublabel": "制造台进度 GUI",
+      "pos": [
+        64,
+        670
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "SpecialOpsScreen",
+      "type": "frontend",
+      "label": "SpecialOpsScreen",
+      "sublabel": "升级界面（特勤处）",
+      "pos": [
+        64,
+        754
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "BackpackScreen",
+      "type": "frontend",
+      "label": "BackpackScreen",
+      "sublabel": "替换原版背包界面",
+      "pos": [
+        64,
+        838
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "SafeBoxOverlay",
+      "type": "frontend",
+      "label": "SafeBoxOverlay",
+      "sublabel": "安全箱渲染覆盖层",
+      "pos": [
+        64,
+        922
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "PacketHandler",
+      "type": "messagebus",
+      "label": "PacketHandler",
+      "sublabel": "network · 通道注册 dn1",
+      "pos": [
+        480,
+        250
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "C2SGroup",
+      "type": "messagebus",
+      "label": "C2S 请求包 ×13",
+      "sublabel": "开仓/滚动/制造/升级/安全箱/网格",
+      "pos": [
+        480,
+        334
+      ],
+      "size": [
+        183,
+        48
+      ]
+    },
+    {
+      "id": "S2CGroup",
+      "type": "messagebus",
+      "label": "S2C 同步包 ×8",
+      "sublabel": "仓库/安全箱/制造/总览/UI 同步",
+      "pos": [
+        480,
+        418
+      ],
+      "size": [
+        175,
+        48
+      ]
+    },
+    {
+      "id": "DeltaNexus",
+      "type": "backend",
+      "label": "DeltaNexus",
+      "sublabel": "模组入口：注册/启动",
+      "pos": [
+        909,
+        250
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "ModMenus",
+      "type": "backend",
+      "label": "ModMenus",
+      "sublabel": "init · 菜单类型注册",
+      "pos": [
+        909,
+        334
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "WarehouseMenu",
+      "type": "backend",
+      "label": "WarehouseMenu",
+      "sublabel": "仓库容器：滚动视口",
+      "pos": [
+        909,
+        418
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "ManufacturingService",
+      "type": "backend",
+      "label": "ManufacturingService",
+      "sublabel": "制造+仓库核心服务",
+      "pos": [
+        909,
+        502
+      ],
+      "size": [
+        179,
+        48
+      ]
+    },
+    {
+      "id": "CurrencyManager",
+      "type": "backend",
+      "label": "CurrencyManager",
+      "sublabel": "货币：item/scoreboard/vault/pp",
+      "pos": [
+        909,
+        586
+      ],
+      "size": [
+        186,
+        48
+      ]
+    },
+    {
+      "id": "PermissionManager",
+      "type": "backend",
+      "label": "PermissionManager",
+      "sublabel": "仓库/工作台/特勤处/安全箱权限",
+      "pos": [
+        909,
+        670
+      ],
+      "size": [
+        173,
+        48
+      ]
+    },
+    {
+      "id": "SafeBoxSlot",
+      "type": "backend",
+      "label": "SafeBoxSlot",
+      "sublabel": "安全箱槽：服务端四重校验",
+      "pos": [
+        909,
+        754
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "GridAwareSlot",
+      "type": "backend",
+      "label": "GridAwareSlot",
+      "sublabel": "网格感知槽：预校验",
+      "pos": [
+        909,
+        838
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "CommandDN",
+      "type": "backend",
+      "label": "CommandDN",
+      "sublabel": "/dn 指令树（配置全指令化）",
+      "pos": [
+        909,
+        922
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "IPlayerData",
+      "type": "database",
+      "label": "IPlayerData",
+      "sublabel": "api · 玩家数据接口",
+      "pos": [
+        1341,
+        250
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "CapabilityAttacher",
+      "type": "backend",
+      "label": "CapabilityAttacher",
+      "sublabel": "capability · 实体绑定",
+      "pos": [
+        1341,
+        334
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "PlayerDataImpl",
+      "type": "database",
+      "label": "PlayerDataImpl",
+      "sublabel": "capability · 数据实现/备份",
+      "pos": [
+        1341,
+        418
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "TaskData",
+      "type": "database",
+      "label": "任务/工具 common",
+      "sublabel": "Task/注册表/NBT 匹配等 5 类",
+      "pos": [
+        1341,
+        502
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "ConfigData",
+      "type": "database",
+      "label": "配置层 config",
+      "sublabel": "7 个配置/缓存/落盘类",
+      "pos": [
+        1341,
+        586
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "WebCfg",
+      "type": "database",
+      "label": "WebConfig",
+      "sublabel": "web-editor.yml",
+      "pos": [
+        1757,
+        250
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "WebEditor",
+      "type": "backend",
+      "label": "WebEditorServer",
+      "sublabel": "web · 内嵌 HTTP 编辑器",
+      "pos": [
+        1757,
+        334
+      ],
+      "size": [
+        170,
+        48
+      ]
+    },
+    {
+      "id": "GridEngine",
+      "type": "backend",
+      "label": "InventoryGridHandler",
+      "sublabel": "grid · 网格引擎（服务端权威）",
+      "pos": [
+        2173,
+        250
+      ],
+      "size": [
+        179,
+        48
+      ]
+    },
+    {
+      "id": "GridSupport",
+      "type": "database",
+      "label": "网格配置/注册 grid",
+      "sublabel": "尺寸/规则/类色/渲染等 9 类",
+      "pos": [
+        2173,
+        334
+      ],
+      "size": [
+        170,
+        48
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "客户端界面 · client / client.gui",
+      "wraps": [
+        "KeyBindings",
+        "ClientEvents",
+        "ClientSetup",
+        "WarehouseScreen",
+        "WorkbenchScreen",
+        "ManufactureScreen",
+        "SpecialOpsScreen",
+        "BackpackScreen",
+        "SafeBoxOverlay"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "网络层 · network / network.packet",
+      "wraps": [
+        "PacketHandler",
+        "C2SGroup",
+        "S2CGroup"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "服务端核心 · server / init / menu",
+      "wraps": [
+        "DeltaNexus",
+        "ModMenus",
+        "WarehouseMenu",
+        "ManufacturingService",
+        "CurrencyManager",
+        "PermissionManager",
+        "SafeBoxSlot",
+        "GridAwareSlot",
+        "CommandDN"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "数据/配置 · api/capability/config/common",
+      "wraps": [
+        "IPlayerData",
+        "CapabilityAttacher",
+        "PlayerDataImpl",
+        "TaskData",
+        "ConfigData"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "网页编辑器 · web",
+      "wraps": [
+        "WebCfg",
+        "WebEditor"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "格式背包 · grid",
+      "wraps": [
+        "GridEngine",
+        "GridSupport"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "e0",
+      "from": "DeltaNexus",
+      "to": "PacketHandler",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          697,
+          274
+        ],
+        [
+          697,
+          274
+        ]
+      ],
+      "label": "注册通道"
+    },
+    {
+      "id": "e1",
+      "from": "DeltaNexus",
+      "to": "ModMenus",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        994,
+        316
+      ],
+      "label": "注册菜单"
+    },
+    {
+      "id": "e2",
+      "from": "ModMenus",
+      "to": "WarehouseMenu",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        994,
+        400
+      ],
+      "label": "注册类型"
+    },
+    {
+      "id": "e3",
+      "from": "ClientSetup",
+      "to": "ModMenus",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          280,
+          442
+        ],
+        [
+          280,
+          36
+        ],
+        [
+          721,
+          36
+        ],
+        [
+          721,
+          358
+        ]
+      ],
+      "label": "取菜单类型"
+    },
+    {
+      "id": "e4",
+      "from": "ClientSetup",
+      "to": "WarehouseScreen",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        149,
+        484
+      ],
+      "label": "绑定屏幕"
+    },
+    {
+      "id": "e5",
+      "from": "DeltaNexus",
+      "to": "ConfigData",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          1165,
+          274
+        ],
+        [
+          1165,
+          610
+        ]
+      ],
+      "label": "注册/写默认"
+    },
+    {
+      "id": "e6",
+      "from": "DeltaNexus",
+      "to": "TaskData",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          1177,
+          274
+        ],
+        [
+          1177,
+          526
+        ]
+      ],
+      "label": "写默认 JSON"
+    },
+    {
+      "id": "e7",
+      "from": "DeltaNexus",
+      "to": "GridSupport",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          1189,
+          274
+        ],
+        [
+          1189,
+          46
+        ],
+        [
+          2033,
+          46
+        ],
+        [
+          2033,
+          358
+        ]
+      ],
+      "label": "注册物品/附魔"
+    },
+    {
+      "id": "e8",
+      "from": "DeltaNexus",
+      "to": "WebEditor",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          1213,
+          274
+        ],
+        [
+          1213,
+          56
+        ],
+        [
+          1641,
+          56
+        ],
+        [
+          1641,
+          358
+        ]
+      ],
+      "label": "启动 Web"
+    },
+    {
+      "id": "e9",
+      "from": "ClientEvents",
+      "to": "C2SGroup",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          376,
+          358
+        ],
+        [
+          376,
+          358
+        ]
+      ],
+      "label": "B/G/V 键"
+    },
+    {
+      "id": "e10",
+      "from": "WarehouseScreen",
+      "to": "C2SGroup",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          388,
+          526
+        ],
+        [
+          388,
+          358
+        ]
+      ],
+      "label": "开仓/滚动"
+    },
+    {
+      "id": "e11",
+      "from": "WorkbenchScreen",
+      "to": "C2SGroup",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          400,
+          610
+        ],
+        [
+          400,
+          358
+        ]
+      ],
+      "label": "任务/数据"
+    },
+    {
+      "id": "e12",
+      "from": "ManufactureScreen",
+      "to": "C2SGroup",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          412,
+          694
+        ],
+        [
+          412,
+          358
+        ]
+      ],
+      "label": "制造操作"
+    },
+    {
+      "id": "e13",
+      "from": "SpecialOpsScreen",
+      "to": "C2SGroup",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          424,
+          778
+        ],
+        [
+          424,
+          358
+        ]
+      ],
+      "label": "升级请求"
+    },
+    {
+      "id": "e14",
+      "from": "BackpackScreen",
+      "to": "C2SGroup",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          436,
+          862
+        ],
+        [
+          436,
+          358
+        ]
+      ],
+      "label": "点击/捡起"
+    },
+    {
+      "id": "e15",
+      "from": "SafeBoxOverlay",
+      "to": "C2SGroup",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          268,
+          946
+        ],
+        [
+          268,
+          358
+        ]
+      ],
+      "label": "请求状态"
+    },
+    {
+      "id": "e16",
+      "from": "C2SGroup",
+      "to": "ManufacturingService",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          709,
+          358
+        ],
+        [
+          709,
+          526
+        ]
+      ],
+      "label": "业务受理"
+    },
+    {
+      "id": "e17",
+      "from": "C2SGroup",
+      "to": "GridEngine",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          721,
+          358
+        ],
+        [
+          721,
+          66
+        ],
+        [
+          1997,
+          66
+        ],
+        [
+          1997,
+          274
+        ]
+      ],
+      "label": "旋转/跨格"
+    },
+    {
+      "id": "e18",
+      "from": "ManufacturingService",
+      "to": "S2CGroup",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          745,
+          526
+        ],
+        [
+          745,
+          442
+        ]
+      ],
+      "label": "回发同步"
+    },
+    {
+      "id": "e19",
+      "from": "CommandDN",
+      "to": "S2CGroup",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          757,
+          946
+        ],
+        [
+          757,
+          442
+        ]
+      ],
+      "label": "open 开屏"
+    },
+    {
+      "id": "e20",
+      "from": "CommandDN",
+      "to": "ManufacturingService",
+      "fromSide": "left",
+      "toSide": "left",
+      "via": [
+        [
+          769,
+          946
+        ],
+        [
+          769,
+          76
+        ],
+        [
+          781,
+          76
+        ],
+        [
+          781,
+          526
+        ]
+      ],
+      "label": "驱动业务"
+    },
+    {
+      "id": "e21",
+      "from": "S2CGroup",
+      "to": "WarehouseScreen",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          364,
+          442
+        ],
+        [
+          364,
+          526
+        ]
+      ],
+      "label": "刷新"
+    },
+    {
+      "id": "e22",
+      "from": "S2CGroup",
+      "to": "WorkbenchScreen",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          376,
+          442
+        ],
+        [
+          376,
+          610
+        ]
+      ],
+      "label": "全量渲染"
+    },
+    {
+      "id": "e23",
+      "from": "S2CGroup",
+      "to": "ManufactureScreen",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          388,
+          442
+        ],
+        [
+          388,
+          694
+        ]
+      ],
+      "label": "进度"
+    },
+    {
+      "id": "e24",
+      "from": "S2CGroup",
+      "to": "SpecialOpsScreen",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          400,
+          442
+        ],
+        [
+          400,
+          778
+        ]
+      ],
+      "label": "刷新"
+    },
+    {
+      "id": "e25",
+      "from": "S2CGroup",
+      "to": "BackpackScreen",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          412,
+          442
+        ],
+        [
+          412,
+          862
+        ]
+      ],
+      "label": "渲染"
+    },
+    {
+      "id": "e26",
+      "from": "S2CGroup",
+      "to": "SafeBoxOverlay",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          424,
+          442
+        ],
+        [
+          424,
+          946
+        ]
+      ],
+      "label": "渲染"
+    },
+    {
+      "id": "e27",
+      "from": "ManufacturingService",
+      "to": "WarehouseMenu",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelAt": [
+        998.5,
+        484
+      ],
+      "label": "打开容器"
+    },
+    {
+      "id": "e28",
+      "from": "ManufacturingService",
+      "to": "TaskData",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          1297,
+          526
+        ],
+        [
+          1297,
+          526
+        ]
+      ],
+      "label": "创建任务"
+    },
+    {
+      "id": "e29",
+      "from": "ManufacturingService",
+      "to": "ConfigData",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          1129,
+          526
+        ],
+        [
+          1129,
+          610
+        ]
+      ],
+      "label": "读配方/升级"
+    },
+    {
+      "id": "e30",
+      "from": "ManufacturingService",
+      "to": "CurrencyManager",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        998.5,
+        568
+      ],
+      "label": "扣货币"
+    },
+    {
+      "id": "e31",
+      "from": "ManufacturingService",
+      "to": "PermissionManager",
+      "fromSide": "left",
+      "toSide": "left",
+      "via": [
+        [
+          709,
+          526
+        ],
+        [
+          709,
+          86
+        ],
+        [
+          721,
+          86
+        ],
+        [
+          721,
+          694
+        ]
+      ],
+      "label": "权限校验"
+    },
+    {
+      "id": "e32",
+      "from": "WarehouseMenu",
+      "to": "IPlayerData",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          1165,
+          442
+        ],
+        [
+          1165,
+          274
+        ]
+      ],
+      "label": "读仓库"
+    },
+    {
+      "id": "e33",
+      "from": "SafeBoxSlot",
+      "to": "IPlayerData",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          1177,
+          778
+        ],
+        [
+          1177,
+          274
+        ]
+      ],
+      "label": "解锁格判定"
+    },
+    {
+      "id": "e34",
+      "from": "SafeBoxSlot",
+      "to": "PermissionManager",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelAt": [
+        994,
+        736
+      ],
+      "label": "权限校验"
+    },
+    {
+      "id": "e35",
+      "from": "SafeBoxSlot",
+      "to": "ConfigData",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          1189,
+          778
+        ],
+        [
+          1189,
+          610
+        ]
+      ],
+      "label": "NBT 限制"
+    },
+    {
+      "id": "e36",
+      "from": "GridAwareSlot",
+      "to": "GridEngine",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          1201,
+          862
+        ],
+        [
+          1201,
+          96
+        ],
+        [
+          2045,
+          96
+        ],
+        [
+          2045,
+          274
+        ]
+      ],
+      "label": "预校验落位"
+    },
+    {
+      "id": "e37",
+      "from": "CapabilityAttacher",
+      "to": "PlayerDataImpl",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        1426,
+        400
+      ],
+      "label": "附加实例"
+    },
+    {
+      "id": "e38",
+      "from": "PlayerDataImpl",
+      "to": "IPlayerData",
+      "fromSide": "left",
+      "toSide": "left",
+      "via": [
+        [
+          1225,
+          442
+        ],
+        [
+          1225,
+          106
+        ],
+        [
+          1237,
+          106
+        ],
+        [
+          1237,
+          274
+        ]
+      ],
+      "label": "实现接口"
+    },
+    {
+      "id": "e39",
+      "from": "PlayerDataImpl",
+      "to": "TaskData",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        1426,
+        484
+      ],
+      "label": "持有任务"
+    },
+    {
+      "id": "e40",
+      "from": "GridEngine",
+      "to": "IPlayerData",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          2081,
+          274
+        ],
+        [
+          2081,
+          116
+        ],
+        [
+          1677,
+          116
+        ],
+        [
+          1677,
+          274
+        ]
+      ],
+      "label": "读容器"
+    },
+    {
+      "id": "e41",
+      "from": "GridEngine",
+      "to": "ConfigData",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          2105,
+          274
+        ],
+        [
+          2105,
+          126
+        ],
+        [
+          1701,
+          126
+        ],
+        [
+          1701,
+          610
+        ]
+      ],
+      "label": "限制/尺寸/类色"
+    },
+    {
+      "id": "e42",
+      "from": "GridEngine",
+      "to": "GridSupport",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        2262.5,
+        316
+      ],
+      "label": "配置与注册"
+    },
+    {
+      "id": "e43",
+      "from": "GridSupport",
+      "to": "S2CGroup",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          2129,
+          358
+        ],
+        [
+          2129,
+          136
+        ],
+        [
+          697,
+          136
+        ],
+        [
+          697,
+          442
+        ]
+      ],
+      "label": "网格同步"
+    },
+    {
+      "id": "e44",
+      "from": "BackpackScreen",
+      "to": "GridEngine",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          280,
+          862
+        ],
+        [
+          280,
+          146
+        ],
+        [
+          1985,
+          146
+        ],
+        [
+          1985,
+          274
+        ]
+      ],
+      "label": "网格交互"
+    },
+    {
+      "id": "e45",
+      "from": "CommandDN",
+      "to": "ConfigData",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          1165,
+          946
+        ],
+        [
+          1165,
+          610
+        ]
+      ],
+      "label": "改配置"
+    },
+    {
+      "id": "e46",
+      "from": "CommandDN",
+      "to": "TaskData",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          1177,
+          946
+        ],
+        [
+          1177,
+          526
+        ]
+      ],
+      "label": "workbench/recipe"
+    },
+    {
+      "id": "e47",
+      "from": "CommandDN",
+      "to": "IPlayerData",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          1189,
+          946
+        ],
+        [
+          1189,
+          274
+        ]
+      ],
+      "label": "data 指令"
+    },
+    {
+      "id": "e48",
+      "from": "CommandDN",
+      "to": "PermissionManager",
+      "fromSide": "left",
+      "toSide": "left",
+      "via": [
+        [
+          769,
+          946
+        ],
+        [
+          769,
+          156
+        ],
+        [
+          781,
+          156
+        ],
+        [
+          781,
+          694
+        ]
+      ],
+      "label": "perm 指令"
+    },
+    {
+      "id": "e49",
+      "from": "WebEditor",
+      "to": "WebCfg",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelAt": [
+        1842,
+        316
+      ],
+      "label": "读配置"
+    },
+    {
+      "id": "e50",
+      "from": "WebEditor",
+      "to": "ConfigData",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          1641,
+          358
+        ],
+        [
+          1641,
+          610
+        ]
+      ],
+      "label": "编辑配置"
+    },
+    {
+      "id": "e51",
+      "from": "WebEditor",
+      "to": "TaskData",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          1653,
+          358
+        ],
+        [
+          1653,
+          526
+        ]
+      ],
+      "label": "管理工作台"
+    },
+    {
+      "id": "e52",
+      "from": "WebEditor",
+      "to": "PermissionManager",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          1665,
+          358
+        ],
+        [
+          1665,
+          166
+        ],
+        [
+          1261,
+          166
+        ],
+        [
+          1261,
+          694
+        ]
+      ],
+      "label": "管理权限"
+    },
+    {
+      "id": "e53",
+      "from": "WebEditor",
+      "to": "IPlayerData",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          1689,
+          358
+        ],
+        [
+          1689,
+          274
+        ]
+      ],
+      "label": "查玩家"
+    },
+    {
+      "id": "e54",
+      "from": "WebEditor",
+      "to": "ManufacturingService",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          1701,
+          358
+        ],
+        [
+          1701,
+          176
+        ],
+        [
+          1297,
+          176
+        ],
+        [
+          1297,
+          526
+        ]
+      ],
+      "label": "触发动作"
+    },
+    {
+      "id": "e55",
+      "from": "WebEditor",
+      "to": "CurrencyManager",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          1545,
+          358
+        ],
+        [
+          1545,
+          186
+        ],
+        [
+          1141,
+          186
+        ],
+        [
+          1141,
+          610
+        ]
+      ],
+      "label": "货币操作"
+    }
+  ]
+}

@@ -51,7 +51,7 @@ public class SyncWarehousePacket {
     public final int nextUnlockSlots;
     /** 下一级材料明细（不含货币本身）。 */
     public final List<Material> nextMaterials;
-    /** 当前视口起始行（2.0.1 滚动渲染，替代翻页；视口固定 6 行）。 */
+    /** 当前视口起始行（2.0.1Alpha 滚动渲染，替代翻页；视口固定 6 行）。 */
     public final int scrollRow;
     /** 仓库总行数（= 容量 / 9）。 */
     public final int totalRows;
@@ -59,7 +59,7 @@ public class SyncWarehousePacket {
     public final String currencyType;
     /** 货币是否可用（vault 未安装时为 false，客户端不显示货币行）。 */
     public final boolean currencyUsable;
-    // ---- 安全箱（1.1.0）----
+    // ---- 安全箱（1.1.0Alpha）----
     /** 安全箱当前等级（0 = 配置默认尺寸）。 */
     public final int safeLevel;
     /** 安全箱升级树最大等级。 */
@@ -140,7 +140,7 @@ public class SyncWarehousePacket {
         buf.writeVarInt(msg.totalRows);
         buf.writeUtf(msg.currencyType);
         buf.writeBoolean(msg.currencyUsable);
-        // 安全箱（1.1.0）
+        // 安全箱（1.1.0Alpha）
         buf.writeVarInt(msg.safeLevel);
         buf.writeVarInt(msg.safeMaxLevel);
         buf.writeVarInt(msg.safeUnlockedSlots);
@@ -183,7 +183,7 @@ public class SyncWarehousePacket {
         int totalRows = buf.readVarInt();
         String currencyType = buf.readUtf();
         boolean currencyUsable = buf.readBoolean();
-        // 安全箱（1.1.0）
+        // 安全箱（1.1.0Alpha）
         int safeLevel = buf.readVarInt();
         int safeMaxLevel = buf.readVarInt();
         int safeUnlockedSlots = buf.readVarInt();
@@ -211,7 +211,7 @@ public class SyncWarehousePacket {
     }
 
     /**
-     * 客户端处理（2.0.7 拆分：专用服务器不加载本类，修复客户端类型引用导致的启动崩溃）。
+     * 客户端处理（2.0.7Alpha 拆分：专用服务器不加载本类，修复客户端类型引用导致的启动崩溃）。
      */
     @net.minecraftforge.api.distmarker.OnlyIn(net.minecraftforge.api.distmarker.Dist.CLIENT)
     private static class ClientHandler {
@@ -221,7 +221,7 @@ public class SyncWarehousePacket {
             if (net.minecraft.client.Minecraft.getInstance().screen instanceof WarehouseScreen s) {
                 s.onSync(msg);
             }
-            // 特勤处（2.0.2）：升级界面同样订阅仓库同步包实时刷新
+            // 特勤处（2.0.2Alpha）：升级界面同样订阅仓库同步包实时刷新
             if (net.minecraft.client.Minecraft.getInstance().screen instanceof com.deltanexus.system.client.gui.SpecialOpsScreen s) {
                 s.onSync(msg);
             }

@@ -5,7 +5,7 @@ import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * 充能核心能量工具（2.0.0，集成自 expansionpack；NBT 键改为 deltanexus 命名空间）。
+ * 充能核心能量工具（2.0.0Alpha；NBT 键改为 deltanexus 命名空间）。
  */
 public class OverdriveUtils {
     public static final String ENERGY_KEY = "deltanexus.energy";

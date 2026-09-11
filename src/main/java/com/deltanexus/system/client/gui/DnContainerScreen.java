@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.TreeSet;
 
 /**
- * dn 通用容器界面（2.0.10）：箱子/木桶/潜影盒/发射器/漏斗等纯槽位容器的 dn 风格皮肤。
+ * dn 通用容器界面（2.0.10Alpha）：箱子/木桶/潜影盒/发射器/漏斗等纯槽位容器的 dn 风格皮肤。
  *
  * <p>核心思路：完全复用原版容器 Menu（服务端逻辑、容器 id、点击协议零改动），
  * 仅重映射槽位坐标到三列布局并全屏自绘面板——与 {@link BackpackScreen} 同一模式：
@@ -65,7 +65,7 @@ public class DnContainerScreen extends AbstractContainerScreen<AbstractContainer
         this.leftPos = 0;
         this.topPos = 0;
         super.init();
-        // 2.0.10：口袋槽尺寸守卫（客户端预测——塞大件到口袋直接回光标，避免一闪再回弹）
+        // 2.0.10Alpha：口袋槽尺寸守卫（客户端预测——塞大件到口袋直接回光标，避免一闪再回弹）
         InventoryGridHandler.ensurePocketGuards(this.menu, Minecraft.getInstance().player);
         snapshotAndDetectGrid();
         remapSlots();
@@ -215,7 +215,7 @@ public class DnContainerScreen extends AbstractContainerScreen<AbstractContainer
     }
 
     /** 安全箱区底图 + 标题（同背包界面：中列背包下方）。
-     *  2.1：被禁用时仅显示红色「安全箱被禁用」提示，不渲染任何安全箱格子。 */
+     *  2.1Alpha：被禁用时仅显示红色「安全箱被禁用」提示，不渲染任何安全箱格子。 */
     private void renderSafeBoxPanel(GuiGraphics gg, PlayerLayout L) {
         SyncSafeBoxPacket st = SafeBoxOverlay.lastState();
         int w = SafeBoxOverlay.safeWidth(st);
@@ -224,7 +224,7 @@ public class DnContainerScreen extends AbstractContainerScreen<AbstractContainer
         DnTheme.drawTitle(gg, this.font, L.midX - 8, L.safeY - 22,
                 w * PlayerLayout.SLOT + 16, title, SafeBoxOverlay.safeTitleColor(st));
         if (!SafeBoxOverlay.safeAllowed(st)) {
-            return; // 2.1：被禁用 → 不渲染安全箱格子
+            return; // 2.1Alpha：被禁用 → 不渲染安全箱格子
         }
         for (int i = 0; i < w * h; i++) {
             gg.blit(SLOT_TEX, L.midX + (i % w) * PlayerLayout.SLOT,
@@ -305,11 +305,11 @@ public class DnContainerScreen extends AbstractContainerScreen<AbstractContainer
     }
 
     /**
-     * 容器界面替换拦截器（2.0.10）：原版纯槽位容器界面打开时替换为 dn 三列布局。
+     * 容器界面替换拦截器（2.0.10Alpha）：原版纯槽位容器界面打开时替换为 dn 三列布局。
      *
      * <p>替换范围（1.20.1 类名）：箱子/木桶（ContainerScreen，含大箱子——与单箱同类
      * 无法区分）/潜影盒（ShulkerBoxScreen，直接继承 AbstractContainerScreen，
-     * 非 ContainerScreen 子类，2.0.10 补拦）/发射器与投掷器（DispenserScreen）/
+     * 非 ContainerScreen 子类，2.0.10Alpha 补拦）/发射器与投掷器（DispenserScreen）/
      * 漏斗（HopperScreen）——均为纯槽位容器，复用原版 Menu 后全部交互
      * （点击/shift/拖拽/数字键）走标准协议。熔炉等工作台类界面有进度条等特殊渲染，不替换。</p>
      */
@@ -327,7 +327,7 @@ public class DnContainerScreen extends AbstractContainerScreen<AbstractContainer
                 return;
             }
             String reason = null;
-            // 2.1：玩家功能被禁用（featuresEnabled=false）→ 所有界面恢复原版
+            // 2.1Alpha：玩家功能被禁用（featuresEnabled=false）→ 所有界面恢复原版
             if (!ClientUiConfig.featuresEnabled()) {
                 reason = "功能被禁用";
             } else if (ClientUiConfig.isVanillaUi(s.getClass())) {

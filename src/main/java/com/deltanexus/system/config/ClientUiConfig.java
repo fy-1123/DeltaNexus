@@ -12,12 +12,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 客户端 UI 配置（config/deltanexus/client-ui.toml，ForgeConfigSpec，2.0.8 UI 重构）。
+ * 客户端 UI 配置（config/deltanexus/client-ui.toml，ForgeConfigSpec，2.0.8Alpha UI 重构）。
  *
- * <p>2.0.10 修复：register() 此前从未被主类调用，配置文件一直未生成，白名单仅靠
+ * <p>2.0.10Alpha 修复：register() 此前从未被主类调用，配置文件一直未生成，白名单仅靠
  * 代码默认回退值（CreativeModeInventoryScreen）生效；现随主类构造注册并迁入模组统一配置文件夹。</p>
  *
- * <p>界面白名单系统（2.0.9 双端化）：白名单内的界面保持原版 GUI 样式与交互逻辑——
+ * <p>界面白名单系统（2.0.9Alpha 双端化）：白名单内的界面保持原版 GUI 样式与交互逻辑——
  * dn 不替换背包界面、不做网格渲染、不渲染安全箱覆盖层。
  * 白名单有两份，命中任意一份即生效（取并集）：
  * <ul>
@@ -40,7 +40,7 @@ public final class ClientUiConfig {
     private static volatile List<String> cachedWhitelist;
     /** 服务端白名单缓存（SyncServerUiPacket 同步；空列表 = 服务端未配置）。 */
     private static volatile List<String> serverWhitelist = List.of();
-    /** 玩家功能开关（2.1：服务端同步；false = 禁用全部 mod 功能，UI 恢复原版）。 */
+    /** 玩家功能开关（2.1Alpha：服务端同步；false = 禁用全部 mod 功能，UI 恢复原版）。 */
     private static volatile boolean featuresEnabled = true;
 
     static {
@@ -73,7 +73,7 @@ public final class ClientUiConfig {
     }
 
     /**
-     * 注册配置（2.0.10：文件统一放模组文件夹 config/deltanexus/client-ui.toml，
+     * 注册配置（2.0.10Alpha：文件统一放模组文件夹 config/deltanexus/client-ui.toml，
      * 注册前自动把旧平铺位置 config/deltanexus-client.toml 迁移过来）。
      */
     public static void register() {
@@ -86,7 +86,7 @@ public final class ClientUiConfig {
 
     /**
      * 指定界面类是否在白名单中（类简单名/全限定名匹配，忽略大小写）。
-     * 2.0.9：客户端白名单与服务端同步白名单取并集，命中任意一份即使用原版 GUI。
+     * 2.0.9Alpha：客户端白名单与服务端同步白名单取并集，命中任意一份即使用原版 GUI。
      * 注意：刻意接收 {@code Class<?>} 而非 Screen 对象，避免本类在专用服务器上
      * 触发客户端类加载。配置未加载时回退默认白名单（创造模式保持原版）。
      */
@@ -115,13 +115,13 @@ public final class ClientUiConfig {
         serverWhitelist = whitelist == null ? List.of() : List.copyOf(whitelist);
     }
 
-    /** 2.1：应用服务端 UI 同步（白名单 + 玩家功能开关）。 */
+    /** 2.1Alpha：应用服务端 UI 同步（白名单 + 玩家功能开关）。 */
     public static void applyServerUi(List<String> whitelist, boolean features) {
         serverWhitelist = whitelist == null ? List.of() : List.copyOf(whitelist);
         featuresEnabled = features;
     }
 
-    /** 2.1：该玩家是否可用 mod 功能（false = 禁用全部，所有界面恢复原版）。 */
+    /** 2.1Alpha：该玩家是否可用 mod 功能（false = 禁用全部，所有界面恢复原版）。 */
     public static boolean featuresEnabled() {
         return featuresEnabled;
     }
@@ -171,7 +171,7 @@ public final class ClientUiConfig {
 
     /**
      * 配置事件：本模组客户端配置加载/重载时刷新白名单缓存（支持热修改）。
-     * 2.0.10 修复：ModConfigEvent 是 MOD 总线事件，此前未指定 bus（默认 FORGE）
+     * 2.0.10Alpha 修复：ModConfigEvent 是 MOD 总线事件，此前未指定 bus（默认 FORGE）
      * 导致订阅器从未被调用——游戏内改配置文件后白名单缓存永不刷新，
      * 需重启游戏才生效。现挂 MOD 总线，Forge 文件监听触发热重载即时刷新。
      */

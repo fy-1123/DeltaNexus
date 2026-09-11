@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>二级界面 · 物品详情</title>
+    <style>
+        /* 重置与居中 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #dce1e8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+
+        /* 固定窗口 720x400 */
+        .app {
+            width: 720px;
+            height: 400px;
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            display: flex;
+            flex-direction: column;
+            padding: 24px 28px 20px 28px;
+            overflow: hidden;
+        }
+
+        /* ===== 上半部分：信息展示 ===== */
+        .info-area {
+            flex: 1;
+            display: flex;
+            gap: 28px;
+            align-items: center;
+            justify-content: center;  /* 水平居中 */
+            min-height: 0;
+        }
+
+        /* 左侧正方形 */
+        .icon-square {
+            width: 100px;
+            height: 100px;
+            flex-shrink: 0;
+            background: #dbeafe;
+            border-radius: 8px;
+            border: 1.5px solid #bfdbfe;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 600;
+            color: #1e40af;
+            text-align: center;
+            line-height: 1.3;
+            padding: 4px;
+            user-select: none;
+        }
+
+        /* 右侧信息列表 */
+        .info-list {
+            flex: 0 1 auto;  /* 不拉伸，根据内容 */
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            justify-content: center;
+        }
+
+        .info-row {
+            display: flex;
+            align-items: baseline;
+            padding: 2px 0;
+            font-size: 15px;
+            color: #1e293b;
+        }
+
+        .info-label {
+            width: 130px;
+            flex-shrink: 0;
+            color: #64748b;
+            font-weight: 450;
+            letter-spacing: 0.2px;
+        }
+
+        .info-value {
+            font-weight: 600;
+            color: #0f172a;
+        }
+
+        .info-value.price {
+            color: #2563eb;
+        }
+
+        .info-value.sell {
+            color: #16a34a;
+        }
+
+        .info-value.buy {
+            color: #dc2626;
+        }
+
+        /* ===== 分割线 ===== */
+        .divider {
+            border: none;
+            border-top: 1px solid #eef2f6;
+            margin: 12px 0 14px 0;
+            flex-shrink: 0;
+        }
+
+        /* ===== 下半部分：买入操作 ===== */
+        .action-area {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 4px 0;
+        }
+
+        .action-label {
+            font-size: 16px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-right: 2px;
+        }
+
+        .action-area input[type="number"] {
+            width: 80px;
+            padding: 8px 10px;
+            font-size: 15px;
+            font-weight: 500;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 6px;
+            background: #f8fafc;
+            color: #0f172a;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .action-area input[type="number"]:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+            background: #ffffff;
+        }
+
+        .action-area input[type="number"]::-webkit-inner-spin-button {
+            opacity: 0.5;
+        }
+
+        .unit-label {
+            font-size: 15px;
+            color: #475569;
+            font-weight: 500;
+        }
+
+        .btn-buy {
+            padding: 8px 28px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #ffffff;
+            background: #2563eb;
+            border: none;
+            border-radius: 6px;
+            cursor: default;
+            transition: background 0.15s, transform 0.1s;
+            letter-spacing: 0.3px;
+            margin-left: 4px;
+        }
+
+        .btn-buy:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-buy:active {
+            transform: scale(0.97);
+        }
+
+        .action-area .spacer {
+            flex: 1;
+        }
+
+        /* 小屏适配 —— 保持固定尺寸 */
+        @media (max-width: 720px) {
+            body {
+                transform: scale(calc(100vw / 720));
+                transform-origin: top left;
+                width: 720px;
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app">
+
+        <!-- ===== 信息展示区 ===== -->
+        <div class="info-area">
+            <!-- 正方形：物品图标 -->
+            <div class="icon-square">物品图标</div>
+
+            <!-- 右侧四行信息 -->
+            <div class="info-list">
+                <div class="info-row">
+                    <span class="info-label">当前数量</span>
+                    <span class="info-value">1,234</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">当前价格</span>
+                    <span class="info-value price">¥ 56.78</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">当前卖出价格</span>
+                    <span class="info-value sell">¥ 55.20</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">当前买入价格</span>
+                    <span class="info-value buy">¥ 58.30</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 分割线 -->
+        <hr class="divider">
+
+        <!-- ===== 买入操作区 ===== -->
+        <div class="action-area">
+            <span class="action-label">买入</span>
+            <input type="number" value="1" min="1" step="1">
+            <span class="unit-label">个</span>
+            <div class="spacer"></div>
+            <button class="btn-buy">买入</button>
+        </div>
+
+    </div>
+
+</body>
+</html>

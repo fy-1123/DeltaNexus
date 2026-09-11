@@ -22,7 +22,7 @@ import net.minecraftforge.items.ItemStackHandler;
 import net.minecraftforge.items.SlotItemHandler;
 
 /**
- * 安全箱数据同步与渲染（1.1.0；2.0.8 UI 重构）。
+ * 安全箱数据同步与渲染（1.1.0Alpha；2.0.8Alpha UI 重构）。
  *
  * <p>职责：</p>
  * <ul>
@@ -61,9 +61,9 @@ public final class SafeBoxOverlay {
     /** 服务端状态到达：缓存；背包界面打开时同步光标栈（点击交互后立即反映）。 */
     public static void receive(SyncSafeBoxPacket packet) {
         state = packet;
-        // 格式背包（2.0.0）：覆盖层影子容器注册为「客户端安全箱容器」供网格渲染识别
+        // 格式背包（2.0.0Alpha）：覆盖层影子容器注册为「客户端安全箱容器」供网格渲染识别
         InventoryGridHandler.CLIENT_SAFE_HANDLER = OVERLAY_SAFE;
-        // 2.0.4：同步客户端安全箱宽度（修复 2x3 物品在覆盖层渲染异常：宽度残留旧值导致回退 1x1）
+        // 2.0.4Alpha：同步客户端安全箱宽度（修复 2x3 物品在覆盖层渲染异常：宽度残留旧值导致回退 1x1）
         InventoryGridHandler.CLIENT_SAFE_WIDTH = safeWidth(packet);
         Minecraft mc = Minecraft.getInstance();
         // 光标栈同步：原版背包与 dn 背包/容器界面均适用（NPE 预防：界面切换时序下判空）。
@@ -84,7 +84,7 @@ public final class SafeBoxOverlay {
     }
 
     /** 覆盖层是否对该界面生效：原版背包未加入白名单时才渲染（白名单 = 完全原版体验）。
-     *  2.1：玩家功能被禁用（featuresEnabled=false）时不渲染安全箱。 */
+     *  2.1Alpha：玩家功能被禁用（featuresEnabled=false）时不渲染安全箱。 */
     private static boolean overlayEnabled(net.minecraft.client.gui.screens.Screen screen) {
         if (!com.deltanexus.system.config.ClientUiConfig.featuresEnabled()) {
             return false;
@@ -92,7 +92,7 @@ public final class SafeBoxOverlay {
         if (!isVanillaInventory(screen)) {
             return false;
         }
-        // 2.0.10 创造模式修复：按 E 时 InventoryScreen 是创造界面的「跳板」
+        // 2.0.10Alpha 创造模式修复：按 E 时 InventoryScreen 是创造界面的「跳板」
         // （containerTick 检测 hasInfiniteItems 后自动切换为 CreativeModeInventoryScreen），
         // 跳板帧内不渲染覆盖层，避免闪现
         Minecraft mc = Minecraft.getInstance();
@@ -117,7 +117,7 @@ public final class SafeBoxOverlay {
         return st == null ? 1 : Math.max(1, Math.min(3, st.height));
     }
 
-    /** 安全箱标题文本（2.1：被禁用时显示「安全箱被禁用」提示）。 */
+    /** 安全箱标题文本（2.1Alpha：被禁用时显示「安全箱被禁用」提示）。 */
     public static String safeTitle(SyncSafeBoxPacket st) {
         if (st == null) {
             return Component.translatable("gui.dn.safe_box").getString();
@@ -128,18 +128,18 @@ public final class SafeBoxOverlay {
         return Component.translatable("gui.dn.safe_box").getString() + " Lv" + st.safeLevel;
     }
 
-    /** 安全箱标题颜色（2.1：禁用时红色警示，正常金色）。 */
+    /** 安全箱标题颜色（2.1Alpha：禁用时红色警示，正常金色）。 */
     public static int safeTitleColor(SyncSafeBoxPacket st) {
         return st != null && !st.allowed ? 0xFFFF5555 : DnTheme.GOLD;
     }
 
-    /** 安全箱是否可用（状态已同步且未被禁用；2.1：禁用时不渲染任何格子）。 */
+    /** 安全箱是否可用（状态已同步且未被禁用；2.1Alpha：禁用时不渲染任何格子）。 */
     public static boolean safeAllowed(SyncSafeBoxPacket st) {
         return st != null && st.allowed;
     }
 
     /** 打开背包/容器/仓库界面（dn / 原版）：请求一次安全箱状态（精确匹配，排除创造模式子类）。
-     *  2.1：玩家功能被禁用时不请求（界面已恢复原版且不渲染安全箱）。 */
+     *  2.1Alpha：玩家功能被禁用时不请求（界面已恢复原版且不渲染安全箱）。 */
     @SubscribeEvent
     public static void onScreenInit(ScreenEvent.Init.Post event) {
         if (!com.deltanexus.system.config.ClientUiConfig.featuresEnabled()) {
@@ -149,7 +149,7 @@ public final class SafeBoxOverlay {
                 || event.getScreen() instanceof BackpackScreen
                 || event.getScreen() instanceof DnContainerScreen
                 || event.getScreen() instanceof WarehouseScreen) {
-            // 格式背包（2.0.0）：菜单关闭后重置客户端安全箱容器指向覆盖层影子容器
+            // 格式背包（2.0.0Alpha）：菜单关闭后重置客户端安全箱容器指向覆盖层影子容器
             InventoryGridHandler.CLIENT_SAFE_HANDLER = OVERLAY_SAFE;
             PacketHandler.sendToServer(new C2SRequestSafeBoxPacket());
         }
@@ -193,7 +193,7 @@ public final class SafeBoxOverlay {
                     dim = new InventoryGridHandler.ItemDim(1, 1);
                 }
                 if (dim.is1x1()) {
-                    // 2.0.5：1x1 物品同样按类着色（类色墙 + 图标）
+                    // 2.0.5Alpha：1x1 物品同样按类着色（类色墙 + 图标）
                     if (com.deltanexus.system.grid.GridClassConfig.isClassed(stack)) {
                         com.deltanexus.system.grid.GridClientRendering.renderGridStack(gg, stack, sx, sy,
                                 new InventoryGridHandler.ItemDim(1, 1), false,
@@ -231,7 +231,7 @@ public final class SafeBoxOverlay {
     // ==================================================================
 
     /** 覆盖层网格区域（屏幕坐标）：x, y, 宽, 高；状态未知返回 null。
-     *  2.1：被禁用（allowed=false）时仍返回区域（用于渲染「安全箱被禁用」提示面板）。 */
+     *  2.1Alpha：被禁用（allowed=false）时仍返回区域（用于渲染「安全箱被禁用」提示面板）。 */
     private static int[] boxRect() {
         SyncSafeBoxPacket s = state;
         if (s == null) {
@@ -245,7 +245,7 @@ public final class SafeBoxOverlay {
         return new int[]{x, y, w, h};
     }
 
-    /** 渲染覆盖层（原版背包打开、未加白名单时；2.1：禁用时显示红色「安全箱被禁用」提示，
+    /** 渲染覆盖层（原版背包打开、未加白名单时；2.1Alpha：禁用时显示红色「安全箱被禁用」提示，
      *  不渲染任何格子；正常时渲染格子与物品）。 */
     @SubscribeEvent
     public static void onRender(ScreenEvent.Render.Post event) {
@@ -264,11 +264,11 @@ public final class SafeBoxOverlay {
         int h = r[3];
         int pw = w * 18 + 16;
         int ph = h * 18 + 26 + 8;
-        // 面板 + 标题（2.1：禁用时红色「安全箱被禁用」提示，位于安全箱文字处）
+        // 面板 + 标题（2.1Alpha：禁用时红色「安全箱被禁用」提示，位于安全箱文字处）
         DnTheme.drawPanel(gg, x - 8, y - 26, pw, ph);
         DnTheme.drawTitle(gg, Minecraft.getInstance().font, x - 8, y - 26, pw, safeTitle(s), safeTitleColor(s));
         if (s == null || !s.allowed) {
-            // 2.1：被禁用 → 不渲染任何安全箱格子
+            // 2.1Alpha：被禁用 → 不渲染任何安全箱格子
             return;
         }
         // 槽位（仅已解锁行列）
@@ -294,7 +294,7 @@ public final class SafeBoxOverlay {
             return;
         }
         if (!safeAllowed(state)) {
-            return; // 2.1：被禁用时不拦截点击（安全箱格子不渲染）
+            return; // 2.1Alpha：被禁用时不拦截点击（安全箱格子不渲染）
         }
         int[] r = boxRect();
         if (r == null) {

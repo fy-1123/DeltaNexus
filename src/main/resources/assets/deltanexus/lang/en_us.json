@@ -269,6 +269,7 @@
   "gui.dn.trade.sell.button": "Sell",
   "gui.dn.trade.sell.button_count": "Sell (%s)",
   "gui.dn.trade.sell.confirm": "CONFIRM",
+  "gui.dn.trade.sell.cancel": "CANCEL",
   "gui.dn.trade.sell.estimate": "Est. +%s",
   "gui.dn.trade.sell.tooltip": "Recyclable: %s · %s each",
   "gui.dn.trade.sell.selected": "Selected %s",

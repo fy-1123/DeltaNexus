@@ -8,8 +8,8 @@ import net.minecraftforge.network.NetworkEvent;
 import java.util.function.Supplier;
 
 /**
- * 客户端 -> 服务端：仓库滚轮滚动（2.0.1，替代翻页）。
- * 2.0.8：服务端原位替换视口槽位（不重建菜单），光标物品与界面状态不丢失。
+ * 客户端 -> 服务端：仓库滚轮滚动（2.0.1Alpha，替代翻页）。
+ * 2.0.8Alpha：服务端原位替换视口槽位（不重建菜单），光标物品与界面状态不丢失。
  */
 public class C2SWarehouseScrollPacket {
 

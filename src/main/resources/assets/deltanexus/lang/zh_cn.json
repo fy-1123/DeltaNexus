@@ -269,6 +269,7 @@
   "gui.dn.trade.sell.button": "出售",
   "gui.dn.trade.sell.button_count": "出售(%s)",
   "gui.dn.trade.sell.confirm": "确认",
+  "gui.dn.trade.sell.cancel": "取消",
   "gui.dn.trade.sell.estimate": "预计 +%s",
   "gui.dn.trade.sell.tooltip": "可回收：%s · %s/个",
   "gui.dn.trade.sell.selected": "已选 %s",

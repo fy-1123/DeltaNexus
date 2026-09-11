@@ -10,7 +10,7 @@ import net.minecraftforge.network.NetworkEvent;
 import java.util.function.Supplier;
 
 /**
- * 服务端 -> 客户端：安全箱状态同步（1.1.0，背包界面覆盖层数据源）。
+ * 服务端 -> 客户端：安全箱状态同步（1.1.0Alpha，背包界面覆盖层数据源）。
  *
  * <p>包含：权限标记（allowed=false 时客户端隐藏覆盖层）、等级/解锁格数/尺寸、
  * 全部 9 格物品（仅交互/打开时发送，非每 tick 推送）与当前光标栈
@@ -78,7 +78,7 @@ public class SyncSafeBoxPacket {
         context.setPacketHandled(true);
     }
 
-    /** 客户端处理（2.0.7 拆分：专用服务器不加载本类）。 */
+    /** 客户端处理（2.0.7Alpha 拆分：专用服务器不加载本类）。 */
     @net.minecraftforge.api.distmarker.OnlyIn(net.minecraftforge.api.distmarker.Dist.CLIENT)
     private static class ClientHandler {
         static void handle(SyncSafeBoxPacket msg) {

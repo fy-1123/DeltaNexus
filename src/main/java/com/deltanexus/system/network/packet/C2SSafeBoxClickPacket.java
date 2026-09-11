@@ -8,7 +8,7 @@ import net.minecraftforge.network.NetworkEvent;
 import java.util.function.Supplier;
 
 /**
- * 客户端 -> 服务端：背包界面（原版 InventoryScreen）安全箱槽位交互（1.1.0）。
+ * 客户端 -> 服务端：背包界面（原版 InventoryScreen）安全箱槽位交互（1.1.0Alpha）。
  *
  * <p>动作：0 = 点击（光标与槽位交换/合并），1 = 潜行点击（槽位物品整体移入背包）。
  * 服务端以玩家当前容器（InventoryMenu）的光标栈为准执行，随后回发 {@link SyncSafeBoxPacket}

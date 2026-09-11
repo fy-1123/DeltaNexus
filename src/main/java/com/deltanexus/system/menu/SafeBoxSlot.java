@@ -11,9 +11,9 @@ import net.minecraftforge.items.ItemStackHandler;
 import net.minecraftforge.items.SlotItemHandler;
 
 /**
- * 安全箱槽位（1.1.0）：内嵌于仓库/背包界面的安全箱面板共用。
+ * 安全箱槽位（1.1.0Alpha）：内嵌于仓库/背包界面的安全箱面板共用。
  *
- * <p>服务端校验四重限制：安全箱权限（{@link PermissionManager#canOpenSafeBox}，2.1）、
+ * <p>服务端校验四重限制：安全箱权限（{@link PermissionManager#canOpenSafeBox}，2.1Alpha）、
  * 解锁格数（isSafeSlotUnlocked）、NBT 限制（{@link SafeBoxRestrictions}，命中规则的物品禁止放入）、
  * 物品有效性；客户端不做预测拦截（避免普通点击被拒），由服务端最终校验。</p>
  */
@@ -31,7 +31,7 @@ public class SafeBoxSlot extends SlotItemHandler {
         return data == null || data.isSafeSlotUnlocked(getSlotIndex());
     }
 
-    /** 2.1：安全箱权限（服务端权威；仓库界面嵌入安全箱同样受权限控制；仅服务端调用）。 */
+    /** 2.1Alpha：安全箱权限（服务端权威；仓库界面嵌入安全箱同样受权限控制；仅服务端调用）。 */
     private boolean permitted() {
         return player == null
                 || PermissionManager.canOpenSafeBox(player instanceof net.minecraft.server.level.ServerPlayer sp
@@ -46,7 +46,7 @@ public class SafeBoxSlot extends SlotItemHandler {
         if (!permitted() || !unlocked() || SafeBoxRestrictions.isRestricted(stack) || !super.mayPlace(stack)) {
             return false;
         }
-        // 2.0.10：安全箱仅 1 格可用时只能放 1x1——大于 1x1 的物品放不下，拒绝放入（回光标）
+        // 2.0.10Alpha：安全箱仅 1 格可用时只能放 1x1——大于 1x1 的物品放不下，拒绝放入（回光标）
         IPlayerData data = ManufacturingService.data(player);
         if (data != null && data.getSafeBoxUnlockedSlots() <= 1
                 && !InventoryGridHandler.getBaseDim(stack).is1x1()) {
@@ -64,7 +64,7 @@ public class SafeBoxSlot extends SlotItemHandler {
     }
 
     /**
-     * 2.1：客户端被禁用（安全箱权限拒绝）时隐藏槽位——AbstractContainerScreen 渲染
+     * 2.1Alpha：客户端被禁用（安全箱权限拒绝）时隐藏槽位——AbstractContainerScreen 渲染
      * 跳过 isActive()=false 的槽位（物品、悬停高亮均不渲染），配合界面「安全箱被禁用」提示。
      */
     @Override

@@ -18,7 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 格式背包「类」配置（2.0.3）：每个物品可归属一个「类」，每个类有独立的背景颜色，
+ * 格式背包「类」配置（2.0.3Alpha）：每个物品可归属一个「类」，每个类有独立的背景颜色，
  * 网格中跨格物品的背景墙按所属类着色（未配置类的物品使用默认灰色）。
  *
  * <p>配置文件：{@code config/deltanexus/grid_classes.json}</p>
@@ -29,10 +29,10 @@ import java.util.Map;
  * }
  * }</pre>
  *
- * <p>2.0.3：指令（/dn grid class/setclass）与 Web 编辑器管理；修改后随
+ * <p>2.0.3Alpha：指令（/dn grid class/setclass）与 Web 编辑器管理；修改后随
  * {@code SyncGridSizesPacket} 同步客户端（运行时覆盖，渲染一致）。</p>
  *
- * <p>2.0.7 重构：配置文件为空/损坏时自动重建默认类（旧实现会静默留下空表，
+ * <p>2.0.7Alpha 重构：配置文件为空/损坏时自动重建默认类（旧实现会静默留下空表，
  * 导致「类必须存在」校验失败、类背景不生效）；新增 {@link #isClassed(ItemStack)}
  * 显式判定物品是否命中类配置，渲染侧不再依赖 {@code bgOf(...) != DEFAULT_BG}
  * 的数组引用比较。</p>
@@ -59,7 +59,7 @@ public class GridClassConfig {
         if (Files.exists(PATH)) {
             try {
                 String raw = Files.readString(PATH);
-                // 2.0.7：空文件/纯空白视为未初始化 -> 重建默认类（旧实现留下空表）
+                // 2.0.7Alpha：空文件/纯空白视为未初始化 -> 重建默认类（旧实现留下空表）
                 if (raw == null || raw.isBlank()) {
                     generateDefaults();
                     save();
@@ -79,7 +79,7 @@ public class GridClassConfig {
 
     private static void readInto(Map<String, int[]> classes, Map<String, String> itemClass) {
         try {
-            // 2.0.7：先解析到临时表，成功后再整体替换，避免解析失败清空已有配置
+            // 2.0.7Alpha：先解析到临时表，成功后再整体替换，避免解析失败清空已有配置
             JsonObject root = com.google.gson.JsonParser.parseString(Files.readString(PATH)).getAsJsonObject();
             Map<String, int[]> parsedClasses = new LinkedHashMap<>();
             Map<String, String> parsedItems = new LinkedHashMap<>();
@@ -258,7 +258,7 @@ public class GridClassConfig {
         return new LinkedHashMap<>(ITEM_CLASS);
     }
 
-    /** 2.0.3：应用客户端运行时覆盖（服务端同步包）。 */
+    /** 2.0.3Alpha：应用客户端运行时覆盖（服务端同步包）。 */
     public static synchronized void applyRuntime(Map<String, int[]> classes, Map<String, String> itemClass) {
         RUNTIME_CLASSES.clear();
         RUNTIME_ITEM_CLASS.clear();

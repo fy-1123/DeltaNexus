@@ -9,7 +9,7 @@ import net.minecraftforge.network.NetworkEvent;
 import java.util.function.Supplier;
 
 /**
- * 客户端 -> 服务端：旋转光标物品（R 键，格式背包 2.0.0 集成自 expansionpack）。
+ * 客户端 -> 服务端：旋转光标物品（R 键，格式背包 2.0.0Alpha）。
  *
  * <p>服务端在光标物品 NBT 上切换 {@code deltanexus.is_rotated} 标记并同步容器，
  * 网格求解与客户端渲染据此交换占用宽高（旋转 90°）。</p>

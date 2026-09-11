@@ -24,9 +24,9 @@ import net.minecraftforge.items.SlotItemHandler;
 import java.util.*;
 
 /**
- * 格子格式（格式背包）网格引擎 —— 集成自 expansionpack-1.0.0（已获原作者授权）。
+ * 格子格式（格式背包）网格引擎
  *
- * <p>2.0.0 适配（三角联结融合）：</p>
+ * <p>2.0.0Alpha 适配（三角联结融合）：</p>
  * <ul>
  *   <li>网格作用域限定为三个目标容器：玩家背包（原版 E 界面/各菜单玩家区）、
  *       仓库（{@link IPlayerData#getWarehouseHandler()}）、安全箱（{@link IPlayerData#getSafeBoxHandler()}）；
@@ -38,7 +38,7 @@ import java.util.*;
  *   <li>背包界面（原版 E）安全箱覆盖层点击后同步调用 {@link #arrange} 立即整理。</li>
  * </ul>
  *
- * <p>机制（2.0.9 重构，贴合三角联结）：服务端每 Tick 扫描打开菜单的槽位分组，
+ * <p>机制（2.0.9Alpha 重构，贴合三角联结）：服务端每 Tick 扫描打开菜单的槽位分组，
  * 按物品占用尺寸（{@link ItemSizeConfig} + 内置规则 + {@link GridConfig} 快捷栏规则）
  * 做冲突检测与最佳空位重排（大件优先排序），用占位物填充物品足迹内的非主格；
  * 冲突物品无处安放时保留原位等待下轮（原格不可用才掉落），
@@ -58,13 +58,13 @@ public class InventoryGridHandler {
     /** 客户端菜单影子容器（菜单构造时记录；服务端以玩家能力身份判断网格容器）。 */
     public static volatile ItemStackHandler CLIENT_SAFE_HANDLER;
     public static volatile ItemStackHandler CLIENT_WAREHOUSE_HANDLER;
-    /** 客户端安全箱当前宽度（2.0.3：按行列形状渲染与求解；菜单构造时记录）。 */
+    /** 客户端安全箱当前宽度（2.0.3Alpha：按行列形状渲染与求解；菜单构造时记录）。 */
     public static volatile int CLIENT_SAFE_WIDTH = 3;
 
     public record ItemDim(int w, int h) { public boolean is1x1() { return w == 1 && h == 1; } }
 
     // ------------------------------------------------------------------
-    // 网格容器识别（2.0.0：玩家背包 / 仓库 / 安全箱；2.0.1：扩展全部 >= 9 格容器）
+    // 网格容器识别（2.0.0Alpha：玩家背包 / 仓库 / 安全箱；2.0.1Alpha：扩展全部 >= 9 格容器）
     // ------------------------------------------------------------------
 
     /** 槽位背后的真实容器（SlotItemHandler 的 container 是占位空容器，须取处理器）。包可见：GridClientRendering 渲染用。 */
@@ -78,7 +78,7 @@ public class InventoryGridHandler {
 
     /**
      * 该容器是否启用格子格式（container 可为 Container 或 IItemHandler）：
-     * 玩家背包（Inventory）、仓库/安全箱处理器，以及 2.0.1 起所有 >= 9 格的原版/模组容器
+     * 玩家背包（Inventory）、仓库/安全箱处理器，以及 2.0.1Alpha 起所有 >= 9 格的原版/模组容器
      * （箱子/潜影盒/末影箱/发射器/驴箱等）；合成格（{@link CraftingContainer}，3x3 工作台）
      * 与小于 9 格的容器（熔炉/铁砧等）保持原版槽位行为。
      */
@@ -92,7 +92,7 @@ public class InventoryGridHandler {
         if (container == CLIENT_SAFE_HANDLER || container == CLIENT_WAREHOUSE_HANDLER) {
             return true;
         }
-        // 2.0.1：原版/模组大容器启用格子格式（合成格除外，避免破坏 3x3 工作台）
+        // 2.0.1Alpha：原版/模组大容器启用格子格式（合成格除外，避免破坏 3x3 工作台）
         if (container instanceof net.minecraft.world.inventory.CraftingContainer) {
             return false;
         }
@@ -106,7 +106,7 @@ public class InventoryGridHandler {
         return container == data.getWarehouseHandler() || container == data.getSafeBoxHandler();
     }
 
-    /** 网格宽度（列数）：安全箱按实际解锁列数（2.0.3 行列形状），其余 9。 */
+    /** 网格宽度（列数）：安全箱按实际解锁列数（2.0.3Alpha 行列形状），其余 9。 */
     public static int gridWidth(Player player, Object container) {
         if (container == null) {
             return GRID_WIDTH;
@@ -147,7 +147,7 @@ public class InventoryGridHandler {
     }
 
     /**
-     * 基础占用尺寸（2.1）：仅配置了尺寸的物品（{@code config/deltanexus-sizes.json}
+     * 基础占用尺寸（2.1Alpha）：仅配置了尺寸的物品（{@code config/deltanexus-sizes.json}
      * 或运行时指令/Web 配置）才有占用尺寸；未配置一律 1x1（不再内置 箱子/剑/盔甲等默认尺寸）。
      */
     public static ItemDim getBaseDim(ItemStack stack) {
@@ -188,7 +188,7 @@ public class InventoryGridHandler {
     }
 
     /**
-     * 手动放置到槽位前的尺寸预校验（2.0.10）：口袋区（快捷栏 5-9 号格 =
+     * 手动放置到槽位前的尺寸预校验（2.0.10Alpha）：口袋区（快捷栏 5-9 号格 =
      * containerSlot 4-8）仅 1x1 留存。放不下的物品应直接拒绝放置、回到鼠标指针，
      * 而不是交给 processGrid 自动重排（自动重排会造成“塞进 A 却跳去 B”的错觉）。
      */
@@ -203,7 +203,7 @@ public class InventoryGridHandler {
     }
 
     /**
-     * 口袋区（快捷栏 5-9 号格 = containerSlot 4-8）尺寸守卫（2.0.10）：
+     * 口袋区（快捷栏 5-9 号格 = containerSlot 4-8）尺寸守卫（2.0.10Alpha）：
      * 将普通 Slot 幂等替换为 {@link GridAwareSlot}，使手动塞入大件（&gt;1x1）时
      * {@code mayPlace} 拒绝、物品回到光标，而非落入后由 {@code processGrid} 自动重排。
      *
@@ -222,7 +222,7 @@ public class InventoryGridHandler {
                 continue;
             }
             if (s.container instanceof Inventory && s.getContainerSlot() >= 4 && s.getContainerSlot() <= 8) {
-                // 2.1 修复：必须保留原槽位 index（协议以 index 为槽位 ID，clicked/quickMove 均依赖）。
+                // 2.1Alpha 修复：必须保留原槽位 index（协议以 index 为槽位 ID，clicked/quickMove 均依赖）。
                 // 直接 new 会导致 index=0，点击口袋槽误发到合成结果格：无法取出/仅 shift 可放入。
                 GridAwareSlot gs = new GridAwareSlot((Inventory) s.container, s.getContainerSlot(), s.x, s.y, player);
                 gs.index = s.index;
@@ -252,7 +252,7 @@ public class InventoryGridHandler {
         }
         AbstractContainerMenu menu = player.containerMenu;
 
-        // 2.0.10：口袋槽尺寸守卫（幂等替换普通快捷栏槽为 GridAwareSlot），
+        // 2.0.10Alpha：口袋槽尺寸守卫（幂等替换普通快捷栏槽为 GridAwareSlot），
         // 手动塞大件回光标而非自动重排——服务端权威兜底（客户端界面 init 同调）
         ensurePocketGuards(menu, player);
 
@@ -269,7 +269,7 @@ public class InventoryGridHandler {
             } else menu.setCarried(ItemStack.EMPTY);
         }
 
-        // 性能（2.0.1）：非玩家容器（箱子等）仅在对应菜单打开时整理，避免无谓 Tick 扫描
+        // 性能（2.0.1Alpha）：非玩家容器（箱子等）仅在对应菜单打开时整理，避免无谓 Tick 扫描
         boolean menuOpen = !(menu instanceof net.minecraft.world.inventory.InventoryMenu);
         Map<Object, List<Slot>> groups = new LinkedHashMap<>();
         for (Slot slot : menu.slots) {
@@ -301,7 +301,7 @@ public class InventoryGridHandler {
         if (data == null) return;
         cleanSlaves(data.getWarehouseHandler());
         cleanSlaves(data.getSafeBoxHandler());
-        // 2.0.1：关闭菜单中的原版容器（箱子等）同样清理，防止占位物写入容器 NBT
+        // 2.0.1Alpha：关闭菜单中的原版容器（箱子等）同样清理，防止占位物写入容器 NBT
         for (Slot slot : event.getContainer().slots) {
             Object c = gridContainerOf(slot);
             if (c instanceof Container cc && !(cc instanceof Inventory)) {
@@ -341,13 +341,13 @@ public class InventoryGridHandler {
     }
 
     /**
-     * 网格求解（2.0.9 重构，贴合三角联结）：
+     * 网格求解（2.0.9Alpha 重构，贴合三角联结）：
      *
      * <p>阶段一 预扫描——计算每格物品实际尺寸并按占用面积降序排序（大件优先，
      * 先安放大件可显著减少碎片，降低后续物品放不下的概率）；</p>
      *
      * <p>阶段二 冲突检测——越界/跨越锁定格/重叠/跨界快捷栏/口袋区非 1x1
-     * （同类物品自动叠加合并，2.0.1 起足迹内真实占用一并校验，杜绝重叠放置）；</p>
+     * （同类物品自动叠加合并，2.0.1Alpha 起足迹内真实占用一并校验，杜绝重叠放置）；</p>
      *
      * <p>阶段三 重排——原方向找空位 -> 旋转 90° 重放 -> 保留原位兜底：
      * 原格可用但暂无空间时不再强制丢弃（等待下轮重排），仅原格不可用
@@ -409,7 +409,7 @@ public class InventoryGridHandler {
             }
             int sc = i % width, sr = i / width;
             boolean isOriginHotbar = (slot.container instanceof Inventory) && (slot.getContainerSlot() < 9);
-            // 2.0.9：口袋区（快捷栏 GRID/FOOD 格）仅 1x1 留存——大件强制重排至背包区
+            // 2.0.9Alpha：口袋区（快捷栏 GRID/FOOD 格）仅 1x1 留存——大件强制重排至背包区
             // （ANY 格物品经 getActualDim 已折算 1x1 不受影响；背包满时保留原位不丢弃）
             boolean conflict = !usable[i] || (isOriginHotbar && !dim.is1x1())
                     || (sc + dim.w > width || sr + dim.h > totalRows);
@@ -425,7 +425,7 @@ public class InventoryGridHandler {
                             ItemStack other = slots.get(sid).getItem();
                             if (ownerMap[sid] != -1) { conflict = true; break; }
                             if (!other.isEmpty() && !isOwnSlave(other, slot.index)) {
-                                // 2.0.2：点击物品非左上角（占位物格）放入同类物品 -> 叠加合并到主物品
+                                // 2.0.2Alpha：点击物品非左上角（占位物格）放入同类物品 -> 叠加合并到主物品
                                 if (ItemStack.isSameItemSameTags(stack, other)
                                         && stack.getCount() < stack.getMaxStackSize()) {
                                     int add = Math.min(other.getCount(), stack.getMaxStackSize() - stack.getCount());
@@ -452,7 +452,7 @@ public class InventoryGridHandler {
             }
 
             if (conflict) {
-                // 2.0.10 重排优化：单遍扫描 + 双方向——每个候选槽位先试原方向、
+                // 2.0.10Alpha 重排优化：单遍扫描 + 双方向——每个候选槽位先试原方向、
                 // 失败立即试旋转 90°，行优先靠上靠左自然紧凑；
                 // 旧实现（先全扫原方向再全扫旋转）在空间紧张时第二遍扫描往往已无可用位，
                 // 旋转物品失败率偏高。另：直接移动 stack 引用，省去逐物品 copy 分配。
@@ -487,7 +487,7 @@ public class InventoryGridHandler {
                     }
                 }
                 if (!moved) {
-                    // 2.0.10：重排失败的非法状态（大于 1x1 滞留 1x1 格/原格不可用）
+                    // 2.0.10Alpha：重排失败的非法状态（大于 1x1 滞留 1x1 格/原格不可用）
                     // 不再强制丢弃——物品回到鼠标光标；光标已有同类物品则合并，
                     // 异类占满光标时保留原位（绝不静默吞物品）
                     boolean toCursor = !usable[i] || (isOriginHotbar && !dim.is1x1());
@@ -544,7 +544,7 @@ public class InventoryGridHandler {
 
     /**
      * 目标位置可行性：足迹越界/跨越锁定格/重叠（真实物品或他人占位物）即拒绝；
-     * 自己旧足迹残留的占位物视为自己的空间（2.0.1，与冲突检测一致）。
+     * 自己旧足迹残留的占位物视为自己的空间（2.0.1Alpha，与冲突检测一致）。
      */
     private static boolean canPlaceItem(Player player, Object container, int index, ItemDim dim,
                                         int width, int totalRows, int size, int[] ownerMap, boolean[] usable,
@@ -556,7 +556,7 @@ public class InventoryGridHandler {
         int c = index % width, r = index / width;
         if (c + dim.w > width || r + dim.h > totalRows) return false;
         boolean startHotbar = (slots.get(index).container instanceof Inventory) && (slots.get(index).getContainerSlot() < 9);
-        // 2.0.9：非 1x1 物品不落入快捷栏（口袋仅 1x1 留存，避免重排-冲突循环；
+        // 2.0.9Alpha：非 1x1 物品不落入快捷栏（口袋仅 1x1 留存，避免重排-冲突循环；
         // ANY 格的大件折算 1x1 由玩家手动放置，自动整理始终优先背包区）
         if (startHotbar && !dim.is1x1()) return false;
         for (int dx = 0; dx < dim.w; dx++) {
@@ -752,7 +752,7 @@ public class InventoryGridHandler {
     }
 
     // ------------------------------------------------------------------
-    // 客户端：超大物品渲染 + 旋转（2.0.7 拆分至 GridClientRendering，
+    // 客户端：超大物品渲染 + 旋转（2.0.7Alpha 拆分至 GridClientRendering，
     // 专用服务器不再加载 Screen 等客户端类型，修复 DEDICATED_SERVER 启动崩溃）
     // ------------------------------------------------------------------
 }

@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 安全箱 NBT 限制（1.1.0）：拥有指定 NBT 的物品无法放入安全箱。
+ * 安全箱 NBT 限制（1.1.0Alpha）：拥有指定 NBT 的物品无法放入安全箱。
  *
  * <p>配置文件 {@code config/deltanexus/safe_box_restrictions.json}（热加载，/dn reload 生效）：</p>
  * <pre>{@code

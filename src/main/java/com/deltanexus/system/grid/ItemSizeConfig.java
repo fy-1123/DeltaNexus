@@ -18,12 +18,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 物品尺寸配置（格式背包，2.0.0 集成自 expansionpack）。
+ * 物品尺寸配置（格式背包，2.0.0Alpha）。
  *
  * <p>配置文件：{@code config/deltanexus-sizes.json}（"item_id": {"w": n, "h": m}），
  * 首次启动自动生成内置默认尺寸（盾牌/弓弩/三叉戟/方块/食物/矿物等）。</p>
  *
- * <p>2.0.2：支持指令/Web 运行时修改（{@link #setSize}/{@link #removeSize}），
+ * <p>2.0.2Alpha：支持指令/Web 运行时修改（{@link #setSize}/{@link #removeSize}），
  * 修改后服务端广播 {@code SyncGridSizesPacket}，客户端以运行时覆盖（不写客户端文件）保持一致。</p>
  */
 public class ItemSizeConfig {
@@ -64,7 +64,7 @@ public class ItemSizeConfig {
         }
     }
 
-    /** 2.0.2：设置物品自定义尺寸（写入配置并落盘）；返回是否成功。 */
+    /** 2.0.2Alpha：设置物品自定义尺寸（写入配置并落盘）；返回是否成功。 */
     public static synchronized boolean setSize(String itemId, int w, int h) {
         if (itemId == null || itemId.isBlank() || w < 1 || h < 1) {
             return false;
@@ -74,7 +74,7 @@ public class ItemSizeConfig {
         return true;
     }
 
-    /** 2.0.2：移除物品自定义尺寸（恢复内置规则）；返回是否成功。 */
+    /** 2.0.2Alpha：移除物品自定义尺寸（恢复内置规则）；返回是否成功。 */
     public static synchronized boolean removeSize(String itemId) {
         if (itemId == null || itemId.isBlank() || ITEM_SIZES.remove(itemId.trim()) == null) {
             return false;
@@ -83,7 +83,7 @@ public class ItemSizeConfig {
         return true;
     }
 
-    /** 2.0.2：全部自定义尺寸（指令/Web 展示用）。 */
+    /** 2.0.2Alpha：全部自定义尺寸（指令/Web 展示用）。 */
     public static synchronized java.util.LinkedHashMap<String, int[]> allCustom() {
         java.util.LinkedHashMap<String, int[]> out = new java.util.LinkedHashMap<>();
         for (Map.Entry<String, SizeDef> e : ITEM_SIZES.entrySet()) {
@@ -92,7 +92,7 @@ public class ItemSizeConfig {
         return out;
     }
 
-    /** 2.0.2：应用客户端运行时覆盖（服务端同步包；清空后回退本地配置）。 */
+    /** 2.0.2Alpha：应用客户端运行时覆盖（服务端同步包；清空后回退本地配置）。 */
     public static synchronized void applyRuntime(java.util.Map<String, int[]> sizes) {
         RUNTIME.clear();
         if (sizes != null) {

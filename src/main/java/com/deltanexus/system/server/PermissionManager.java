@@ -15,12 +15,12 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 权限管理（1.1.0 / 2.0.3 / 2.1）：控制玩家能否通过指令/按键打开仓库、配方工作台、特勤处与安全箱。
+ * 权限管理（1.1.0Alpha / 2.0.3Alpha / 2.1Alpha）：控制玩家能否通过指令/按键打开仓库、配方工作台、特勤处与安全箱。
  *
  * <p>配置文件 {@code config/deltanexus/permissions.json}（热加载，/dn reload 生效）：</p>
  * <pre>{@code
  * {
- *   "op_exempt": true,             // OP（权限等级 4）是否豁免权限判定（2.1）
+ *   "op_exempt": true,             // OP（权限等级 4）是否豁免权限判定（2.1Alpha）
  *   "default_warehouse": true,     // 全局默认：是否允许打开仓库
  *   "default_workbench": true,     // 全局默认：是否允许打开配方工作台
  *   "default_special": true,       // 全局默认：是否允许打开特勤处
@@ -33,7 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>规则：默认 OP（权限等级 4）始终允许（op_exempt=false 时 OP 同样受权限限制）；
  * 否则先查玩家覆盖，再查全局默认。权限判定在服务端打开仓库/工作台/特勤处/安全箱交互时强制执行
- * （指令与按键同源）。玩家 {@code features=false}（2.1）为硬开关：禁用该玩家全部 mod 功能，
+ * （指令与按键同源）。玩家 {@code features=false}（2.1Alpha）为硬开关：禁用该玩家全部 mod 功能，
  * 客户端 UI 恢复原版（由 SyncServerUiPacket 同步）。</p>
  */
 public final class PermissionManager {
@@ -43,7 +43,7 @@ public final class PermissionManager {
     public static final int TYPE_WORKBENCH = 1;
     /** 特勤处。 */
     public static final int TYPE_SPECIAL = 2;
-    /** 安全箱（2.1：独立权限，不再跟随仓库）。 */
+    /** 安全箱（2.1Alpha：独立权限，不再跟随仓库）。 */
     public static final int TYPE_SAFE_BOX = 3;
     /** 交易行（0.2.0Beta）。 */
     public static final int TYPE_TRADE = 4;
@@ -52,7 +52,7 @@ public final class PermissionManager {
 
     private static final Path PATH = FMLPaths.CONFIGDIR.get().resolve("deltanexus/permissions.json");
 
-    /** OP（权限等级 4）是否豁免权限判定（2.1：默认豁免；关闭后 OP 同样受权限限制）。 */
+    /** OP（权限等级 4）是否豁免权限判定（2.1Alpha：默认豁免；关闭后 OP 同样受权限限制）。 */
     private static volatile boolean opExempt = true;
 
     private static volatile boolean defaultWarehouse = true;
@@ -64,7 +64,7 @@ public final class PermissionManager {
     private static volatile boolean defaultTrade = true;
     /** 玩家名（小写） -> {warehouse, workbench, special, safe_box, trade}；null = 跟随全局默认（部分覆盖不冻结另一项）。 */
     private static final Map<String, Boolean[]> OVERRIDES = new ConcurrentHashMap<>();
-    /** 禁用 mod 功能的玩家名（小写）（2.1：禁用后无法使用任何 mod 功能，UI 恢复原版）。 */
+    /** 禁用 mod 功能的玩家名（小写）（2.1Alpha：禁用后无法使用任何 mod 功能，UI 恢复原版）。 */
     private static final Set<String> FEATURES_DISABLED = ConcurrentHashMap.newKeySet();
 
     private PermissionManager() {
@@ -161,7 +161,7 @@ public final class PermissionManager {
             if (v.length > TYPE_TRADE && v[TYPE_TRADE] != null) {
                 o.addProperty("trade", v[TYPE_TRADE]);
             }
-            // 2.1：禁用 mod 功能的玩家标记 features=false
+            // 2.1Alpha：禁用 mod 功能的玩家标记 features=false
             if (FEATURES_DISABLED.contains(e.getKey())) {
                 o.addProperty("features", false);
             }
@@ -184,7 +184,7 @@ public final class PermissionManager {
     }
 
     // ------------------------------------------------------------------
-    // 判定（服务端调用；OP 豁免由 opExempt 配置控制，2.1）
+    // 判定（服务端调用；OP 豁免由 opExempt 配置控制，2.1Alpha）
     // ------------------------------------------------------------------
 
     /** OP 是否豁免权限判定（config/deltanexus/permissions.json op_exempt，默认 true）。 */
@@ -246,7 +246,7 @@ public final class PermissionManager {
     }
 
     /**
-     * 玩家是否可使用 mod 功能（2.1）：禁用后无法使用任何 mod 功能，UI 恢复原版。
+     * 玩家是否可使用 mod 功能（2.1Alpha）：禁用后无法使用任何 mod 功能，UI 恢复原版。
      * OP 同样受限（功能禁用为硬开关，不受 opExempt 影响）。
      */
     public static boolean canUseFeatures(ServerPlayer player) {

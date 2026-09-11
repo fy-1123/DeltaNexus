@@ -10,7 +10,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
 
 /**
- * 附魔注册（2.0.0，集成自 expansionpack）。
+ * 附魔注册（2.0.0Alpha）。
  *
  * <ul>
  *   <li>{@code fixed_strike}（固定打击）：武器固定 +2 伤害；</li>

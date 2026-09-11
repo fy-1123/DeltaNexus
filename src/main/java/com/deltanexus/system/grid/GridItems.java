@@ -8,7 +8,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
 
 /**
- * 格子格式物品注册（2.0.0，集成自 expansionpack）。
+ * 格子格式物品注册（2.0.0Alpha）。
  *
  * <p>{@code blocked_slot}：网格占位物（格式背包核心），用于填充跨格物品足迹内的
  * 非主格；服务端每 Tick 重算，客户端渲染为白色半透明墙。</p>

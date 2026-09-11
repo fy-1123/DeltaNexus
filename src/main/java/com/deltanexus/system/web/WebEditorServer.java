@@ -405,7 +405,7 @@ public final class WebEditorServer {
         settings.addProperty("warehouse_slots", ModConfig.baseSlots());
         settings.addProperty("safe_box_width", ModConfig.safeBoxWidth());
         settings.addProperty("safe_box_height", ModConfig.safeBoxHeight());
-        // 格式背包（2.0.2/2.0.3）：物品尺寸 + 快捷栏规则 + 类配置
+        // 格式背包（2.0.2Alpha/2.0.3Alpha）：物品尺寸 + 快捷栏规则 + 类配置
         JsonArray gridSizes = new JsonArray();
         for (java.util.Map.Entry<String, int[]> e : com.deltanexus.system.grid.ItemSizeConfig.allCustom().entrySet()) {
             JsonObject o = new JsonObject();
@@ -469,7 +469,7 @@ public final class WebEditorServer {
         root.add("tree", tree);
         root.addProperty("tree_max_level", UpgradeConfig.get().maxLevel());
 
-        // 安全箱升级树（1.1.0；2.0.1 起解锁行 x 列）
+        // 安全箱升级树（1.1.0Alpha；2.0.1Alpha 起解锁行 x 列）
         JsonArray safeTree = new JsonArray();
         for (UpgradeConfig.UpgradeLevel u : UpgradeConfig.get().safeAll()) {
             JsonObject o = new JsonObject();
@@ -493,7 +493,7 @@ public final class WebEditorServer {
         root.add("safe_tree", safeTree);
         root.addProperty("safe_tree_max_level", UpgradeConfig.get().safeMaxLevel());
 
-        // 安全箱 NBT 限制（1.1.0）
+        // 安全箱 NBT 限制（1.1.0Alpha）
         JsonArray safeRestrictions = new JsonArray();
         for (SafeBoxRestrictions.Rule r : SafeBoxRestrictions.all()) {
             JsonObject o = new JsonObject();
@@ -524,7 +524,7 @@ public final class WebEditorServer {
         }
         root.add("players", players);
 
-        // 权限管理（1.1.0 / 2.1）
+        // 权限管理（1.1.0Alpha / 2.1Alpha）
         JsonObject perms = new JsonObject();
         perms.addProperty("op_exempt", PermissionManager.opExempt());
         perms.addProperty("default_warehouse", PermissionManager.defaultWarehouse());
@@ -547,13 +547,13 @@ public final class WebEditorServer {
             if (v.length > PermissionManager.TYPE_SAFE_BOX && v[PermissionManager.TYPE_SAFE_BOX] != null) {
                 o.addProperty("safe_box", v[PermissionManager.TYPE_SAFE_BOX]);
             }
-            // 2.1：功能开关（仅禁用玩家写出 features=false）
+            // 2.1Alpha：功能开关（仅禁用玩家写出 features=false）
             if (PermissionManager.featuresDisabled(e.getKey())) {
                 o.addProperty("features", false);
             }
             permPlayers.add(e.getKey(), o);
         }
-        // 2.1：仅禁用功能（无权限覆盖）的玩家也列出
+        // 2.1Alpha：仅禁用功能（无权限覆盖）的玩家也列出
         for (String name : PermissionManager.disabledFeatures()) {
             if (!permPlayers.has(name)) {
                 JsonObject o = new JsonObject();
@@ -1055,7 +1055,7 @@ public final class WebEditorServer {
         return ok(msg("msg.dn.config.set", msg("gui.dn.config.wh_slots"), v));
     }
 
-    /** 设置安全箱默认尺寸（1 ~ 3 x 1 ~ 3，1.1.0）。 */
+    /** 设置安全箱默认尺寸（1 ~ 3 x 1 ~ 3，1.1.0Alpha）。 */
     private static JsonObject settingSafeSize(JsonObject body) {
         int w = body.has("width") ? body.get("width").getAsInt() : -1;
         int h = body.has("height") ? body.get("height").getAsInt() : -1;
@@ -1069,7 +1069,7 @@ public final class WebEditorServer {
     }
 
     // ------------------------------------------------------------------
-    // 格式背包配置（2.0.2：物品尺寸 + 快捷栏规则）
+    // 格式背包配置（2.0.2Alpha：物品尺寸 + 快捷栏规则）
     // ------------------------------------------------------------------
 
     private static JsonObject gridSizeSet(JsonObject body) {
@@ -1106,7 +1106,7 @@ public final class WebEditorServer {
     }
 
     // ------------------------------------------------------------------
-    // 格式背包类配置（2.0.3）
+    // 格式背包类配置（2.0.3Alpha）
     // ------------------------------------------------------------------
 
     private static JsonObject gridClassSet(JsonObject body) {
@@ -1153,7 +1153,7 @@ public final class WebEditorServer {
     }
 
     // ------------------------------------------------------------------
-    // 安全箱升级树（1.1.0，与仓库升级树同构）
+    // 安全箱升级树（1.1.0Alpha，与仓库升级树同构）
     // ------------------------------------------------------------------
 
     private static JsonObject safeTreeAdd(JsonObject body) {
@@ -1228,7 +1228,7 @@ public final class WebEditorServer {
     }
 
     // ------------------------------------------------------------------
-    // 安全箱 NBT 限制（1.1.0）
+    // 安全箱 NBT 限制（1.1.0Alpha）
     // ------------------------------------------------------------------
 
     /** 添加安全箱 NBT 限制规则：{item?(空=任意), nbt, match_type?(exact/contains)}。 */
@@ -1259,7 +1259,7 @@ public final class WebEditorServer {
     }
 
     // ------------------------------------------------------------------
-    // 权限管理（1.1.0）
+    // 权限管理（1.1.0Alpha）
     // ------------------------------------------------------------------
 
     /** 设置玩家权限覆盖（type: warehouse / workbench / special / all）。 */
@@ -1373,7 +1373,7 @@ public final class WebEditorServer {
         return ok(msg("msg.dn.data.level_set", name, level, data.getUnlockedSlots().cardinality(), data.getCapacity()));
     }
 
-    /** 设置玩家安全箱等级（0 ~ 安全箱升级树最大等级；尺寸随等级联动，1.1.0）。 */
+    /** 设置玩家安全箱等级（0 ~ 安全箱升级树最大等级；尺寸随等级联动，1.1.0Alpha）。 */
     private static JsonObject playerSafeLevel(JsonObject body) {
         String name = str(body, "name");
         int level = body.has("level") ? body.get("level").getAsInt() : -1;

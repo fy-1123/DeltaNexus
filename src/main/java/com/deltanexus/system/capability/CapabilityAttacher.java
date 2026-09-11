@@ -34,7 +34,7 @@ import java.util.stream.IntStream;
  * 改用 {@link AttachCapabilityEvent} 事件绑定 Capability 到玩家实体 ——
  * 这是最兼容 Forge 和 Mohist 混合服务端的方式。</p>
  *
- * <p>2.0.7 重构（死亡数据安全）：死亡 → 重生 → 登录三层防护统一收口到
+ * <p>2.0.7Alpha 重构（死亡数据安全）：死亡 → 重生 → 登录三层防护统一收口到
  * {@link #restoreFromBackup}。修复旧版 {@code isEmptyData} 把「登录补齐的解锁位」
  * 误判为有数据、导致死亡备份恢复永不触发的问题；备份同时落盘
  * {@code config/deltanexus/backup/<uuid>.dat}（SNBT），服务器重启亦不丢失。</p>
@@ -88,7 +88,7 @@ public final class CapabilityAttacher {
     }
 
     // ------------------------------------------------------------------
-    // 死亡数据备份（2.0.4 引入；2.0.7 重构：内存 + 磁盘双份，重启不丢）
+    // 死亡数据备份（2.0.4Alpha 引入；2.0.7Alpha 重构：内存 + 磁盘双份，重启不丢）
     // ------------------------------------------------------------------
 
     /** 死亡备份目录（存档级持久化：死亡即写盘，服务器重启不丢失）。 */
@@ -222,7 +222,7 @@ public final class CapabilityAttacher {
     /**
      * 数据是否「没有玩家进度」（未初始化 / 被异常清空 = true）。
      *
-     * <p>2.0.7 修复：不再检查解锁位 —— 新实体构造时即按 base_slots 预解锁 108 格、
+     * <p>2.0.7Alpha 修复：不再检查解锁位 —— 新实体构造时即按 base_slots 预解锁 108 格、
      * 登录还会补齐 12 行，解锁位恒非空；旧实现因此永远判定「有数据」，
      * 导致死亡备份恢复永不触发（Mohist 等 Clone 不触发环境直接丢光数据）。
      * 判定只看等级/物品/任务等真实进度，与登录补齐的解锁位无关。</p>
@@ -266,7 +266,7 @@ public final class CapabilityAttacher {
         return restored[0];
     }
 
-    /** 2.0.5：玩家重生后立即从死亡备份恢复（比登录兜底更早，覆盖 Clone 未触发的场景）。 */
+    /** 2.0.5Alpha：玩家重生后立即从死亡备份恢复（比登录兜底更早，覆盖 Clone 未触发的场景）。 */
     @SubscribeEvent
     public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
         restoreFromBackup(event.getEntity());
@@ -278,13 +278,13 @@ public final class CapabilityAttacher {
      */
     @SubscribeEvent
     public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
-        // 2.0.2：登录即推送格式背包配置（物品尺寸 + 快捷栏规则 + 类配置），客户端渲染与服务端一致
+        // 2.0.2Alpha：登录即推送格式背包配置（物品尺寸 + 快捷栏规则 + 类配置），客户端渲染与服务端一致
         if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer sp) {
             com.deltanexus.system.server.ManufacturingService.sendGridConfig(sp);
-            // 2.0.9：登录即推送服务端 GUI 白名单（与客户端白名单取并集，命中任意即用原版 GUI）
+            // 2.0.9Alpha：登录即推送服务端 GUI 白名单（与客户端白名单取并集，命中任意即用原版 GUI）
             com.deltanexus.system.server.ManufacturingService.sendUiWhitelist(sp);
         }
-        // 2.0.10：0 级玩家解锁由 base_slots 配置决定（默认 9 = 首行），
+        // 2.0.10Alpha：0 级玩家解锁由 base_slots 配置决定（默认 9 = 首行），
         // 升级通过升级树 unlockUpTo 逐步解锁更多行；渲染/滚动按玩家实际解锁行数展示，
         // 未解锁行完全不渲染。用 setUnlockedSlots（可缩小）纠正旧版本把 0 级强制解锁到
         // 视口 12 行（108 格）的历史数据——看玩家解锁了多少，而非仓库总行数/视口行数。
@@ -293,7 +293,7 @@ public final class CapabilityAttacher {
                 data.setUnlockedSlots(Math.min(ModConfig.baseSlots(), data.getCapacity()));
             }
         });
-        // 2.0.4/2.0.7：数据备份兜底恢复（Clone 未触发且新数据无进度时）
+        // 2.0.4Alpha/2.0.7Alpha：数据备份兜底恢复（Clone 未触发且新数据无进度时）
         // 0.2.0Beta：不再恢复后清除备份（每个玩家至少保留一份）；管理员 /dn data reset 会显式清除
         restoreFromBackup(event.getEntity());
         if (!com.deltanexus.system.config.ModConfig.onlineMode()) {

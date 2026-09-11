@@ -8,7 +8,7 @@ import net.minecraftforge.network.NetworkEvent;
 import java.util.function.Supplier;
 
 /**
- * 客户端 -> 服务端：请求打开「特勤处」（2.0.2：仓库/安全箱升级独立界面）。
+ * 客户端 -> 服务端：请求打开「特勤处」（2.0.2Alpha：仓库/安全箱升级独立界面）。
  * 服务端发送仓库同步包（含升级数据）供特勤处界面渲染，不打开容器菜单。
  */
 public class C2SOpenSpecialOpsPacket {

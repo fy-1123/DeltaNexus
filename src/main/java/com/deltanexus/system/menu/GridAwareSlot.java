@@ -7,7 +7,7 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * 网格感知槽位（2.0.10）：手动放入前做尺寸预校验（{@code fitsManualPlacement}），
+ * 网格感知槽位（2.0.10Alpha）：手动放入前做尺寸预校验（{@code fitsManualPlacement}），
  * 放不下的物品（如大于 1x1 塞入口袋区）直接拒绝、物品回到鼠标指针，
  * 而非落到槽位后被 processGrid 自动重排到别处。
  *

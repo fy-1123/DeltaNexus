@@ -47,8 +47,8 @@ import java.util.function.Supplier;
  */
 public final class PacketHandler {
 
-    /** 2.0.8：协议升级（移除 C2SOpenSafeBoxPacket，旧客户端不兼容）。
-     *  2.2：SyncServerUiPacket 新增功能开关字段（featuresEnabled），旧客户端不兼容。
+    /** 2.0.8Alpha：协议升级（移除 C2SOpenSafeBoxPacket，旧客户端不兼容）。
+     *  2.2Alpha：SyncServerUiPacket 新增功能开关字段（featuresEnabled），旧客户端不兼容。
      *  0.2.0Beta：交易行（SyncTradeCatalogPacket 增补 match_mode/match_keys；新增 C2STradeSellPacket），
      *       协议升至 dn2，旧客户端不兼容。 */
     public static final String PROTOCOL = "dn2";
@@ -69,7 +69,7 @@ public final class PacketHandler {
         register(C2SOpenWarehousePacket.class,
                 C2SOpenWarehousePacket::encode, C2SOpenWarehousePacket::decode, C2SOpenWarehousePacket::handle,
                 NetworkDirection.PLAY_TO_SERVER);
-        // 特勤处（2.0.2）：打开仓库/安全箱升级独立界面
+        // 特勤处（2.0.2Alpha）：打开仓库/安全箱升级独立界面
         register(C2SOpenSpecialOpsPacket.class,
                 C2SOpenSpecialOpsPacket::encode, C2SOpenSpecialOpsPacket::decode, C2SOpenSpecialOpsPacket::handle,
                 NetworkDirection.PLAY_TO_SERVER);
@@ -103,13 +103,13 @@ public final class PacketHandler {
         register(C2SSafeBoxClickPacket.class,
                 C2SSafeBoxClickPacket::encode, C2SSafeBoxClickPacket::decode, C2SSafeBoxClickPacket::handle,
                 NetworkDirection.PLAY_TO_SERVER);
-        // 格式背包（2.0.0）：旋转光标物品（R 键）
+        // 格式背包（2.0.0Alpha）：旋转光标物品（R 键）
         register(com.deltanexus.system.grid.network.RotationPacket.class,
                 com.deltanexus.system.grid.network.RotationPacket::encode,
                 com.deltanexus.system.grid.network.RotationPacket::decode,
                 com.deltanexus.system.grid.network.RotationPacket::handle,
                 NetworkDirection.PLAY_TO_SERVER);
-        // 格式背包（2.0.3）：点击跨格物品非左上角格 -> 捡起整件到光标
+        // 格式背包（2.0.3Alpha）：点击跨格物品非左上角格 -> 捡起整件到光标
         register(C2SPickupGridStackPacket.class,
                 C2SPickupGridStackPacket::encode, C2SPickupGridStackPacket::decode, C2SPickupGridStackPacket::handle,
                 NetworkDirection.PLAY_TO_SERVER);
@@ -144,11 +144,11 @@ public final class PacketHandler {
         register(SyncSafeBoxPacket.class,
                 SyncSafeBoxPacket::encode, SyncSafeBoxPacket::decode, SyncSafeBoxPacket::handle,
                 NetworkDirection.PLAY_TO_CLIENT);
-        // 格式背包配置同步（2.0.2：物品尺寸 + 快捷栏规则，登录与修改后推送）
+        // 格式背包配置同步（2.0.2Alpha：物品尺寸 + 快捷栏规则，登录与修改后推送）
         register(SyncGridSizesPacket.class,
                 SyncGridSizesPacket::encode, SyncGridSizesPacket::decode, SyncGridSizesPacket::handle,
                 NetworkDirection.PLAY_TO_CLIENT);
-        // 服务端 GUI 白名单同步（2.0.9：登录与热重载时推送，与客户端白名单取并集）
+        // 服务端 GUI 白名单同步（2.0.9Alpha：登录与热重载时推送，与客户端白名单取并集）
         register(SyncServerUiPacket.class,
                 SyncServerUiPacket::encode, SyncServerUiPacket::decode, SyncServerUiPacket::handle,
                 NetworkDirection.PLAY_TO_CLIENT);

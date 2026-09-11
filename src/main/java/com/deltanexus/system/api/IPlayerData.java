@@ -70,7 +70,7 @@ public interface IPlayerData extends ICapabilitySerializable<CompoundTag> {
     boolean setWarehouseItem(int slot, ItemStack stack);
 
     // ------------------------------------------------------------------
-    // 安全箱（1.1.0）：独立小仓储，最大 3x3=9 格，尺寸随安全箱升级树增长
+    // 安全箱（1.1.0Alpha）：独立小仓储，最大 3x3=9 格，尺寸随安全箱升级树增长
     // ------------------------------------------------------------------
 
     /** 安全箱物品存储（固定容量 9 = 最大 3x3）。 */

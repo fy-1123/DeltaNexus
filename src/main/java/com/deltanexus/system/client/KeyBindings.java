@@ -13,10 +13,10 @@ import org.lwjgl.glfw.GLFW;
  * <ul>
  *   <li>B —— 打开仓库（key.dn.open_warehouse）</li>
  *   <li>G —— 打开工作台总览（key.dn.open_workbench）</li>
- *   <li>V —— 打开特勤处（key.dn.open_special，2.0.3）</li>
+ *   <li>V —— 打开特勤处（key.dn.open_special，2.0.3Alpha）</li>
  * </ul>
  *
- * <p>2.0.8：移除安全箱快捷键（N）——安全箱不再提供单独界面，
+ * <p>2.0.8Alpha：移除安全箱快捷键（N）——安全箱不再提供单独界面，
  * 仅保留背包界面与仓库界面的内嵌面板（UI 重构）。</p>
  */
 public final class KeyBindings {

@@ -4,7 +4,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 
 /**
- * dn 深色主题（2.0.8 抽取）：仓库/背包/安全箱面板共用配色与绘制，
+ * dn 深色主题（2.0.8Alpha 抽取）：仓库/背包/安全箱面板共用配色与绘制，
  * 避免三个界面各自维护一份重复常量。
  */
 public final class DnTheme {

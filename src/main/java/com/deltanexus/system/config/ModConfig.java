@@ -9,7 +9,7 @@ import net.minecraftforge.fml.config.ModConfig.Type;
  *
  * <p>对应阶段 6 要求：允许服主配置仓库最大等级上限等。</p>
  *
- * <p>2.0.10：类型由 SERVER 改为 COMMON 并迁入模组统一配置文件夹 config/deltanexus/
+ * <p>2.0.10Alpha：类型由 SERVER 改为 COMMON 并迁入模组统一配置文件夹 config/deltanexus/
  * （与 upgrade_tree.json 等 JSON 配置同目录）。
  * 旧版 SERVER 类型配置由 Forge 强制放在 {@code <world>/serverconfig/ModConfig.toml}
  * （每个存档一份），难以查找；COMMON 类型统一落在全局 config/ 下，
@@ -19,7 +19,7 @@ public final class ModConfig {
 
     public static final ForgeConfigSpec SERVER_SPEC;
 
-    /** 仓库总行数（每行 9 格，总容量 = 行数 x 9，上限 64 行 = 576 格；2.0.1 由 warehouse_pages 迁移而来）。 */
+    /** 仓库总行数（每行 9 格，总容量 = 行数 x 9，上限 64 行 = 576 格；2.0.1Alpha 由 warehouse_pages 迁移而来）。 */
     public static final ForgeConfigSpec.IntValue WAREHOUSE_ROWS;
     /** 0 级玩家初始解锁槽位数。 */
     public static final ForgeConfigSpec.IntValue BASE_SLOTS;
@@ -37,11 +37,11 @@ public final class ModConfig {
     public static final ForgeConfigSpec.ConfigValue<String> CURRENCY_SCOREBOARD;
     /** 制造计时模式：offline（离线模式，默认，离线照常计时）/ online（在线模式，仅在线计时）。 */
     public static final ForgeConfigSpec.ConfigValue<String> MANUFACTURE_MODE;
-    /** 安全箱默认宽度（1~3 格，1.1.0）。 */
+    /** 安全箱默认宽度（1~3 格，1.1.0Alpha）。 */
     public static final ForgeConfigSpec.IntValue SAFE_BOX_WIDTH;
-    /** 安全箱默认高度（1~3 格，1.1.0）。 */
+    /** 安全箱默认高度（1~3 格，1.1.0Alpha）。 */
     public static final ForgeConfigSpec.IntValue SAFE_BOX_HEIGHT;
-    /** 服务端 GUI 白名单（2.0.9：与客户端白名单取并集，命中任意即用原版 GUI）。 */
+    /** 服务端 GUI 白名单（2.0.9Alpha：与客户端白名单取并集，命中任意即用原版 GUI）。 */
     public static final ForgeConfigSpec.ConfigValue<java.util.List<? extends String>> UI_WHITELIST;
 
     static {
@@ -94,7 +94,7 @@ public final class ModConfig {
                 .defineInRange("safe_box_height", 1, 1, 3);
 
         UI_WHITELIST = b
-                .comment("服务端 GUI 白名单（2.0.9）：界面类简单名或全限定名，忽略大小写。",
+                .comment("服务端 GUI 白名单（2.0.9Alpha）：界面类简单名或全限定名，忽略大小写。",
                         "命中服务端或客户端（deltanexus/client-ui.toml）任一白名单的界面均使用原版 GUI",
                         "（不替换背包界面、不做网格渲染、不渲染安全箱覆盖层）。",
                         "登录时自动同步到客户端，修改后热重载广播生效。",
@@ -108,11 +108,11 @@ public final class ModConfig {
     }
 
     /**
-     * 2.0.1 迁移：旧配置 ModConfig.toml 中的 warehouse_pages（1 页 = 9 行）迁移为
+     * 2.0.1Alpha 迁移：旧配置 ModConfig.toml 中的 warehouse_pages（1 页 = 9 行）迁移为
      * warehouse_rows 默认值；已存在新键（或文件缺失）时返回默认 6。
      * ForgeConfigSpec 对文件中的未知键会拒绝加载，故仅把旧值作为新键默认值，
      * 随后首次保存即用新 spec 重写文件（旧键自然移除）。
-     * 2.0.10：优先读新位置 config/deltanexus/ModConfig.toml，旧平铺位置兜底
+     * 2.0.10Alpha：优先读新位置 config/deltanexus/ModConfig.toml，旧平铺位置兜底
      * （register() 里的文件复制在静态初始化之后执行，首启动时新位置尚不存在）。
      */
     private static int migrateOldPages() {
@@ -143,12 +143,12 @@ public final class ModConfig {
     }
 
     /**
-     * 2.0.10 迁移：旧版 SERVER 类型配置位于 {@code <world>/serverconfig/ModConfig.toml}（每个存档一份），
+     * 2.0.10Alpha 迁移：旧版 SERVER 类型配置位于 {@code <world>/serverconfig/ModConfig.toml}（每个存档一份），
      * 类型改 COMMON 后新配置在全局 {@code config/deltanexus/ModConfig.toml}。服务器启动时把
      * serverconfig 旧值逐键迁移到已加载的 COMMON 配置并落盘，旧文件改名 {@code .migrated} 保留原件、
      * 防止重复迁移（多存档各自迁移一次，后启动的存档覆盖先启动的——自用场景可接受，日志有记录）。
      *
-     * <p>2.0.10 不再强制提升 base_slots：0 级解锁由 base_slots 配置决定，
+     * <p>2.0.10Alpha 不再强制提升 base_slots：0 级解锁由 base_slots 配置决定，
      * 渲染与滚动按玩家实际解锁行数展示（未解锁行不渲染）。</p>
      *
      * @param worldServerConfigDir 世界 serverconfig 目录（{@code <world>/serverconfig}），可为 null
@@ -247,7 +247,7 @@ public final class ModConfig {
     }
 
     /**
-     * 注册配置（2.0.10：COMMON 类型，文件统一放模组文件夹 config/deltanexus/）。
+     * 注册配置（2.0.10Alpha：COMMON 类型，文件统一放模组文件夹 config/deltanexus/）。
      * 注册前先把旧平铺位置 config/ModConfig.toml 复制到新位置，旧值无缝衔接。
      */
     @SuppressWarnings("removal")

@@ -8,7 +8,7 @@ import net.minecraftforge.network.NetworkEvent;
 import java.util.function.Supplier;
 
 /**
- * 客户端 -> 服务端：请求安全箱状态（1.1.0）。
+ * 客户端 -> 服务端：请求安全箱状态（1.1.0Alpha）。
  *
  * <p>客户端打开背包界面（原版 InventoryScreen）时发送一次，
  * 服务端回复 {@link SyncSafeBoxPacket}（含权限判定，无权时 allowed=false）。</p>

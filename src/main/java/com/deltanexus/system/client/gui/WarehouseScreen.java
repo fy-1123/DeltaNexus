@@ -17,13 +17,13 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * 仓库 GUI（2.0.8 UI 重构：三列布局 + 原位滚动）。
+ * 仓库 GUI（2.0.8Alpha UI 重构：三列布局 + 原位滚动）。
  *
  * <p>布局遵循 UI 设计规范（{@code UI.html}，{@link PlayerLayout}）：
  * 左列 + 中列 = 玩家背包界面（盔甲/快捷栏列/副手 + 口袋/背包/安全箱），
  * 右列 = 仓库视口（12 行 x 9 列，滚轮滚动起始行）。</p>
  *
- * <p>2.0.8 滚动手感优化：滚动改为服务端原位替换视口槽位（{@code WarehouseMenu#scrollTo}），
+ * <p>2.0.8Alpha 滚动手感优化：滚动改为服务端原位替换视口槽位（{@code WarehouseMenu#scrollTo}），
  * 不再重建菜单/界面——光标物品不掉落、鼠标指针与悬停状态不重置、无闪烁。</p>
  */
 public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
@@ -34,7 +34,7 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
     public static volatile SyncWarehousePacket lastSync;
 
     private SyncWarehousePacket sync;
-    /** 滚轮滚动节流（2.0.1）。 */
+    /** 滚轮滚动节流（2.0.1Alpha）。 */
     private int pendingScroll = 0;
     private long lastScrollSent = 0;
 
@@ -73,7 +73,7 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
         return sync != null ? Math.max(1, sync.totalRows) : 1;
     }
 
-    /** 可滚动到的最大起始行（2.0.9：限定在已解锁行内——未解锁行不再可滚动）。 */
+    /** 可滚动到的最大起始行（2.0.9Alpha：限定在已解锁行内——未解锁行不再可滚动）。 */
     private int maxScrollRow() {
         int rows = unlockedRows();
         return Math.max(0, Math.min(rows, totalRows()) - WarehouseMenu.WAREHOUSE_ROWS);
@@ -134,18 +134,18 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
     protected void renderBg(GuiGraphics gg, float partialTick, int mouseX, int mouseY) {
         PlayerLayout L = PlayerLayout.compute(width, height, true);
         // 右列：仓库面板（标题条 22 + 视口 + 行信息 18 + 底边距）
-        // 2.0.10：面板高度按“玩家已解锁行数”而非总行数/视口行数——未解锁行完全不渲染
+        // 2.0.10Alpha：面板高度按“玩家已解锁行数”而非总行数/视口行数——未解锁行完全不渲染
         int whPanelRows = Math.min(unlockedRows(), WarehouseMenu.WAREHOUSE_ROWS);
         DnTheme.drawPanel(gg, L.whX - 8, L.whY - 22, 162 + 16, whPanelRows * 18 + 22 + 18 + 8);
-        // 左列：玩家面板（盔甲 + 快捷栏列 + 副手；2.0.9 移除 Curios，副手即底端）
+        // 左列：玩家面板（盔甲 + 快捷栏列 + 副手；2.0.9Alpha 移除 Curios，副手即底端）
         int leftBottom = L.offhandY + PlayerLayout.SLOT + 8;
         DnTheme.drawPanel(gg, L.leftX - 8, L.baseY - 22, PlayerLayout.SLOT + 16, leftBottom - L.baseY + 22 + 8);
         // 中列：口袋 + 背包 + 安全箱（整体一块面板，组标题见 renderLabels）
-        // 2.0.9：面板高度按菜单实际安全箱槽位推算（按解锁数渲染，不再固定 3 行）
+        // 2.0.9Alpha：面板高度按菜单实际安全箱槽位推算（按解锁数渲染，不再固定 3 行）
         int safeRows = Math.max(1, (menu.safeCount() + menu.safeW - 1) / menu.safeW);
         int midBottom = L.safeY + safeRows * PlayerLayout.SLOT + 8;
         DnTheme.drawPanel(gg, L.midX - 8, L.baseY - 22, 9 * PlayerLayout.SLOT + 16, midBottom - L.baseY + 22 + 8);
-        // 视口槽位底图（2.0.9：未解锁格完全不渲染——按同步位图逐格判定）
+        // 视口槽位底图（2.0.9Alpha：未解锁格完全不渲染——按同步位图逐格判定）
         for (int i = 0; i < WarehouseMenu.WAREHOUSE_SLOTS && i < menu.slots.size(); i++) {
             var slot = menu.slots.get(i);
             if (!isWarehouseSlotUnlocked(slot.getSlotIndex())) {
@@ -154,7 +154,7 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
             gg.blit(SLOT, slot.x, slot.y, 0, 0, 18, 18, 18, 18);
         }
         // 玩家区槽位（背包/快捷栏/盔甲/副手/安全箱）按菜单槽位坐标补底图
-        // 2.1：安全箱被禁用时不渲染任何安全箱格子（标题提示见 renderLabels）
+        // 2.1Alpha：安全箱被禁用时不渲染任何安全箱格子（标题提示见 renderLabels）
         boolean safeOk = SafeBoxOverlay.safeAllowed(SafeBoxOverlay.lastState());
         int safeStart = Math.min(menu.safeStart, menu.slots.size());
         for (int i = WarehouseMenu.PLAYER_START; i < menu.slots.size(); i++) {
@@ -184,7 +184,7 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
             String money = currencyLabel() + ": " + FormatUtil.compact(sync.currencyCount);
             gg.drawString(font, money, L.whX + 162 - font.width(money), L.whY - 17, DnTheme.GOLD);
         }
-        // 安全箱标题（中列背包下方；2.1：被禁用时红色「安全箱被禁用」提示）
+        // 安全箱标题（中列背包下方；2.1Alpha：被禁用时红色「安全箱被禁用」提示）
         int safeW = Math.max(1, Math.min(3, menu.safeW));
         SyncSafeBoxPacket safeSt = SafeBoxOverlay.lastState();
         String safeTitle = safeSt != null
@@ -193,7 +193,7 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
                         + (sync != null ? " Lv" + sync.safeLevel : "");
         DnTheme.drawTitle(gg, font, L.midX - 8, L.safeY - 22, safeW * 18 + 16, safeTitle,
                 safeSt != null ? SafeBoxOverlay.safeTitleColor(safeSt) : DnTheme.GOLD);
-        // 行信息：起始行-结束行 / 已解锁行数（2.0.10：看玩家解锁了多少，而非仓库总行数）
+        // 行信息：起始行-结束行 / 已解锁行数（2.0.10Alpha：看玩家解锁了多少，而非仓库总行数）
         int unlocked = Math.max(0, unlockedRows());
         int endRow = Math.min(scrollRow() + WarehouseMenu.WAREHOUSE_ROWS, unlocked);
         String rowInfo = (scrollRow() + 1) + " - " + Math.max(scrollRow() + 1, endRow) + " / " + unlocked;
@@ -202,7 +202,7 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
         String rightText = !sellSelection.isEmpty()
                 ? Component.translatable("gui.dn.trade.sell.estimate", FormatUtil.compact(estimateTotal())).getString()
                 : rowInfo;
-        gg.drawString(font, rightText, L.whX + 162 - font.width(rightText), L.whY + 218, DnTheme.ACCENT);
+        gg.drawString(font, rightText, L.whX + 162 - font.width(rightText), infoStripY() + 5, DnTheme.ACCENT);
     }
 
     private void drawTitle(GuiGraphics gg, int x, int y, int w, String key, int color) {
@@ -223,7 +223,7 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
 
     @Override
     public void render(GuiGraphics gg, int mouseX, int mouseY, float partialTick) {
-        // 2.0.8 修复：节流期间累积的滚动量在停止滚动后补发（否则快速滚动会丢最后一格）
+        // 2.0.8Alpha 修复：节流期间累积的滚动量在停止滚动后补发（否则快速滚动会丢最后一格）
         if (pendingScroll != 0 && System.currentTimeMillis() - lastScrollSent >= 120) {
             sendScroll();
             lastScrollSent = System.currentTimeMillis();
@@ -234,7 +234,7 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
         renderTooltip(gg, mouseX, mouseY);
     }
 
-    /** 2.0.10：未解锁的仓库槽位不显示 tooltip（防御服务端残留数据穿透；
+    /** 2.0.10Alpha：未解锁的仓库槽位不显示 tooltip（防御服务端残留数据穿透；
      *  物品与高亮的隐藏由 LockedAwareSlot.isActive() 实现）。 */
     @Override
     protected void renderTooltip(GuiGraphics gg, int mouseX, int mouseY) {
@@ -269,7 +269,7 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
         super.renderTooltip(gg, mouseX, mouseY);
     }
 
-    /** 仓库区滚轮滚动（2.0.1 动态向下渲染；2.0.8 原位滚动，界面不重建）。 */
+    /** 仓库区滚轮滚动（2.0.1Alpha 动态向下渲染；2.0.8Alpha 原位滚动，界面不重建）。 */
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
         return handleScroll(mouseX, mouseY, delta);
@@ -308,18 +308,36 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
     }
 
     /**
-     * 抢在 vanilla 鼠标居中逻辑之前消费滚轮事件（2.0.2）：
+     * 抢在 vanilla 鼠标居中逻辑之前消费滚轮事件（2.0.2Alpha）：
      * vanilla 在容器界面「光标持有物品 + 滚轮」时会强制把滚轮坐标视为屏幕中心，
      * 此处以真实鼠标位置滚动仓库，避免指针行为异常。
      */
     // ==================================================================
-    // 交易行卖出（0.2.0Beta）：多选 → 出售 → 确认
+    // 交易行卖出（0.2.0Beta 起；0.2.1Beta：取消语义 / 按钮贴行信息条 / 物品冻结）
     // ==================================================================
 
-    /** 出售按钮热区（行信息条左侧）。 */
+    /**
+     * 仓库行信息条顶边（= 实际绘制出的网格底沿）。
+     *
+     * <p>0.2.1Beta：面板高度按「玩家已解锁行数」而非固定 12 行绘制，因此按钮与行信息不能再用固定偏移，
+     * 否则低等级玩家（解锁行数少、面板更短）会看到按钮悬在面板下方的空白处。</p>
+     */
+    private int infoStripY() {
+        PlayerLayout L = PlayerLayout.compute(width, height, true);
+        int rows = Math.max(1, Math.min(unlockedRows(), WarehouseMenu.WAREHOUSE_ROWS));
+        return L.whY + rows * PlayerLayout.SLOT;
+    }
+
+    /**
+     * 出售按钮热区（行信息条内）。
+     *
+     * <p>0.2.1Beta 修复：槽位物品区是 16×16，而槽位底图（含边框）是 18×18 且向右下各多出 2px，
+     * 原按钮按物品区定位，导致其右下压住仓库最后一行的格子 UI。现按 18×18 外框对齐：
+     * 自网格底沿下 1px 起、垂直居中于 18px 行信息条；左侧与网格首列取齐（原为网格左外 4px）。</p>
+     */
     private BtnRect sellBtnRect() {
         PlayerLayout L = PlayerLayout.compute(width, height, true);
-        return new BtnRect(L.whX - 4, L.whY + 214, 54, 17);
+        return new BtnRect(L.whX + 2, infoStripY() + 1, 54, 17);
     }
 
     private boolean isWarehouseViewSlot(int menuIndex) {
@@ -435,11 +453,17 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
     private void drawSellButton(GuiGraphics gg, int mouseX, int mouseY) {
         BtnRect r = sellBtnRect();
         boolean hover = r.contains(mouseX, mouseY);
-        String label = sellConfirm
-                ? Component.translatable("gui.dn.trade.sell.confirm").getString()
-                : (sellSelection.isEmpty()
-                        ? Component.translatable("gui.dn.trade.sell.button").getString()
-                        : Component.translatable("gui.dn.trade.sell.button_count", sellSelection.size()).getString());
+        // 0.2.1Beta：出售模式但未选中任何物品 → 显示「取消」，点击即退回正常存储功能
+        String label;
+        if (sellConfirm) {
+            label = Component.translatable("gui.dn.trade.sell.confirm").getString();
+        } else if (!sellMode) {
+            label = Component.translatable("gui.dn.trade.sell.button").getString();
+        } else if (sellSelection.isEmpty()) {
+            label = Component.translatable("gui.dn.trade.sell.cancel").getString();
+        } else {
+            label = Component.translatable("gui.dn.trade.sell.button_count", sellSelection.size()).getString();
+        }
         int top = sellConfirm ? (hover ? 0xFFB23A3A : 0xFF8E2B2B) : (hover ? 0xFF3A4655 : 0xFF2A3040);
         int bot = sellConfirm ? (hover ? 0xFF8E2B2B : 0xFF6E1F1F) : (hover ? 0xFF2E3748 : 0xFF20242F);
         gg.fillGradient(r.x, r.y, r.x + r.w, r.y + r.h, top, bot);
@@ -502,6 +526,7 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
             } else if (sellConfirm) {
                 sendSell();
             } else if (sellSelection.isEmpty()) {
+                // 0.2.1Beta：未选中任何物品时按钮显示「取消」，点击退回正常存储功能
                 clearSellState();
             } else {
                 sellConfirm = true;
@@ -509,8 +534,9 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
             return true;
         }
         if (sellMode) {
+            // 2Beta：出售模式下界面内一切点击都不移动物品
             if (sellConfirm) {
-                sellConfirm = false;
+                sellConfirm = false;      // 点别处 = 取消确认，但绝不触碰物品
                 return true;
             }
             var slot = this.getSlotUnderMouse();
@@ -518,9 +544,12 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
                 SellKey key = sellKeyOf(slot);
                 if (key != null && !slot.getItem().isEmpty() && matchAt(key) != null) {
                     toggleSellSelection(key, button == 1, slot.getItem().getCount());
-                    return true;
                 }
+                // 不可回收的物品 / 盔甲副手等来源：点击同样被吞掉，不改动任何槽位
+                return true;
             }
+            // 槽位之外的点击（原版此处会把光标物品丢到世界里）：出售模式下一并吞掉
+            return true;
         }
         return super.mouseClicked(mx, my, button);
     }
@@ -536,6 +565,26 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    /** 出售模式是否激活（0.2.1Beta：供全局网格交互拦截判断用）。 */
+    public boolean isSellMode() {
+        return sellMode;
+    }
+
+    /**
+     * 0.2.1Beta：出售模式下<b>冻结物品</b>——任何槽位交互一律不生效，无论该物品是否可回收。
+     *
+     * <p>原版把左/右键取放、Shift 快捷移动、数字键换位、Q 丢弃全部汇总到本方法（{@code slotClicked}），
+     * 因此在这里直接返回即可一次性屏蔽全部移动途径；选中/取消选中由 {@link #mouseClicked} 先行处理，不会走到此处。</p>
+     */
+    @Override
+    protected void slotClicked(net.minecraft.world.inventory.Slot slot, int slotId, int mouseButton,
+                              net.minecraft.world.inventory.ClickType type) {
+        if (sellMode) {
+            return;
+        }
+        super.slotClicked(slot, slotId, mouseButton, type);
     }
 
     /** 选中信息（数量 + 记录时单价，便于滚动后预估）。 */

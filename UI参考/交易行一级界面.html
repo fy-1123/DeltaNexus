@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UI演示 · 720x400</title>
+    <style>
+        /* 基础重置与居中 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #dce1e8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+
+        .app {
+            width: 720px;
+            height: 400px;
+            display: flex;
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            overflow: hidden;
+        }
+
+        /* 左侧窄栏 */
+        .sidebar {
+            width: 140px;
+            min-width: 140px;
+            height: 100%;
+            background: #f8fafc;
+            border-right: 1px solid #eef2f6;
+            padding: 20px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .category-item {
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #334155;
+            background: transparent;
+            transition: all 0.15s;
+            cursor: default;
+        }
+
+        .category-item:hover {
+            background: #e9edf4;
+        }
+
+        .category-item.active {
+            background: #2563eb;
+            color: #ffffff;
+        }
+
+        /* 右侧宽栏 */
+        .main {
+            flex: 1;
+            height: 100%;
+            padding: 16px;
+            background: #ffffff;
+            overflow: hidden;
+        }
+
+        /* 3列 x 5行网格 */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(5, 1fr);
+            gap: 8px;
+            height: 100%;
+            width: 100%;
+        }
+
+        /* 格子容器 */
+        .grid-cell {
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            padding: 4px 10px;
+            gap: 10px;
+            transition: background 0.15s, border-color 0.15s;
+        }
+
+        .grid-cell:hover {
+            background: #e9edf4;
+            border-color: #cbd5e1;
+        }
+
+        /* 正方形，放大到 44x44 */
+        .icon-square {
+            width: 44px;
+            height: 44px;
+            flex-shrink: 0;
+            background: #dbeafe;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            color: #1e40af;
+            font-weight: 600;
+            text-align: center;
+            line-height: 1.2;
+            border: 1px solid #bfdbfe;
+        }
+
+        /* 物品名 */
+        .item-name {
+            font-size: 13px;
+            color: #1e293b;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app">
+
+    <!-- 左侧类别 -->
+    <div class="sidebar">
+        <div class="category-item active">类别 1</div>
+        <div class="category-item">类别 2</div>
+        <div class="category-item">类别 3</div>
+        <div class="category-item">类别 4</div>
+        <div class="category-item">类别 5</div>
+    </div>
+
+    <!-- 右侧：3列5行格子 -->
+    <div class="main">
+        <div class="grid">
+            <!-- 15个格子，每个格子包含正方形和物品名 -->
+            <div class="grid-cell">
+                <div class="icon-square">物品图标</div>
+                <span class="item-name">物品 1</span>
+            </div>
+            <div class="grid-cell">
+                <div class="icon-square">物品图标</div>
+                <span class="item-name">物品 2</span>
+            </div>
+            <div class="grid-cell">
+                <div class="icon-square">物品图标</div>
+                <span class="item-name">物品 3</span>
+            </div>
+            <div class="grid-cell">
+                <div class="icon-square">物品图标</div>
+                <span class="item-name">物品 4</span>
+            </div>
+            <div class="grid-cell">
+                <div class="icon-square">物品图标</div>
+                <span class="item-name">物品 5</span>
+            </div>
+            <div class="grid-cell">
+                <div class="icon-square">物品图标</div>
+                <span class="item-name">物品 6</span>
+            </div>
+            <div class="grid-cell">
+                <div class="icon-square">物品图标</div>
+                <span class="item-name">物品 7</span>
+            </div>
+            <div class="grid-cell">
+                <div class="icon-square">物品图标</div>
+                <span class="item-name">物品 8</span>
+            </div>
+            <div class="grid-cell">
+                <div class="icon-square">物品图标</div>
+                <span class="item-name">物品 9</span>
+            </div>
+            <div class="grid-cell">
+                <div class="icon-square">物品图标</div>
+                <span class="item-name">物品 10</span>
+            </div>
+            <div class="grid-cell">
+                <div class="icon-square">物品图标</div>
+                <span class="item-name">物品 11</span>
+            </div>
+            <div class="grid-cell">
+                <div class="icon-square">物品图标</div>
+                <span class="item-name">物品 12</span>
+            </div>
+            <div class="grid-cell">
+                <div class="icon-square">物品图标</div>
+                <span class="item-name">物品 13</span>
+            </div>
+            <div class="grid-cell">
+                <div class="icon-square">物品图标</div>
+                <span class="item-name">物品 14</span>
+            </div>
+            <div class="grid-cell">
+                <div class="icon-square">物品图标</div>
+                <span class="item-name">物品 15</span>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+</body>
+</html>

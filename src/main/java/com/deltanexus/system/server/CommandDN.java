@@ -66,7 +66,7 @@ public final class CommandDN {
         return builder.buildFuture();
     };
 
-    /** 安全箱升级树等级动态补全（已有等级，1.1.0）。 */
+    /** 安全箱升级树等级动态补全（已有等级，1.1.0Alpha）。 */
     private static final SuggestionProvider<CommandSourceStack> SAFE_TREE_LEVELS = (ctx, builder) -> {
         for (UpgradeConfig.UpgradeLevel u : UpgradeConfig.get().safeAll()) {
             builder.suggest(u.level);
@@ -74,7 +74,7 @@ public final class CommandDN {
         return builder.buildFuture();
     };
 
-    /** 权限类型补全（warehouse/workbench/special/safe_box/trade/all，1.1.0 / 2.0.3 / 2.1 / 0.2.0Beta）。 */
+    /** 权限类型补全（warehouse/workbench/special/safe_box/trade/all，1.1.0Alpha / 2.0.3 Alpha/ 2.1Alpha / 0.2.0Beta）。 */
     private static final SuggestionProvider<CommandSourceStack> PERM_TYPES = (ctx, builder) -> {
         builder.suggest("warehouse", Component.literal("仓库"));
         builder.suggest("workbench", Component.literal("配方工作台"));
@@ -92,14 +92,14 @@ public final class CommandDN {
         return builder.buildFuture();
     };
 
-    /** NBT 匹配模式补全（安全箱限制，1.1.0）。 */
+    /** NBT 匹配模式补全（安全箱限制，1.1.0Alpha）。 */
     private static final SuggestionProvider<CommandSourceStack> NBT_MATCH_TYPES = (ctx, builder) -> {
         builder.suggest("contains", Component.literal("包含匹配，默认"));
         builder.suggest("exact", Component.literal("完全匹配"));
         return builder.buildFuture();
     };
 
-    /** 在线玩家名补全（权限/玩家数据指令，2.0.7）。 */
+    /** 在线玩家名补全（权限/玩家数据指令，2.0.7Alpha）。 */
     private static final SuggestionProvider<CommandSourceStack> PLAYER_NAMES = (ctx, builder) -> {
         var server = ctx.getSource().getServer();
         if (server != null) {
@@ -110,12 +110,12 @@ public final class CommandDN {
         return builder.buildFuture();
     };
 
-    /** 注册物品 ID 补全（minecraft:xxx / 模组:xxx，2.0.7）。 */
+    /** 注册物品 ID 补全（minecraft:xxx / 模组:xxx，2.0.7Alpha）。 */
     private static final SuggestionProvider<CommandSourceStack> ITEM_IDS = (ctx, builder) ->
             net.minecraft.commands.SharedSuggestionProvider.suggestResource(
                     net.minecraftforge.registries.ForgeRegistries.ITEMS.getKeys(), builder);
 
-    /** 物品「类」名补全（已存在的类，2.0.7）。 */
+    /** 物品「类」名补全（已存在的类，2.0.7Alpha）。 */
     private static final SuggestionProvider<CommandSourceStack> CLASS_NAMES = (ctx, builder) -> {
         for (String name : com.deltanexus.system.grid.GridClassConfig.allClasses().keySet()) {
             builder.suggest(name);
@@ -123,7 +123,7 @@ public final class CommandDN {
         return builder.buildFuture();
     };
 
-    /** 列表索引补全（0 ~ 9，配方/升级材料索引等，2.0.7）。 */
+    /** 列表索引补全（0 ~ 9，配方/升级材料索引等，2.0.7Alpha）。 */
     private static final SuggestionProvider<CommandSourceStack> LIST_INDEX = (ctx, builder) -> {
         for (int i = 0; i < 10; i++) {
             builder.suggest(i);
@@ -131,7 +131,7 @@ public final class CommandDN {
         return builder.buildFuture();
     };
 
-    /** 安全箱限制物品补全（any 或物品 ID，2.0.7）。 */
+    /** 安全箱限制物品补全（any 或物品 ID，2.0.7Alpha）。 */
     private static final SuggestionProvider<CommandSourceStack> RESTRICT_ITEM = (ctx, builder) -> {
         builder.suggest("any", Component.literal("任意物品"));
         net.minecraft.commands.SharedSuggestionProvider.suggestResource(
@@ -408,7 +408,7 @@ public final class CommandDN {
                                 .then(Commands.literal("reset")
                                         .executes(ctx -> dataReset(ctx.getSource(),
                                                 EntityArgument.getPlayer(ctx, "player"))))))
-                // safe（安全箱：默认尺寸 + 升级树管理，1.1.0）
+                // safe（安全箱：默认尺寸 + 升级树管理，1.1.0Alpha）
                 .then(Commands.literal("safe")
                         .requires(s -> s.hasPermission(2))
                         .then(Commands.literal("help").executes(ctx -> helpSafe(ctx.getSource())))
@@ -481,7 +481,7 @@ public final class CommandDN {
                                 .then(Commands.argument("index", com.mojang.brigadier.arguments.IntegerArgumentType.integer(0)).suggests(LIST_INDEX)
                                         .executes(ctx -> safeUnrestrict(ctx.getSource(),
                                                 com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "index"))))))
-                // perm（权限管理，1.1.0：控制玩家能否打开仓库/工作台/特勤处/安全箱）
+                // perm（权限管理，1.1.0Alpha：控制玩家能否打开仓库/工作台/特勤处/安全箱）
                 .then(Commands.literal("perm")
                         .requires(s -> s.hasPermission(2))
                         .then(Commands.literal("help").executes(ctx -> helpPerm(ctx.getSource())))
@@ -519,7 +519,7 @@ public final class CommandDN {
                                                 StringArgumentType.getString(ctx, "allow")))))
                         .then(Commands.literal("getop")
                                 .executes(ctx -> permGetOp(ctx.getSource()))))
-                // feature（2.1：禁用玩家全部 mod 功能，UI 恢复原版）
+                // feature（2.1Alpha：禁用玩家全部 mod 功能，UI 恢复原版）
                 .then(Commands.literal("feature")
                         .requires(s -> s.hasPermission(2))
                         .then(Commands.literal("help").executes(ctx -> helpFeature(ctx.getSource())))
@@ -535,7 +535,7 @@ public final class CommandDN {
                                                 .executes(ctx -> featureSet(ctx.getSource(),
                                                         EntityArgument.getEntities(ctx, "target"),
                                                         StringArgumentType.getString(ctx, "allow")))))))
-                // grid（格式背包配置：物品尺寸 + 快捷栏规则 + 物品类，2.0.2 / 2.0.3）
+                // grid（格式背包配置：物品尺寸 + 快捷栏规则 + 物品类，2.0.2Alpha / 2.0.3Alpha）
                 .then(Commands.literal("grid")
                         .requires(s -> s.hasPermission(2))
                         .then(Commands.literal("help").executes(ctx -> helpGrid(ctx.getSource())))
@@ -555,7 +555,7 @@ public final class CommandDN {
                                 .then(Commands.argument("rules", StringArgumentType.greedyString())
                                         .executes(ctx -> gridHotbar(ctx.getSource(),
                                                 StringArgumentType.getString(ctx, "rules")))))
-                        // 2.0.6：类命令顶层别名（/dn grid setclass 与 /dn grid class setclass 等价）
+                        // 2.0.6Alpha：类命令顶层别名（/dn grid setclass 与 /dn grid class setclass 等价）
                         .then(Commands.literal("setclass")
                                 .then(Commands.argument("item_id", net.minecraft.commands.arguments.ResourceLocationArgument.id()).suggests(ITEM_IDS)
                                         .then(Commands.argument("name", StringArgumentType.word()).suggests(CLASS_NAMES)
@@ -593,7 +593,7 @@ public final class CommandDN {
                                         .then(Commands.argument("item_id", net.minecraft.commands.arguments.ResourceLocationArgument.id()).suggests(ITEM_IDS)
                                                 .executes(ctx -> gridUnsetClass(ctx.getSource(),
                                                         net.minecraft.commands.arguments.ResourceLocationArgument.getId(ctx, "item_id").toString()))))))
-                // class（2.0.7：物品「类」配置顶层指令，与 /dn grid class 等价）
+                // class（2.0.7Alpha：物品「类」配置顶层指令，与 /dn grid class 等价）
                 .then(Commands.literal("class")
                         .requires(s -> s.hasPermission(2))
                         .then(Commands.literal("help").executes(ctx -> helpClass(ctx.getSource())))
@@ -643,7 +643,7 @@ public final class CommandDN {
         return 1;
     }
 
-    /** 打开特勤处（2.0.2：仓库/安全箱升级独立界面）。 */
+    /** 打开特勤处（2.0.2Alpha：仓库/安全箱升级独立界面）。 */
     private static int openSpecialOps(CommandSourceStack source) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
         ManufacturingService.openSpecialOps(player);
@@ -788,7 +788,7 @@ public final class CommandDN {
     }
 
     /**
-     * 查看当前全部配置（2.0.7 分节排版：全局/仓库/安全箱/权限/格式背包/其他）。
+     * 查看当前全部配置（2.0.7Alpha 分节排版：全局/仓库/安全箱/权限/格式背包/其他）。
      * 与旧版单行堆积不同，逐项分行 + 着色，管理员一眼可读。
      */
     private static int info(CommandSourceStack source) {
@@ -1309,7 +1309,7 @@ public final class CommandDN {
         return 1;
     }
 
-    /** 设置玩家安全箱等级（0 ~ 安全箱升级树最大等级，1.1.0）。 */
+    /** 设置玩家安全箱等级（0 ~ 安全箱升级树最大等级，1.1.0Alpha）。 */
     private static int dataSafe(CommandSourceStack source, ServerPlayer target, int level) {
         int max = UpgradeConfig.get().safeMaxLevel();
         if (level > max) {
@@ -1356,7 +1356,7 @@ public final class CommandDN {
     }
 
     // ------------------------------------------------------------------
-    // 安全箱管理（/dn safe，1.1.0）
+    // 安全箱管理（/dn safe，1.1.0Alpha）
     // ------------------------------------------------------------------
 
     /** 查看安全箱配置与升级树。 */
@@ -1418,7 +1418,7 @@ public final class CommandDN {
         return 1;
     }
 
-    /** 设置安全箱升级解锁行 x 列（各 1 ~ 3，2.0.1 行列制）。 */
+    /** 设置安全箱升级解锁行 x 列（各 1 ~ 3，2.0.1Alpha 行列制）。 */
     private static int safeRows(CommandSourceStack source, int level, int rows, int cols) {
         ManufacturingService.setSafeTreeDims(level, rows, cols);
         source.sendSuccess(() -> Component.translatable("msg.dn.safe.tree.dims_set",
@@ -1468,7 +1468,7 @@ public final class CommandDN {
     }
 
     // ------------------------------------------------------------------
-    // 安全箱 NBT 限制（/dn safe restrict，1.1.0）
+    // 安全箱 NBT 限制（/dn safe restrict，1.1.0Alpha）
     // ------------------------------------------------------------------
 
     /** 添加安全箱 NBT 限制规则：/dn safe restrict <item|any> <exact|contains> <nbt>。 */
@@ -1534,7 +1534,7 @@ public final class CommandDN {
     }
 
     // ------------------------------------------------------------------
-    // 权限管理（/dn perm，1.1.0）
+    // 权限管理（/dn perm，1.1.0Alpha）
     // ------------------------------------------------------------------
 
     /** 查看权限规则：全局默认 + 玩家覆盖。 */
@@ -1715,7 +1715,7 @@ public final class CommandDN {
     }
 
     // ------------------------------------------------------------------
-    // OP 豁免（2.1：/dn perm op / getop）
+    // OP 豁免（2.1Alpha：/dn perm op / getop）
     // ------------------------------------------------------------------
 
     /** 设置 OP 是否豁免权限判定。 */
@@ -1739,7 +1739,7 @@ public final class CommandDN {
     }
 
     // ------------------------------------------------------------------
-    // 功能开关（2.1：/dn feature，禁用后无法使用全部 mod 功能，UI 恢复原版）
+    // 功能开关（2.1Alpha：/dn feature，禁用后无法使用全部 mod 功能，UI 恢复原版）
     // ------------------------------------------------------------------
 
     /** 查看功能开关状态：全局提示 + 被禁用玩家列表。 */
@@ -1949,7 +1949,7 @@ public final class CommandDN {
     }
 
     // ------------------------------------------------------------------
-    // 格式背包配置管理（/dn grid，2.0.2）
+    // 格式背包配置管理（/dn grid，2.0.2Alpha）
     // ------------------------------------------------------------------
 
     /** 查看自定义物品尺寸与快捷栏规则。 */
@@ -1970,7 +1970,7 @@ public final class CommandDN {
         return 1;
     }
 
-    /** 设置主手物品占用尺寸（1 ~ 9 x 1 ~ 9，写入 deltanexus-sizes.json 并同步客户端；2.1 不再需要物品 ID）。 */
+    /** 设置主手物品占用尺寸（1 ~ 9 x 1 ~ 9，写入 deltanexus-sizes.json 并同步客户端；2.1Alpha 不再需要物品 ID）。 */
     private static int gridSize(CommandSourceStack source, int w, int h) {
         if (!(source.getEntity() instanceof ServerPlayer sp)) {
             source.sendFailure(Component.literal("该指令需由玩家执行，需手持物品"));
@@ -2106,13 +2106,13 @@ public final class CommandDN {
      */
     @SubscribeEvent
     public static void onServerStarting(net.minecraftforge.event.server.ServerStartingEvent event) {
-        // 启动横幅（2.0.7：版本动态读取 mods.toml，替代硬编码；分节排版便于日志检索）
+        // 启动横幅（2.0.7Alpha：版本动态读取 mods.toml，替代硬编码；分节排版便于日志检索）
         String ver = modVersion();
         DeltaNexus.LOGGER.info("[DN] ============================================");
         DeltaNexus.LOGGER.info("[DN]   三角联结 DeltaNexus v{}", ver);
         DeltaNexus.LOGGER.info("[DN]   Minecraft 1.20.1 / Forge 47.4.x / 协议 dn1");
         DeltaNexus.LOGGER.info("[DN] ============================================");
-        // 2.0.10：SERVER 类型旧配置（<world>/serverconfig/ModConfig.toml）逐键迁移至全局
+        // 2.0.10Alpha：SERVER 类型旧配置（<world>/serverconfig/ModConfig.toml）逐键迁移至全局
         // config/deltanexus/ModConfig.toml（COMMON），旧文件改名 .migrated 保留
         ModConfig.migrateLegacyServerConfig(event.getServer()
                 .getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT)

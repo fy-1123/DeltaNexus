@@ -21,7 +21,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 /**
- * dn 背包界面（2.0.8 UI 重构）：非白名单时替换原版背包界面（E 键）。
+ * dn 背包界面（2.0.8Alpha UI 重构）：非白名单时替换原版背包界面（E 键）。
  *
  * <p>布局遵循 UI 设计规范（{@code UI.html}）：
  * 左列 = 盔甲(4)/快捷栏后 4 格/副手 竖排；中列 = 口袋(快捷栏前 5 格)/背包(3x9)/安全箱(3x3)。</p>
@@ -59,7 +59,7 @@ public class BackpackScreen extends AbstractContainerScreen<InventoryMenu> {
         this.leftPos = 0;
         this.topPos = 0;
         super.init();
-        // 2.0.10：口袋槽尺寸守卫（客户端预测——塞大件到口袋直接回光标，避免一闪再回弹）
+        // 2.0.10Alpha：口袋槽尺寸守卫（客户端预测——塞大件到口袋直接回光标，避免一闪再回弹）
         InventoryGridHandler.ensurePocketGuards(this.menu, Minecraft.getInstance().player);
         remapSlots();
     }
@@ -153,7 +153,7 @@ public class BackpackScreen extends AbstractContainerScreen<InventoryMenu> {
         // 左列面板（盔甲 + 快捷栏列 + 副手）
         int leftBottom = L.offhandY + PlayerLayout.SLOT + 8;
         DnTheme.drawPanel(gg, L.leftX - 8, L.baseY - 22, PlayerLayout.SLOT + 16, leftBottom - L.baseY + 22 + 8);
-        // 中列整块面板（口袋 + 背包 + 安全箱，2.0.9 与仓库界面中列面板统一）
+        // 中列整块面板（口袋 + 背包 + 安全箱，2.0.9Alpha 与仓库界面中列面板统一）
         int safeH = SafeBoxOverlay.safeHeight(SafeBoxOverlay.lastState());
         int midBottom = L.safeY + safeH * PlayerLayout.SLOT + 8;
         DnTheme.drawPanel(gg, L.midX - 8, L.baseY - 22, 9 * PlayerLayout.SLOT + 16, midBottom - L.baseY + 22 + 8);
@@ -165,12 +165,12 @@ public class BackpackScreen extends AbstractContainerScreen<InventoryMenu> {
             }
             gg.blit(SLOT_TEX, s.x, s.y, 0, 0, 18, 18, 18, 18);
         }
-        // 安全箱区底图 + 标题（面板已并入中列整块，2.0.9）
+        // 安全箱区底图 + 标题（面板已并入中列整块，2.0.9Alpha）
         renderSafeBoxPanel(gg, L);
     }
 
     /** 安全箱区底图 + 标题（面板底图并入中列整块面板；物品渲染在 render 阶段叠加）。
-     *  2.1：被禁用时仅显示红色「安全箱被禁用」提示，不渲染任何安全箱格子。 */
+     *  2.1Alpha：被禁用时仅显示红色「安全箱被禁用」提示，不渲染任何安全箱格子。 */
     private void renderSafeBoxPanel(GuiGraphics gg, PlayerLayout L) {
         SyncSafeBoxPacket st = SafeBoxOverlay.lastState();
         int w = SafeBoxOverlay.safeWidth(st);
@@ -179,7 +179,7 @@ public class BackpackScreen extends AbstractContainerScreen<InventoryMenu> {
         String title = SafeBoxOverlay.safeTitle(st);
         DnTheme.drawTitle(gg, this.font, L.midX - 8, L.safeY - 22, pw, title, SafeBoxOverlay.safeTitleColor(st));
         if (!SafeBoxOverlay.safeAllowed(st)) {
-            return; // 2.1：被禁用 → 不渲染安全箱格子
+            return; // 2.1Alpha：被禁用 → 不渲染安全箱格子
         }
         for (int i = 0; i < w * h; i++) {
             int x = L.midX + (i % w) * PlayerLayout.SLOT;
@@ -267,7 +267,7 @@ public class BackpackScreen extends AbstractContainerScreen<InventoryMenu> {
      * <p>跳过条件（保持原版）：白名单包含 InventoryScreen、配置关闭替换、
      * 无玩家上下文（登录/断线等界面切换时序，NPE 预防）、创造模式玩家。</p>
      *
-     * <p>2.0.10 创造模式修复：MC 1.20.1 按 E 统一打开 InventoryScreen
+     * <p>2.0.10Alpha 创造模式修复：MC 1.20.1 按 E 统一打开 InventoryScreen
      * （{@code handleKeybinds} 无创造分支），其 {@code containerTick} 检测
      * {@code hasInfiniteItems()}（创造模式）后在一帧内自动切换为
      * CreativeModeInventoryScreen——InventoryScreen 只是创造界面的「跳板」。
@@ -289,7 +289,7 @@ public class BackpackScreen extends AbstractContainerScreen<InventoryMenu> {
                 return;
             }
             String reason = null;
-            // 2.1：玩家功能被禁用（featuresEnabled=false）→ 所有界面恢复原版
+            // 2.1Alpha：玩家功能被禁用（featuresEnabled=false）→ 所有界面恢复原版
             if (!ClientUiConfig.featuresEnabled()) {
                 reason = "功能被禁用";
             } else if (ClientUiConfig.isVanillaUi(InventoryScreen.class)) {

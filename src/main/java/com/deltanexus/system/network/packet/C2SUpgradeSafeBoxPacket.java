@@ -8,7 +8,7 @@ import net.minecraftforge.network.NetworkEvent;
 import java.util.function.Supplier;
 
 /**
- * 客户端 -> 服务端：请求安全箱升级（1.1.0）。
+ * 客户端 -> 服务端：请求安全箱升级（1.1.0Alpha）。
  *
  * <p>体验优先：升级点击不受网络限流约束（避免误吞玩家操作），
  * 服务端仍以配置/材料校验兜底（与仓库升级一致）。</p>
