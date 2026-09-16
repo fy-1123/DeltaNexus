@@ -3,6 +3,8 @@ plugins {
     id 'idea'
     id 'maven-publish'
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    // 仅用于把内嵌 Rhino 重打包到独有包名，避免与 WorldEdit 的 org.mozilla.* 分裂包冲突
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 version = mod_version
@@ -113,11 +115,46 @@ minecraft {
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 // 交易行 Rhino：Forge 的 mod 模块（dev userdev 与生产 loader）读不到“普通 implementation 库”，
-// 因此把 Rhino 的 .class 解包后直接并入编译输出目录 classes/java/main
+// 因此把（已重打包的）Rhino .class 解包后直接并入编译输出目录 classes/java/main
 // （dev 运行与 reobf 后的 jar 都从该目录取得类，保证两端一致）。
+//
+// 重打包说明：WorldEdit 同样内嵌 Rhino 且未换名，两者都会导出 org.mozilla.* 包，
+// 在 JPMS 模块层构成“分裂包”，导致加载时冲突（如 letmedespawn 解析失败）。
+// 故用 Shadow 把 org.mozilla → com.deltanexus.libs.mozilla 重定位，彻底隔离。
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
+// 仅含原始 Rhino 的独立可重定位依赖
+configurations {
+    rhinoRaw
+}
+
+tasks.register('relocateRhino', ShadowJar) {
+    archiveBaseName = 'deltanexus-rhino'
+    archiveClassifier = 'relocated'
+    destinationDirectory = layout.buildDirectory.dir('relocated')
+    configurations.clear()
+    configurations.add(project.configurations.rhinoRaw)
+    exclude 'META-INF/**'
+    relocate 'org.mozilla', 'com.deltanexus.libs.mozilla'
+}
+
+// 编译与运行都用重打包后的 Rhino（不再直接引 org.mozilla:rhino）
+def rhinoRelocated = tasks.named('relocateRhino').flatMap { it.archiveFile }
+
 tasks.register('embedRhino', Copy) {
-    dependsOn 'compileJava'
-    from({ configurations.dnRuntimeLibs.collect { zipTree(it) } }) {
+    dependsOn 'relocateRhino'
+    // 先清掉旧的/已失效的内嵌 JS 引擎类（旧 org.mozilla 或残留），
+    // 防止没有 clean 时历史 .class 混入 jar 造成又一次分裂包。
+    doFirst {
+        ['org/mozilla', 'com/deltanexus/libs/mozilla'].each { pkg ->
+            def d = layout.buildDirectory.dir("classes/java/main/$pkg")
+            if (d.map { it.asFile.exists() }.get()) {
+                d.map { it.asFile }.get().deleteDir()
+            }
+        }
+    }
+    // 解包重打包后的 Rhino 类并入编译输出
+    from({ files(rhinoRelocated).collect { zipTree(it) } }) {
         exclude 'META-INF/**'
     }
     into layout.buildDirectory.dir('classes/java/main')
@@ -137,11 +174,8 @@ repositories {
     // }
 }
 
-// 交易行内嵌库配置（Rhino）：随主 jar 的 META-INF/jarjar 打包
-configurations {
-    dnRuntimeLibs
-}
-
+// 交易行 JS 引擎（Rhino）：原始坐标只喂给 relocateRhino 做重打包，
+// 编译/运行都改用重打包后的 deltanexus-rhino-relocated.jar。
 dependencies {
     // Specify the version of Minecraft to use.
     // Any artifact can be supplied so long as it has a "userdev" classifier artifact and is a compatible patcher artifact.
@@ -150,9 +184,10 @@ dependencies {
     // then special handling is done to allow a setup of a vanilla dependency without the use of an external repository.
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
-    // 交易行：价格公式/脚本统一 JS 引擎（Rhino）
-    implementation 'org.mozilla:rhino:1.7.15'
-    dnRuntimeLibs 'org.mozilla:rhino:1.7.15'
+    // 交易行：价格公式/脚本统一 JS 引擎（Rhino，org.mozilla → com.deltanexus.libs.mozilla）
+    rhinoRaw 'org.mozilla:rhino:1.7.15'
+    implementation files(rhinoRelocated)
+    tasks.named('compileJava') { dependsOn 'relocateRhino' }
 
     // 2.0.9Alpha：移除 Curios 兼容（仓库 UI 不再显示饰品槽，依赖一并清理）
 

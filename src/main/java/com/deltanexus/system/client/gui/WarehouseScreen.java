@@ -26,7 +26,8 @@ import net.minecraft.world.item.ItemStack;
  * <p>2.0.8Alpha 滚动手感优化：滚动改为服务端原位替换视口槽位（{@code WarehouseMenu#scrollTo}），
  * 不再重建菜单/界面——光标物品不掉落、鼠标指针与悬停状态不重置、无闪烁。</p>
  */
-public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
+public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu>
+        implements com.deltanexus.system.grid.adapter.InputGate.SellModeSource {
 
     private static final ResourceLocation SLOT = ResourceLocation.fromNamespaceAndPath(DeltaNexus.MODID, "textures/gui/slot.png");
 
@@ -124,6 +125,8 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
         this.leftPos = 0;
         this.topPos = 0;
         super.init();
+        // 出售模式来源：注册给 grid 的统一交互门闸（0.3.0Beta；grid 包不再引用本类）
+        com.deltanexus.system.grid.adapter.InputGate.setSellModeSource(this);
     }
 
     // ==================================================================
@@ -230,7 +233,7 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
         }
         renderBackground(gg);
         super.render(gg, mouseX, mouseY, partialTick);
-        renderSellOverlay(gg);
+        // 出售高亮改由 GridClientRendering 在网格渲染之后调用 renderSellHighlight（否则被 class 背景墙盖住）
         renderTooltip(gg, mouseX, mouseY);
     }
 
@@ -444,10 +447,48 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
     }
 
     private void clearSellState() {
+        boolean wasSellMode = sellMode;
         sellMode = false;
         sellConfirm = false;
         sellSelection.clear();
         sellMatchCache.clear();
+        if (wasSellMode) {
+            sendSellMode(false);
+        }
+    }
+
+    /**
+     * 通知服务端出售模式开关（0.3.0Beta：出售模式服务端权威化，协议 dn3）。
+     *
+     * <p>服务端据此冻结菜单内的一切物品移动；客户端自身的冻结只负责体验一致。</p>
+     */
+    private void sendSellMode(boolean active) {
+        PacketHandler.sendToServer(new com.deltanexus.system.network.packet.C2SSellModePacket(active));
+    }
+
+    /**
+     * 出售诊断日志（排查「点进出售模式却什么都识别不出来」看这一行）。
+     *
+     * <p>输出：目录商品数 / 其中带可用卖出价的数量 / 本界面可回收的槽位数。
+     * 后两项为 0 时问题在目录或价格（服务端侧），不在网格。</p>
+     */
+    private void logSellDiagnostics() {
+        try {
+            int goods = com.deltanexus.system.client.TradeClientState.goods().size();
+            int sellable = com.deltanexus.system.client.TradeSellIndex.get().debugEntryCount();
+            int matched = 0;
+            for (var slot : menu.slots) {
+                SellKey key = sellKeyOf(slot);
+                if (key != null && !slot.getItem().isEmpty() && matchAt(key) != null) {
+                    matched++;
+                }
+            }
+            com.deltanexus.system.DeltaNexus.LOGGER.info(
+                    "[DN] 出售模式：目录商品 {} 件（带卖出价 {} 件），本界面可回收槽位 {} 个",
+                    goods, sellable, matched);
+        } catch (Throwable t) {
+            com.deltanexus.system.DeltaNexus.LOGGER.warn("[DN] 出售诊断日志失败: {}", t.toString());
+        }
     }
 
     private void drawSellButton(GuiGraphics gg, int mouseX, int mouseY) {
@@ -472,6 +513,41 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
                 sellConfirm ? 0xFFFFFFFF : DnTheme.TEXT_MAIN);
     }
 
+    /**
+     * 出售高亮（公开给网格渲染事件在<b>网格绘制之后</b>调用，避免被 class 背景墙盖住）。
+     *
+     * <p>0.3.0Beta 修复两点：①绘制时机移到网格渲染之后；②跨格物品的<b>每个覆盖格</b>都画边框
+     * （以前只有锚点格有边框，因为覆盖格是空的、被跳过了）。</p>
+     */
+    public void renderSellHighlight(GuiGraphics gg) {
+        // GUI 里 z 越大越靠前：跨格物品的 class 背景墙画在 z=360、大图标 z=400，
+        // 因此高亮必须画在更高的 z 上，否则会出现「边框被背景挡住 / 边框在物品后面」。
+        gg.pose().pushPose();
+        gg.pose().translate(0, 0, 450);
+        renderSellOverlay(gg);
+        gg.pose().popPose();
+    }
+
+    /** 覆盖格（非锚点）的高亮：按锚点物品的可回收/选中状态，逐格画边框与底色。 */
+    private void drawSellCellOutline(GuiGraphics gg, net.minecraft.world.inventory.Slot cell, int anchorSlot, int source) {
+        var anchor = menu.slots.get(anchorSlot);
+        if (anchor.getItem().isEmpty()) {
+            return;
+        }
+        SellKey key = new SellKey(source, sellIndexOf(anchor, source));
+        TradeSellIndex.Match m = matchAt(key);
+        if (m == null) {
+            return;
+        }
+        boolean selected = sellSelection.containsKey(key);
+        if (selected) {
+            gg.fill(cell.x, cell.y, cell.x + 16, cell.y + 16, 0x55FFD700);
+            gg.renderOutline(cell.x - 1, cell.y - 1, 18, 18, 0xFFFFD700);
+        } else {
+            gg.renderOutline(cell.x - 1, cell.y - 1, 18, 18, 0x806BD47A);
+        }
+    }
+
     /** 选中（金框 + 数量角标）与可回收（绿框）高亮；覆盖仓库、背包/快捷栏、安全箱。 */
     private void renderSellOverlay(GuiGraphics gg) {
         if (!sellMode) {
@@ -480,13 +556,22 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
         boolean safeOk = SafeBoxOverlay.safeAllowed(SafeBoxOverlay.lastState());
         for (var slot : menu.slots) {
             int source = sellSourceOf(slot);
-            if (source < 0 || slot.getItem().isEmpty()) {
+            if (source < 0) {
                 continue;
             }
             if (source == C2STradeSellPacket.SOURCE_WAREHOUSE && !isWarehouseSlotUnlocked(slot.getSlotIndex())) {
                 continue;
             }
             if (source == C2STradeSellPacket.SOURCE_SAFE_BOX && !safeOk) {
+                continue;
+            }
+            // 覆盖格（非锚点）也要画：归属查服务端布局，锚点物品才是真正被选中的那件
+            int anchorSlot = com.deltanexus.system.client.GridLayoutClient.anchorOf(slot.index);
+            if (anchorSlot >= 0 && anchorSlot != slot.index && anchorSlot < menu.slots.size()) {
+                drawSellCellOutline(gg, slot, anchorSlot, source);
+                continue;
+            }
+            if (slot.getItem().isEmpty()) {
                 continue;
             }
             SellKey key = new SellKey(source, sellIndexOf(slot, source));
@@ -516,10 +601,12 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
         BtnRect btn = sellBtnRect();
         if (btn.contains(mx, my)) {
             if (!sellMode) {
-                // 进入出售模式
+                // 进入出售模式（0.3.0Beta：同步告知服务端 → 服务端冻结物品移动）
                 sellMode = true;
                 sellConfirm = false;
                 sellSelection.clear();
+                sendSellMode(true);
+                logSellDiagnostics();
             } else if (button == 1) {
                 // 右键按钮：退出出售模式
                 clearSellState();
@@ -541,6 +628,12 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
             }
             var slot = this.getSlotUnderMouse();
             if (slot != null) {
+                // 问题4修复：点到的可能是跨格物品的覆盖格（那里是空的）——先按服务端布局重定向到锚点，
+                // 用锚点槽位记录选中，这样 >1x1 的物品点任意一格都能被识别与回收。
+                int anchorSlotIndex = com.deltanexus.system.client.GridLayoutClient.anchorOf(slot.index);
+                if (anchorSlotIndex >= 0 && anchorSlotIndex != slot.index && anchorSlotIndex < menu.slots.size()) {
+                    slot = menu.slots.get(anchorSlotIndex);
+                }
                 SellKey key = sellKeyOf(slot);
                 if (key != null && !slot.getItem().isEmpty() && matchAt(key) != null) {
                     toggleSellSelection(key, button == 1, slot.getItem().getCount());
@@ -551,7 +644,40 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
             // 槽位之外的点击（原版此处会把光标物品丢到世界里）：出售模式下一并吞掉
             return true;
         }
-        return super.mouseClicked(mx, my, button);
+        // 点击“界面之外”的空白处丢出光标物品（原版在全屏自绘界面下判定不出“之外”）。
+        // 只有落在**所有面板之外**才算丢——否则面板内的格间缝隙/行信息条会把物品误丢进世界（看起来像“消失”）。
+        boolean handled = super.mouseClicked(mx, my, button);
+        if (!handled && this.getSlotUnderMouse() == null
+                && !this.getMenu().getCarried().isEmpty()
+                && !insideAnyPanel(mx, my)
+                && this.minecraft != null && this.minecraft.gameMode != null && this.minecraft.player != null) {
+            this.minecraft.gameMode.handleInventoryMouseClick(this.getMenu().containerId, -999, button,
+                    net.minecraft.world.inventory.ClickType.PICKUP, this.minecraft.player);
+            return true;
+        }
+        return handled;
+    }
+
+    /**
+     * 是否落在任意面板内（矩形与 renderBg 完全一致）。
+     *
+     * <p>用于“点界面之外丢物品”的判定：面板**内部**的空白（格间缝隙、行信息条、标题条）不算“界面之外”，
+     * 否则拿着物品点到缝隙就会把物品丢进世界——看起来就是“物品消失”。</p>
+     */
+    private boolean insideAnyPanel(double mx, double my) {
+        PlayerLayout L = PlayerLayout.compute(width, height, true);
+        int whRows = Math.min(unlockedRows(), WarehouseMenu.WAREHOUSE_ROWS);
+        int safeRows = Math.max(1, (menu.safeCount() + Math.max(1, menu.safeW) - 1) / Math.max(1, menu.safeW));
+        int leftBottom = L.offhandY + PlayerLayout.SLOT + 8;
+        int midBottom = L.safeY + safeRows * PlayerLayout.SLOT + 8;
+        return hit(mx, my, L.whX - 8, L.whY - 22, 162 + 16, whRows * 18 + 22 + 18 + 8)
+                || hit(mx, my, L.leftX - 8, L.baseY - 22, PlayerLayout.SLOT + 16, leftBottom - L.baseY + 22 + 8)
+                || hit(mx, my, L.midX - 8, L.baseY - 22, 9 * PlayerLayout.SLOT + 16, midBottom - L.baseY + 22 + 8)
+                || sellBtnRect().contains(mx, my);
+    }
+
+    private static boolean hit(double mx, double my, int x, int y, int w, int h) {
+        return mx >= x && mx < x + w && my >= y && my < y + h;
     }
 
     @Override
@@ -575,8 +701,9 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
     /**
      * 0.2.1Beta：出售模式下<b>冻结物品</b>——任何槽位交互一律不生效，无论该物品是否可回收。
      *
-     * <p>原版把左/右键取放、Shift 快捷移动、数字键换位、Q 丢弃全部汇总到本方法（{@code slotClicked}），
-     * 因此在这里直接返回即可一次性屏蔽全部移动途径；选中/取消选中由 {@link #mouseClicked} 先行处理，不会走到此处。</p>
+     * <p>0.3.0Beta：客户端同时把点击<b>重定向到主格</b>（占位物格 → 主格），
+     * 让左/右键、Shift、数字键、Q、拖拽全部与点击主格走同一条路径；
+     * 服务端由 {@code GridAwareMenu#clicked} 再做一次权威重定向。</p>
      */
     @Override
     protected void slotClicked(net.minecraft.world.inventory.Slot slot, int slotId, int mouseButton,
@@ -584,7 +711,23 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu> {
         if (sellMode) {
             return;
         }
+        net.minecraft.world.inventory.Slot master =
+                com.deltanexus.system.client.GridLayoutClient.masterSlot(this.menu, slot);
+        if (master != null && master != slot) {
+            super.slotClicked(master, master.index, mouseButton, type);
+            return;
+        }
         super.slotClicked(slot, slotId, mouseButton, type);
+    }
+
+    /** 屏幕移除：退出出售模式（服务端同步解锁）+ 注销出售模式来源。 */
+    @Override
+    public void removed() {
+        if (sellMode) {
+            sendSellMode(false);
+        }
+        super.removed();
+        com.deltanexus.system.grid.adapter.InputGate.setSellModeSource(null);
     }
 
     /** 选中信息（数量 + 记录时单价，便于滚动后预估）。 */

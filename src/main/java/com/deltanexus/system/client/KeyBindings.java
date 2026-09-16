@@ -64,8 +64,17 @@ public final class KeyBindings {
             for (KeyMapping ours : new KeyMapping[]{OPEN_WAREHOUSE, OPEN_WORKBENCH,
                     OPEN_SPECIAL, ROTATE_ITEM, OPEN_TRADE}) {
                 InputConstants.Key ourKey = ours.getKey();
+                // 未绑定的键位不参与冲突判定：两边都未绑定时 getKey() 都是 UNKNOWN(-1)，
+                // 旧的等值比较会把「都没绑定」误报成冲突刷满日志。
+                if (ours.isUnbound() || ourKey == InputConstants.UNKNOWN) {
+                    continue;
+                }
                 for (KeyMapping mapping : mc.options.keyMappings) {
-                    if (mapping != ours && mapping.getKey().equals(ourKey)) {
+                    if (mapping == ours || mapping.isUnbound()
+                            || mapping.getKey() == InputConstants.UNKNOWN) {
+                        continue;
+                    }
+                    if (mapping.getKey().equals(ourKey)) {
                         DeltaNexus.LOGGER.warn(
                                 "[DN] 按键 {} 与 '{}' 冲突，请在 选项 -> 控制 -> 三角联结 中修改",
                                 ours.getName(), mapping.getName());

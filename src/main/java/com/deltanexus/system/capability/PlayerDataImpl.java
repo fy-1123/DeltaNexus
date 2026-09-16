@@ -31,8 +31,15 @@ import java.util.concurrent.ConcurrentLinkedDeque;
  */
 public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag>, ICapabilityProvider {
 
-    private final WarehouseHandler warehouse;
-    private final SafeBoxHandler safeBox;
+    /**
+     * 仓库存储（0.3.0Beta 重写：<b>网格内核 v2 是唯一存储</b>）。
+     *
+     * <p>{@link com.deltanexus.system.grid.v2.GridHandlerBridge} 把网格暴露成旧的 {@code ItemStackHandler}
+     * 形态，因此菜单槽位、制造扣料、交易交付、指令、Web 等既有调用点<b>无需改动</b>；
+     * 但底层已经是「只存锚点 + 占用派生 + 唯一入口事务」的模型——占位物、派生标记都不复存在。</p>
+     */
+    private final com.deltanexus.system.grid.v2.GridHandlerBridge warehouse;
+    private final com.deltanexus.system.grid.v2.GridHandlerBridge safeBox;
     private final BitSet unlocked = new BitSet(ModConfig.warehouseRows() * 9);
     private int warehouseLevel = 0;
     /** 安全箱等级（0 = 配置默认尺寸；>0 按安全箱升级树）。 */
@@ -44,56 +51,44 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
     public PlayerDataImpl() {
         // 容量 = 行数 x 9（每行 9 格）；配置未加载时（如客户端实体构造）回退默认 6 行 = 54
         int capacity = ModConfig.warehouseRows() * 9;
-        warehouse = new WarehouseHandler(capacity);
-        // 安全箱固定最大容量 9（3x3），解锁格数随等级/默认尺寸变化
-        safeBox = new SafeBoxHandler(9);
+        int rows = Math.max(1, capacity / 9);
+        warehouse = new com.deltanexus.system.grid.v2.GridHandlerBridge(9, rows,
+                new com.deltanexus.system.grid.v2.GridHandlerBridge.Access() {
+                    @Override
+                    public boolean usable(int containerIndex) {
+                        return isSlotUnlocked(containerIndex);
+                    }
+                });
+        // 安全箱（0.3.0Beta：同样切到网格内核 v2；宽度 = 解锁列数，行数 = ⌈9/宽度⌉）
+        safeBox = createSafeBox(this);
         for (WorkbenchRegistry.Workbench wb : WorkbenchRegistry.get().all()) {
             tasks.put(wb.id, new ConcurrentLinkedDeque<>());
         }
         unlockUpTo(Math.min(ModConfig.safeBaseSlots(), capacity));
+        safeBox.refreshUsable();
     }
 
-    /** 仓库存储：写入受解锁槽位限制。 */
-    private class WarehouseHandler extends ItemStackHandler {
-        WarehouseHandler(int size) {
-            super(size);
-        }
+    /**
+     * 安全箱存储（0.3.0Beta 重写：同样由网格内核 v2 持有）。
+     *
+     * <p>几何：宽度 = 解锁列数（1~3），行数 = ⌈9 / 宽度⌉；可用格由解锁数决定，
+     * 物品准入额外受 {@code SafeBoxRestrictions} 限制（迁移旧数据时不走准入，绝不丢已有物品）。</p>
+     */
+    private static com.deltanexus.system.grid.v2.GridHandlerBridge createSafeBox(PlayerDataImpl owner) {
+        int width = Math.max(1, Math.min(3, ModConfig.safeBoxWidth()));
+        int rows = Math.max(1, (9 + width - 1) / width);
+        return new com.deltanexus.system.grid.v2.GridHandlerBridge(width, rows,
+                new com.deltanexus.system.grid.v2.GridHandlerBridge.Access() {
+                    @Override
+                    public boolean usable(int containerIndex) {
+                        return owner.isSafeSlotUnlocked(containerIndex);
+                    }
 
-        @Override
-        public boolean isItemValid(int slot, @NotNull ItemStack stack) {
-            return isSlotUnlocked(slot) && super.isItemValid(slot, stack);
-        }
-
-        /** 扩容（仅增大）：快照 -> setSize -> 回填物品，保证扩容不丢物品。 */
-        void resize(int newSize) {
-            if (newSize <= getSlots()) {
-                return;
-            }
-            CompoundTag snapshot = serializeNBT();
-            setSize(newSize);
-            ListTag items = snapshot.getList("Items", Tag.TAG_COMPOUND);
-            for (int i = 0; i < items.size(); i++) {
-                CompoundTag itemTags = items.getCompound(i);
-                int slot = itemTags.getInt("Slot");
-                if (slot >= 0 && slot < getSlots()) {
-                    setStackInSlot(slot, ItemStack.of(itemTags));
-                }
-            }
-        }
-    }
-
-    /** 安全箱存储：写入受解锁格数与 NBT 限制校验（1.1.0Alpha；固定 9 格，未解锁/命中限制不可放入）。 */
-    private class SafeBoxHandler extends ItemStackHandler {
-        SafeBoxHandler(int size) {
-            super(size);
-        }
-
-        @Override
-        public boolean isItemValid(int slot, @NotNull ItemStack stack) {
-            return isSafeSlotUnlocked(slot)
-                    && !com.deltanexus.system.config.SafeBoxRestrictions.isRestricted(stack)
-                    && super.isItemValid(slot, stack);
-        }
+                    @Override
+                    public boolean accepts(ItemStack stack) {
+                        return !com.deltanexus.system.config.SafeBoxRestrictions.isRestricted(stack);
+                    }
+                });
     }
 
     @Override
@@ -132,6 +127,7 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
         for (int i = 0; i < cap; i++) {
             unlocked.set(i);
         }
+        warehouse.refreshUsable();
     }
 
     @Override
@@ -139,6 +135,8 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
         int n = Math.max(0, Math.min(totalSlots, getCapacity()));
         unlocked.clear();
         unlocked.set(0, n);
+        // 0.3.0Beta v2：锁定“正被跨格物品占用”的格会被内核拒绝（保持容器合法），不会把物品挤掉
+        warehouse.refreshUsable();
     }
 
     @Override
@@ -146,7 +144,8 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
         if (newCapacity <= getCapacity()) {
             return;
         }
-        warehouse.resize(newCapacity);
+        warehouse.resizeRows(Math.max(1, newCapacity / 9));
+        warehouse.refreshUsable();
     }
 
     @Override
@@ -195,6 +194,8 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
     @Override
     public void setSafeBoxLevel(int level) {
         this.safeBoxLevel = Math.max(0, level);
+        // 解锁格随等级变化 → 刷新可用格（锁定“正被跨格物品占用”的格会被内核拒绝，不会挤掉物品）
+        safeBox.refreshUsable();
     }
 
     /** 安全箱解锁格数：0 级 = 配置默认 w x h；等级 > 0 = 升级树累计解锁格数（且不低于默认尺寸，只增不减）。 */
@@ -284,6 +285,10 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
     }
 
     private CompoundTag buildTag() {
+        // 0.3.0Beta：占位物只存在于运行态——任何落盘路径（自动保存 / 备份 / Clone 搬运）
+        // 前统一清理，避免占位物写进存档、也避免「只有占位物的仓库」被判定为有进度
+        com.deltanexus.system.grid.core.GridService.cleanSlaves(warehouse);
+        com.deltanexus.system.grid.core.GridService.cleanSlaves(safeBox);
         CompoundTag root = new CompoundTag();
         CompoundTag wh = new CompoundTag();
         wh.putInt(KEY_LEVEL, warehouseLevel);

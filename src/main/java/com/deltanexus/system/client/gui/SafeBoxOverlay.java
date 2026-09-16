@@ -202,8 +202,7 @@ public final class SafeBoxOverlay {
                         gg.renderItem(stack, sx, sy);
                     }
                 } else {
-                    boolean rotated = stack.hasTag()
-                            && stack.getTag().getBoolean(InventoryGridHandler.IS_ROTATED);
+                    boolean rotated = InventoryGridHandler.isRotated(stack);
                     com.deltanexus.system.grid.GridClientRendering.renderGridStack(gg, stack, sx, sy, dim, rotated);
                 }
             }

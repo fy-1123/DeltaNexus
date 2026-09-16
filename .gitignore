@@ -27,6 +27,7 @@ forge*changelog.txt
 # 游戏运行日志（不入库）
 *.log
 *.log.zip
+*.log.gz
 LOG.LOG
 
 # 实现摘要临时目录（子代理产出，不入库）

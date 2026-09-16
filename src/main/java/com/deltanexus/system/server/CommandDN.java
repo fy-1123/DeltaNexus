@@ -123,6 +123,14 @@ public final class CommandDN {
         return builder.buildFuture();
     };
 
+    /** 已注册模组容器类名补全（0.3.0Beta）。 */
+    private static final SuggestionProvider<CommandSourceStack> CONTAINER_NAMES = (ctx, builder) -> {
+        for (String name : com.deltanexus.system.grid.GridRegistry.registeredNames()) {
+            builder.suggest(name);
+        }
+        return builder.buildFuture();
+    };
+
     /** 列表索引补全（0 ~ 9，配方/升级材料索引等，2.0.7Alpha）。 */
     private static final SuggestionProvider<CommandSourceStack> LIST_INDEX = (ctx, builder) -> {
         for (int i = 0; i < 10; i++) {
@@ -555,6 +563,18 @@ public final class CommandDN {
                                 .then(Commands.argument("rules", StringArgumentType.greedyString())
                                         .executes(ctx -> gridHotbar(ctx.getSource(),
                                                 StringArgumentType.getString(ctx, "rules")))))
+                        // 0.3.0Beta：容器显式注册（未注册的模组容器不再默认启用网格）
+                        .then(Commands.literal("containers")
+                                .executes(ctx -> gridContainers(ctx.getSource())))
+                        .then(Commands.literal("register")
+                                .then(Commands.argument("class_name", StringArgumentType.greedyString())
+                                        .executes(ctx -> gridRegister(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "class_name")))))
+                        .then(Commands.literal("unregister")
+                                .then(Commands.argument("class_name", StringArgumentType.greedyString())
+                                        .suggests(CONTAINER_NAMES)
+                                        .executes(ctx -> gridUnregister(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "class_name")))))
                         // 2.0.6Alpha：类命令顶层别名（/dn grid setclass 与 /dn grid class setclass 等价）
                         .then(Commands.literal("setclass")
                                 .then(Commands.argument("item_id", net.minecraft.commands.arguments.ResourceLocationArgument.id()).suggests(ITEM_IDS)
@@ -632,6 +652,9 @@ public final class CommandDN {
                         .then(Commands.literal("help").executes(ctx -> helpWeb(ctx.getSource()))))
                 // trade（0.2.0Beta：交易行管理：分类/商品/价格/上下限/补货/外部源）
                 .then(TradeAdminHandler.tradeNode().requires(s -> s.hasPermission(2)))
+                // spawner（0.4.0Beta：刷兵系统：实体+点位+规则，仅这一级子指令）
+                .then(com.deltanexus.system.spawner.SpawnerCommand.spawnerNode()
+                        .requires(s -> s.hasPermission(2)))
                 // help（仅总览，各指令详细帮助用 /dn <指令> help）
                 .then(Commands.literal("help")
                         .executes(ctx -> help(ctx.getSource()))));
@@ -672,6 +695,8 @@ public final class CommandDN {
         com.deltanexus.system.config.SafeBoxRestrictions.reload();
         com.deltanexus.system.trade.TradeConfig.get().reload();
         com.deltanexus.system.trade.TradeStockStore.load();
+        // 0.4.0Beta：刷兵系统配置热加载（全球层 + 已加载世界层）
+        com.deltanexus.system.spawner.SpawnerManager.reloadAll(source.getServer());
         source.sendSuccess(() -> Component.translatable("msg.dn.reload.done",
                 RecipeCache.get().size(), UpgradeConfig.get().maxLevel(), WorkbenchRegistry.get().size()), true);
         // 交易行目录可能因配置/源刷新变化：向在线玩家重推
@@ -1966,7 +1991,53 @@ public final class CommandDN {
             }
         }
         sb.append("§a快捷栏规则§r: ").append(String.join(", ", com.deltanexus.system.grid.GridConfig.rules()));
+        sb.append("\n§a已注册模组容器§r: ")
+                .append(com.deltanexus.system.grid.GridRegistry.registeredNames().isEmpty()
+                        ? "§7无（原版容器与玩家背包/仓库/安全箱为内置注册）§r"
+                        : String.join(", ", com.deltanexus.system.grid.GridRegistry.registeredNames()));
+        sb.append("\n§a兼容开关 legacy_any_container§r: ")
+                .append(com.deltanexus.system.grid.GridConfig.legacyAnyContainer() ? "§a开§r" : "§7关§r");
         source.sendSuccess(() -> Component.literal(sb.toString().trim()), false);
+        return 1;
+    }
+
+    /** 列出已注册的模组容器（0.3.0Beta）。 */
+    private static int gridContainers(CommandSourceStack source) {
+        java.util.Set<String> names = com.deltanexus.system.grid.GridRegistry.registeredNames();
+        StringBuilder sb = new StringBuilder("§e=== 网格容器注册 ===§r\n");
+        sb.append("§7内置：玩家背包 / 仓库 / 安全箱 / 原版 ≥9 格容器（合成格除外）§r\n");
+        if (names.isEmpty()) {
+            sb.append("§7模组容器：无（用 /dn grid register <类名> 添加）§r");
+        } else {
+            sb.append("§a模组容器§r:\n");
+            for (String n : names) {
+                sb.append("  ").append(n).append("\n");
+            }
+        }
+        sb.append("\n§acommon.toml legacy_any_container§r: ")
+                .append(com.deltanexus.system.grid.GridConfig.legacyAnyContainer()
+                        ? "§a开（所有 ≥9 格容器一律接管）§r" : "§7关（仅原版 + 已注册）§r");
+        source.sendSuccess(() -> Component.literal(sb.toString().trim()), false);
+        return 1;
+    }
+
+    /** 注册模组容器类名（落盘 common.toml）。 */
+    private static int gridRegister(CommandSourceStack source, String className) {
+        if (!com.deltanexus.system.grid.GridRegistry.register(className)) {
+            source.sendFailure(Component.translatable("msg.dn.grid.container_exists", className.trim()));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.translatable("msg.dn.grid.container_registered", className.trim()), true);
+        return 1;
+    }
+
+    /** 取消注册模组容器类名。 */
+    private static int gridUnregister(CommandSourceStack source, String className) {
+        if (!com.deltanexus.system.grid.GridRegistry.unregister(className)) {
+            source.sendFailure(Component.translatable("msg.dn.grid.container_not_found", className.trim()));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.translatable("msg.dn.grid.container_unregistered", className.trim()), true);
         return 1;
     }
 
@@ -2110,7 +2181,7 @@ public final class CommandDN {
         String ver = modVersion();
         DeltaNexus.LOGGER.info("[DN] ============================================");
         DeltaNexus.LOGGER.info("[DN]   三角联结 DeltaNexus v{}", ver);
-        DeltaNexus.LOGGER.info("[DN]   Minecraft 1.20.1 / Forge 47.4.x / 协议 dn1");
+        DeltaNexus.LOGGER.info("[DN]   Minecraft 1.20.1 / Forge 47.4.x / 协议 {}", com.deltanexus.system.network.PacketHandler.PROTOCOL);
         DeltaNexus.LOGGER.info("[DN] ============================================");
         // 2.0.10Alpha：SERVER 类型旧配置（<world>/serverconfig/ModConfig.toml）逐键迁移至全局
         // config/deltanexus/ModConfig.toml（COMMON），旧文件改名 .migrated 保留

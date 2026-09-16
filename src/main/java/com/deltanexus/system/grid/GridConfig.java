@@ -25,6 +25,12 @@ public class GridConfig {
 
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> HOTBAR_RULES;
 
+    /** 0.3.0Beta：显式注册的模组容器类名（未注册的模组容器不再默认启用网格）。 */
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> REGISTERED_CONTAINERS;
+
+    /** 0.3.0Beta：兼容开关——true = 恢复 0.2.x「所有 ≥9 格容器一律接管」的行为。 */
+    public static final ForgeConfigSpec.BooleanValue LEGACY_ANY_CONTAINER;
+
     /** 2.0.9Alpha 默认规则（1-4 号格 ANY 任意大小 / 5-9 号格 GRID 仅 1x1 留存）。 */
     public static final List<String> DEFAULT_RULES = List.of("0-3:ANY", "4-8:GRID");
 
@@ -41,6 +47,17 @@ public class GridConfig {
                 .defineList("hotbar_rules",
                         DEFAULT_RULES,
                         obj -> obj instanceof String);
+
+        REGISTERED_CONTAINERS = BUILDER
+                .comment("0.3.0Beta：显式注册的模组容器类名（容器类或菜单类全名/简单名均可，逐级向上匹配父类）",
+                        "原版容器（net.minecraft.* 且 ≥9 格）与玩家背包/仓库/安全箱为内置注册，无需在此登记",
+                        "示例: [\"com.example.mymod.blocks.BigChestContainer\"]")
+                .defineList("registered_containers", List.of(), obj -> obj instanceof String);
+
+        LEGACY_ANY_CONTAINER = BUILDER
+                .comment("兼容开关：true = 恢复 0.2.x 行为（所有 ≥9 格容器，含其他模组的，一律纳入网格）",
+                        "false（默认）= 只接管原版容器 + 显式注册的模组容器")
+                .define("legacy_any_container", false);
 
         BUILDER.pop();
         SPEC = BUILDER.build();
@@ -89,5 +106,49 @@ public class GridConfig {
     /** 2.0.2Alpha：应用客户端运行时覆盖（服务端同步包；null 回退本地配置）。 */
     public static void applyRuntime(List<String> rules) {
         RUNTIME_RULES = rules;
+    }
+
+    // ------------------------------------------------------------------
+    // 容器注册（0.3.0Beta）
+    // ------------------------------------------------------------------
+
+    /** 已注册的模组容器类名。 */
+    public static List<? extends String> registeredContainers() {
+        return SPEC.isLoaded() ? REGISTERED_CONTAINERS.get() : List.of();
+    }
+
+    /** 兼容开关：是否恢复「所有 ≥9 格容器一律接管」。 */
+    public static boolean legacyAnyContainer() {
+        return SPEC.isLoaded() && LEGACY_ANY_CONTAINER.get();
+    }
+
+    /** 注册一个模组容器类名并落盘。 */
+    public static synchronized boolean registerContainer(String className) {
+        if (className == null || className.isBlank()) {
+            return false;
+        }
+        String name = className.trim();
+        List<String> list = new java.util.ArrayList<>(registeredContainers());
+        if (list.contains(name)) {
+            return false;
+        }
+        list.add(name);
+        REGISTERED_CONTAINERS.set(list);
+        SPEC.save();
+        return true;
+    }
+
+    /** 取消注册。 */
+    public static synchronized boolean unregisterContainer(String className) {
+        if (className == null || className.isBlank()) {
+            return false;
+        }
+        List<String> list = new java.util.ArrayList<>(registeredContainers());
+        if (!list.remove(className.trim())) {
+            return false;
+        }
+        REGISTERED_CONTAINERS.set(list);
+        SPEC.save();
+        return true;
     }
 }

@@ -175,20 +175,36 @@ public final class ItemSpec {
     // 匹配
     // ------------------------------------------------------------------
 
-    /** 实际物品栈是否匹配本规格（匹配模式 + 耐久度要求）。 */
+    /** 实际物品栈是否匹配本规格（匹配模式 + 耐久度要求）。
+     *
+     *  <p>0.3.0Beta：网格内部标记（旋转 {@code deltanexus.grid.rotated}、占位物
+     *  {@code deltanexus.is_slave}/{@code master_slot}）不参与交易匹配——两侧一并剥离，
+     *  使「旋转过的物品」与「未旋转的同种物品」在交易行里等价（JEI/管道过滤同理）。</p>
+     */
     public boolean matches(ItemStack actual) {
         Item expected = ForgeRegistries.ITEMS.getValue(ResourceLocation.tryParse(item));
         if (expected == null || actual == null || actual.isEmpty() || !actual.is(expected)) {
             return false;
         }
-        CompoundTag actualTag = actual.getTag();
-        CompoundTag expectedTag = expectedTag();
+        CompoundTag actualTag = com.deltanexus.system.grid.core.GridTags.stripped(actual).getTag();
+        CompoundTag expectedTag = strippedExpectedTag();
         boolean modeOk = switch (matchMode) {
             case ID -> true;
             case FULL_NBT -> fullEquals(actualTag, expectedTag);
             case PARTIAL_NBT -> partialMatches(actualTag, expectedTag);
         };
         return modeOk && durabilityMatches(actual);
+    }
+
+    /** 期望 NBT 的「剥离网格键」副本（不改动缓存，不修改配置本体）。 */
+    private CompoundTag strippedExpectedTag() {
+        CompoundTag tag = expectedTag();
+        if (tag == null || tag.isEmpty()) {
+            return tag;
+        }
+        CompoundTag copy = tag.copy();
+        com.deltanexus.system.grid.core.GridTags.stripGridKeys(copy);
+        return copy;
     }
 
     private boolean fullEquals(@Nullable CompoundTag actual, @Nullable CompoundTag expected) {

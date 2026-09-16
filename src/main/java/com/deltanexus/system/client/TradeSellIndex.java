@@ -124,4 +124,18 @@ public final class TradeSellIndex {
     public long revision() {
         return revision;
     }
+
+    /** 索引中的商品条目总数（诊断用：0 = 目录里没有任何带可用卖出价的商品）。 */
+    public int debugEntryCount() {
+        int n = 0;
+        for (List<Entry> list : byItem.values()) {
+            n += list.size();
+        }
+        return n;
+    }
+
+    /** 索引中的物品 id 种类数（诊断用）。 */
+    public int debugItemCount() {
+        return byItem.size();
+    }
 }

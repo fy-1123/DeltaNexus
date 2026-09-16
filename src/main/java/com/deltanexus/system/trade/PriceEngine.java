@@ -1,10 +1,10 @@
 package com.deltanexus.system.trade;
 
 import com.deltanexus.system.DeltaNexus;
-import org.mozilla.javascript.ClassShutter;
-import org.mozilla.javascript.Context;
-import org.mozilla.javascript.ContextFactory;
-import org.mozilla.javascript.Scriptable;
+import com.deltanexus.libs.mozilla.javascript.ClassShutter;
+import com.deltanexus.libs.mozilla.javascript.Context;
+import com.deltanexus.libs.mozilla.javascript.ContextFactory;
+import com.deltanexus.libs.mozilla.javascript.Scriptable;
 
 import javax.annotation.Nullable;
 import java.util.List;

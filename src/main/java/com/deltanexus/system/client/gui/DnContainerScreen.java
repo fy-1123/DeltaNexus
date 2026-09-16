@@ -168,6 +168,24 @@ public class DnContainerScreen extends AbstractContainerScreen<AbstractContainer
         slot.y = y;
     }
 
+    /**
+     * 0.3.0Beta：点击占位物格时统一重定向到主格（容器界面复用原版菜单，
+     * 客户端在屏幕入口换 slotId，服务端另有权威重定向与每 tick 校正）。
+     */
+    @Override
+    protected void slotClicked(Slot slot, int slotId, int mouseButton,
+                              net.minecraft.world.inventory.ClickType type) {
+        if (com.deltanexus.system.grid.adapter.InputGate.clientFrozen()) {
+            return;
+        }
+        Slot master = com.deltanexus.system.client.GridLayoutClient.masterSlot(this.menu, slot);
+        if (master != null && master != slot) {
+            super.slotClicked(master, master.index, mouseButton, type);
+            return;
+        }
+        super.slotClicked(slot, slotId, mouseButton, type);
+    }
+
     /** 恢复原版槽位坐标（防御：其他模组复用同一菜单实例时不受污染）。 */
     @Override
     public void removed() {

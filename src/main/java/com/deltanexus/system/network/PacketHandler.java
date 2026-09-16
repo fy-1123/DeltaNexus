@@ -11,6 +11,7 @@ import com.deltanexus.system.network.packet.C2SRequestWorkbenchDataPacket;
 import com.deltanexus.system.network.packet.C2SRequestSafeBoxPacket;
 import com.deltanexus.system.network.packet.C2SSafeBoxClickPacket;
 import com.deltanexus.system.network.packet.C2SStartTaskPacket;
+import com.deltanexus.system.network.packet.C2SSellModePacket;
 import com.deltanexus.system.network.packet.C2STradeBuyPacket;
 import com.deltanexus.system.network.packet.C2STradeOpenPacket;
 import com.deltanexus.system.network.packet.C2STradeSellPacket;
@@ -23,6 +24,7 @@ import com.deltanexus.system.network.packet.SyncGridSizesPacket;
 import com.deltanexus.system.network.packet.SyncManufacturePacket;
 import com.deltanexus.system.network.packet.SyncSafeBoxPacket;
 import com.deltanexus.system.network.packet.SyncServerUiPacket;
+import com.deltanexus.system.network.packet.SyncGridLayoutPacket;
 import com.deltanexus.system.network.packet.SyncTradeCatalogPacket;
 import com.deltanexus.system.network.packet.SyncWarehousePacket;
 import com.deltanexus.system.network.packet.SyncWorkbenchDataPacket;
@@ -47,12 +49,19 @@ import java.util.function.Supplier;
  */
 public final class PacketHandler {
 
-    /** 2.0.8Alpha：协议升级（移除 C2SOpenSafeBoxPacket，旧客户端不兼容）。
-     *  2.2Alpha：SyncServerUiPacket 新增功能开关字段（featuresEnabled），旧客户端不兼容。
-     *  0.2.0Beta：交易行（SyncTradeCatalogPacket 增补 match_mode/match_keys；新增 C2STradeSellPacket），
-     *       协议升至 dn2，旧客户端不兼容。 */
-    public static final String PROTOCOL = "dn2";
+    /** 人类可读的协议代号（2.0.8Alpha：dn1 → 2.2Alpha：dn1 → 0.2.0Beta：dn2 → 0.3.0Beta：dn3）。 */
+    public static final String PROTOCOL = "dn3";
 
+    /** 已注册包数量（仅用于启动日志；不参与握手、不做任何指纹）。 */
+    private static int registeredCount = 0;
+
+    /**
+     * 通道：版本串<b>必须与两侧完全一致，且固定不变</b>。
+     *
+     * <p>曾经把「包表指纹」放进握手串，实测在单人游戏里服务端广播的版本与客户端比对值不一致，
+     * 连接被直接拒绝（{@code Version test ... REJECTED} / {@code mismatched mod list}），
+     * 表现为「无法加入世界」。该指纹机制<b>已整体删除</b>：握手只比 {@link #PROTOCOL}。</p>
+     */
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(DeltaNexus.MODID, "main"),
             () -> PROTOCOL,
@@ -65,6 +74,7 @@ public final class PacketHandler {
     }
 
     public static void register() {
+        registeredCount = 0;
         // 客户端 -> 服务端
         register(C2SOpenWarehousePacket.class,
                 C2SOpenWarehousePacket::encode, C2SOpenWarehousePacket::decode, C2SOpenWarehousePacket::handle,
@@ -124,6 +134,10 @@ public final class PacketHandler {
         register(C2STradeSellPacket.class,
                 C2STradeSellPacket::encode, C2STradeSellPacket::decode, C2STradeSellPacket::handle,
                 NetworkDirection.PLAY_TO_SERVER);
+        // 仓库出售模式开关（0.3.0Beta：服务端权威化，协议 dn3 新增）
+        register(C2SSellModePacket.class,
+                C2SSellModePacket::encode, C2SSellModePacket::decode, C2SSellModePacket::handle,
+                NetworkDirection.PLAY_TO_SERVER);
 
         // 服务端 -> 客户端
         register(OpenScreenPacket.class,
@@ -156,6 +170,18 @@ public final class PacketHandler {
         register(SyncTradeCatalogPacket.class,
                 SyncTradeCatalogPacket::encode, SyncTradeCatalogPacket::decode, SyncTradeCatalogPacket::handle,
                 NetworkDirection.PLAY_TO_CLIENT);
+        // 网格布局（0.3.0Beta：服务端唯一的几何真相下发；与 C2SSellModePacket 同属 dn3 变更）
+        register(SyncGridLayoutPacket.class,
+                SyncGridLayoutPacket::encode, SyncGridLayoutPacket::decode, SyncGridLayoutPacket::handle,
+                NetworkDirection.PLAY_TO_CLIENT);
+
+        // 包表注册完毕（仅打印数量，便于排障；不做任何指纹/比对）
+        DeltaNexus.LOGGER.info("[DN] 网络通道：协议 {}，已注册 {} 个包", PROTOCOL, registeredCount);
+    }
+
+    /** 当前协议版本（日志/排障用）。 */
+    public static String handshakeVersion() {
+        return PROTOCOL;
     }
 
     private static <MSG> void register(Class<MSG> clazz,
@@ -163,6 +189,7 @@ public final class PacketHandler {
                                        Function<net.minecraft.network.FriendlyByteBuf, MSG> decoder,
                                        BiConsumer<MSG, Supplier<NetworkEvent.Context>> handler,
                                        NetworkDirection direction) {
+        registeredCount++;
         CHANNEL.registerMessage(nextId++, clazz, encoder, decoder, handler, Optional.of(direction));
     }
 

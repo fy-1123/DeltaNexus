@@ -142,6 +142,8 @@ public final class CapabilityAttacher {
     public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer sp) {
             snapshot(sp, "登出");
+            // 0.3.0Beta：登出后清占位物 + 释放网格脏标记缓存
+            com.deltanexus.system.grid.core.GridService.onPlayerLoggedOut(sp);
         }
     }
 
@@ -163,6 +165,9 @@ public final class CapabilityAttacher {
                     // 无进度：不覆盖旧备份（可能正是被清空的现场）
                     return;
                 }
+                // 问题1修复：备份与“当前世界”绑定——否则新存档登录时会从配置目录里
+                // 读到上一个存档的备份并恢复，表现为「不同存档的仓库数据一样」
+                tag.putString(BACKUP_WORLD_KEY, worldKey());
                 DEATH_BACKUP.put(player.getUUID(), tag);
                 writeBackupFile(player.getUUID(), tag);
                 DeltaNexus.LOGGER.info("[DN] 玩家 {} 数据快照（{}）：等级 {}，安全箱 Lv{} → {}",
@@ -174,6 +179,34 @@ public final class CapabilityAttacher {
         });
     }
 
+    /** 备份中记录“来自哪个世界”的键（问题1：防止跨存档恢复导致仓库数据串档）。 */
+    private static final String BACKUP_WORLD_KEY = "dn_world";
+
+    /** 当前世界的唯一标识（存档名 + 种子 + 根路径）；无法取得时返回 "unknown"。 */
+    private static String worldKey() {
+        try {
+            net.minecraft.server.MinecraftServer server =
+                    net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
+            if (server == null) {
+                return "unknown";
+            }
+            // 只用“世界根目录绝对路径”作为标识：它能唯一区分存档，且不依赖任何可能变动的字段
+            return server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT)
+                    .toAbsolutePath().toString();
+        } catch (Throwable t) {
+            return "unknown";
+        }
+    }
+
+    /** 备份是否属于当前世界（任一侧无法判定时不阻止恢复；两侧都已知且不同才拒绝）。 */
+    private static boolean backupBelongsToCurrentWorld(CompoundTag backup) {
+        String tag = backup.getString(BACKUP_WORLD_KEY);
+        String current = worldKey();
+        if (tag == null || tag.isEmpty() || tag.equals("unknown") || current.equals("unknown")) {
+            return true; // 旧备份 / 判定不可用：保持原有恢复行为，绝不因此丢数据
+        }
+        return tag.equals(current);
+    }
     /** 管理员重置玩家数据时清除备份（否则登录兜底会把旧数据恢复回来）。 */
     public static void clearBackupFor(UUID uuid) {
         clearBackup(uuid);
@@ -231,10 +264,25 @@ public final class CapabilityAttacher {
         return impl.getWarehouseLevel() <= 0
                 && impl.getSafeBoxLevel() <= 0
                 && impl.getAllTasks().values().stream().allMatch(Deque::isEmpty)
-                && IntStream.range(0, impl.getWarehouseHandler().getSlots())
-                .allMatch(i -> impl.getWarehouseHandler().getStackInSlot(i).isEmpty())
-                && IntStream.range(0, impl.getSafeBoxHandler().getSlots())
-                .allMatch(i -> impl.getSafeBoxHandler().getStackInSlot(i).isEmpty());
+                && hasNoRealItem(impl.getWarehouseHandler())
+                && hasNoRealItem(impl.getSafeBoxHandler());
+    }
+
+    /**
+     * 0.3.0Beta：占位物（{@code blocked_slot}）不算进度。
+     *
+     * <p>旧实现直接判「格子是否为空」，一旦仓库里只剩下网格占位物（跨格物品被取走后的残留、
+     * 或异常中断留下的残局），就会被判定为「有进度」，从而阻断死亡备份恢复。</p>
+     */
+    private static boolean hasNoRealItem(net.minecraftforge.items.ItemStackHandler handler) {
+        for (int i = 0; i < handler.getSlots(); i++) {
+            net.minecraft.world.item.ItemStack stack = handler.getStackInSlot(i);
+            if (stack.isEmpty() || com.deltanexus.system.grid.core.GridTags.isSlave(stack)) {
+                continue;
+            }
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -249,6 +297,13 @@ public final class CapabilityAttacher {
         entity.getCapability(PLAYER_DATA).ifPresent(d -> {
             if (d instanceof PlayerDataImpl impl && isEmptyData(impl)) {
                 CompoundTag backup = readBackup(entity.getUUID());
+                if (backup != null && !backupBelongsToCurrentWorld(backup)) {
+                    // 问题1修复：该备份来自另一个存档 —— 绝不跨存档恢复，
+                    // 否则新建世界时会把上一个世界的仓库/安全箱数据“继承”过来。
+                    DeltaNexus.LOGGER.info("[DN] 忽略来自其它存档的数据备份（实体 {}）：备份世界={}，当前世界={}",
+                            entity.getUUID(), backup.getString(BACKUP_WORLD_KEY), worldKey());
+                    return;
+                }
                 if (backup != null) {
                     try {
                         impl.deserializeNBT(backup);
@@ -270,6 +325,10 @@ public final class CapabilityAttacher {
     @SubscribeEvent
     public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
         restoreFromBackup(event.getEntity());
+        // 0.3.0Beta：维度切换/重生后清掉运行态占位物（重建由下一 tick 求解完成）
+        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer sp) {
+            com.deltanexus.system.grid.core.GridService.onPlayerLoaded(sp);
+        }
     }
 
     /**
@@ -283,6 +342,8 @@ public final class CapabilityAttacher {
             com.deltanexus.system.server.ManufacturingService.sendGridConfig(sp);
             // 2.0.9Alpha：登录即推送服务端 GUI 白名单（与客户端白名单取并集，命中任意即用原版 GUI）
             com.deltanexus.system.server.ManufacturingService.sendUiWhitelist(sp);
+            // 交易行目录：登录即下发——否则仓库界面的「出售」在没打开过交易行时识别不出可回收物品
+            com.deltanexus.system.server.TradeService.sendSync(sp);
         }
         // 2.0.10Alpha：0 级玩家解锁由 base_slots 配置决定（默认 9 = 首行），
         // 升级通过升级树 unlockUpTo 逐步解锁更多行；渲染/滚动按玩家实际解锁行数展示，
@@ -296,6 +357,10 @@ public final class CapabilityAttacher {
         // 2.0.4Alpha/2.0.7Alpha：数据备份兜底恢复（Clone 未触发且新数据无进度时）
         // 0.2.0Beta：不再恢复后清除备份（每个玩家至少保留一份）；管理员 /dn data reset 会显式清除
         restoreFromBackup(event.getEntity());
+        // 0.3.0Beta：加载路径扫描并清除历史残留占位物（旧版本可能把它们写进存档）
+        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer sp) {
+            com.deltanexus.system.grid.core.GridService.onPlayerLoaded(sp);
+        }
         if (!com.deltanexus.system.config.ModConfig.onlineMode()) {
             return;
         }

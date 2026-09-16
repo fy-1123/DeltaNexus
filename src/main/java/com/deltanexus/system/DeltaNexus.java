@@ -51,13 +51,15 @@ public class DeltaNexus {
         com.deltanexus.system.grid.GridEnchantments.ENCHANTMENTS.register(modBus);
         modBus.addListener(DeltaNexus::commonSetup);
 
-        // 网络通道（协议版本 "dn1"：2.0.0Alpha 新增格子格式旋转包）
+        // 网络通道（协议版本见 PacketHandler.PROTOCOL；握手只比这个固定串，没有任何指纹机制）
         PacketHandler.register();
 
         // 2.0.7Alpha：注册回归测试（GameTestRegistry.register；普通服务器无害，仅 GameTestServer 执行）
         com.deltanexus.system.test.DnRegressionTests.register();
         // 0.2.0Beta：交易行回归测试
         com.deltanexus.system.test.TradeRegressionTests.register();
+        // 0.3.0Beta：格式背包（格子背包）内核回归测试
+        com.deltanexus.system.test.GridRegressionTests.register();
     }
 
     private static void commonSetup(FMLCommonSetupEvent event) {
@@ -68,6 +70,8 @@ public class DeltaNexus {
             UpgradeConfig.get().writeDefaultIfMissing();
             com.deltanexus.system.server.PermissionManager.writeDefaultIfMissing();
             com.deltanexus.system.config.SafeBoxRestrictions.writeDefaultIfMissing();
+            // 0.4.0Beta：刷兵系统（全球层 global.json + logging.json；世界层懒加载）
+            com.deltanexus.system.spawner.SpawnerManager.writeDefaultsIfMissing();
             // 交易行（0.2.0Beta）：定义文件 + 运行时库存文件；发布外部价格源注册事件（moligod companion 等监听）
             com.deltanexus.system.trade.TradeConfig.writeDefaultIfMissing();
             if (MOD_BUS != null) {

@@ -27,7 +27,7 @@ import net.minecraftforge.items.SlotItemHandler;
  * <p>2.0.8Alpha 原位滚动：{@link #scrollTo(int)} 直接替换视口槽位的全局索引（不重建菜单），
  * 光标栈、悬停状态与屏幕实例全部保留——修复滚动时光标物品掉落、指针/界面重置问题。</p>
  */
-public class WarehouseMenu extends AbstractContainerMenu {
+public class WarehouseMenu extends GridAwareMenu {
 
     public static final int WAREHOUSE_COLS = 9;
     /** 视口行数（2.0.4Alpha：12 行 = 108 格；滚轮滚动查看全部行；总行数见配置 warehouse_rows）。 */
@@ -54,6 +54,8 @@ public class WarehouseMenu extends AbstractContainerMenu {
     public final int safeW;
     /** 玩家引用（scrollTo 重建视口槽位时校验解锁状态用）。 */
     private final Player player;
+    /** 出售模式（0.3.0Beta：服务端权威状态，由 C2SSellModePacket 设置；开启时冻结本菜单一切物品移动）。 */
+    private boolean sellMode;
 
     /** 客户端构造（MenuSupplier 签名）：起始行取自最近同步包（服务端先发包再开菜单，通道有序）；
      *  安全箱宽度取自最近安全箱同步包；影子容器注册到网格引擎。 */
@@ -133,6 +135,23 @@ public class WarehouseMenu extends AbstractContainerMenu {
 
     public int scrollRow() {
         return scrollRow;
+    }
+
+    /**
+     * 服务端出售模式状态（0.3.0Beta，协议 dn3）。
+     *
+     * <p>开启时 {@link GridAwareMenu#clicked} / {@link GridAwareMenu#quickMoveStack} 直接返回，
+     * 服务端因此冻结左/右键取放、Shift、数字键、Q、拖拽；跨格拾取与旋转包也读这个门闸。
+     * 客户端 UI 仍自行冻结（体验一致），但服务端是权威。</p>
+     */
+    @Override
+    public boolean isSellMode() {
+        return sellMode;
+    }
+
+    /** 由 {@code C2SSellModePacket} 设置（仅服务端）。 */
+    public void setSellMode(boolean active) {
+        this.sellMode = active;
     }
 
     /** 安全箱已添加槽位数（按解锁数）。 */
@@ -218,13 +237,20 @@ public class WarehouseMenu extends AbstractContainerMenu {
         return com.deltanexus.system.config.ModConfig.safeBoxWidth();
     }
 
+    /**
+     * 0.3.0Beta：占位物格统一重定向到主格——Shift 快捷移动与鼠标点击走同一条路径。
+     * 冻结（出售模式）与广播由 {@link GridAwareMenu} 处理，这里只做实际路由。
+     */
     @Override
-    public ItemStack quickMoveStack(Player player, int index) {
+    protected ItemStack quickMoveRedirected(Player player, int index) {
+        if (index < 0 || index >= this.slots.size()) {
+            return ItemStack.EMPTY;
+        }
         ItemStack itemstack = ItemStack.EMPTY;
         Slot slot = this.slots.get(index);
         if (slot != null && slot.hasItem()) {
             ItemStack stack1 = slot.getItem();
-            // 格式背包（2.0.0Alpha）：占位物不可快捷移动（由网格引擎每 Tick 自愈）
+            // 格式背包：占位物不可快捷移动（由网格引擎每 Tick 自愈）
             if (com.deltanexus.system.grid.InventoryGridHandler.isSlave(stack1)) {
                 return ItemStack.EMPTY;
             }

@@ -137,6 +137,27 @@ public class BackpackScreen extends AbstractContainerScreen<InventoryMenu> {
         }
     }
 
+    /**
+     * 0.3.0Beta：点击占位物格时统一重定向到主格。
+     *
+     * <p>原版背包用的是原版 {@code InventoryMenu}，无法在菜单层覆写 {@code clicked}，
+     * 因此客户端在屏幕入口把 slotId 换成主格的 index（数据包随之携带主格 ID），
+     * 左/右键、Shift、数字键、Q、拖拽全部覆盖；服务端另有每 tick 权威校正与光标占位物修复。</p>
+     */
+    @Override
+    protected void slotClicked(Slot slot, int slotId, int mouseButton,
+                              net.minecraft.world.inventory.ClickType type) {
+        if (com.deltanexus.system.grid.adapter.InputGate.clientFrozen()) {
+            return;
+        }
+        Slot master = com.deltanexus.system.client.GridLayoutClient.masterSlot(this.menu, slot);
+        if (master != null && master != slot) {
+            super.slotClicked(master, master.index, mouseButton, type);
+            return;
+        }
+        super.slotClicked(slot, slotId, mouseButton, type);
+    }
+
     @Override
     public void removed() {
         restoreSlots();
@@ -239,7 +260,32 @@ public class BackpackScreen extends AbstractContainerScreen<InventoryMenu> {
                 return true;
             }
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        // 点击“界面之外”的空白处丢出光标物品（原版在全屏自绘界面下判定不出“之外”）。
+        // 只有落在**所有面板之外**才算丢——否则面板内的格间缝隙会把物品误丢进世界。
+        boolean handled = super.mouseClicked(mouseX, mouseY, button);
+        if (!handled && this.getSlotUnderMouse() == null
+                && !this.getMenu().getCarried().isEmpty()
+                && !insideAnyPanel(mouseX, mouseY)
+                && this.minecraft != null && this.minecraft.gameMode != null && this.minecraft.player != null) {
+            this.minecraft.gameMode.handleInventoryMouseClick(this.getMenu().containerId, -999, button,
+                    net.minecraft.world.inventory.ClickType.PICKUP, this.minecraft.player);
+            return true;
+        }
+        return handled;
+    }
+
+    /** 是否落在面板内（与 renderBg 的面板矩形一致）：面板内点空处不丢物品。 */
+    private boolean insideAnyPanel(double mx, double my) {
+        PlayerLayout L = PlayerLayout.compute(this.width, this.height, false);
+        int safeRows = Math.max(1, com.deltanexus.system.config.ModConfig.safeBoxHeight());
+        int leftBottom = L.offhandY + PlayerLayout.SLOT + 8;
+        int midBottom = L.safeY + safeRows * PlayerLayout.SLOT + 8;
+        return hit(mx, my, L.leftX - 8, L.baseY - 22, PlayerLayout.SLOT + 16, leftBottom - L.baseY + 22 + 8)
+                || hit(mx, my, L.midX - 8, L.baseY - 22, 9 * PlayerLayout.SLOT + 16, midBottom - L.baseY + 22 + 8);
+    }
+
+    private static boolean hit(double mx, double my, int x, int y, int w, int h) {
+        return mx >= x && mx < x + w && my >= y && my < y + h;
     }
 
     @Override
