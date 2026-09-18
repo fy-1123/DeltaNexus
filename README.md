@@ -1,7 +1,7 @@
 # 三角联结（DeltaNexus）
 
 Minecraft 1.20.1 / Forge 47.4.x 的「制造 + 仓库」整合 Mod（缩写 `dn`，兼容 Mohist 混合服务端）。
-版本 `0.4.0Beta`；模组 ID `deltanexus`。
+版本 `0.4.1Beta`；模组 ID `deltanexus`。
 中文名 **三角联结**、指令前缀 `/dn`、控制台日志前缀 `[DN]`、配置目录 `config/deltanexus/`。
 
 > 核心设计哲学：**配置热加载（不停机修改）、时间戳驱动（零 Tick 依赖）、增量网络包（省流量）**。
@@ -14,7 +14,7 @@ Minecraft 1.20.1 / Forge 47.4.x 的「制造 + 仓库」整合 Mod（缩写 `dn`
 - **特勤处**（V 键 / `/dn open special`）：仓库与安全箱升级独立界面，材料识别背包 + 仓库。
 - **安全箱**：独立小仓储（默认 1x1，最大 3x3），0 级 = 默认尺寸，等级 > 0 按安全箱升级树解锁**行 x 列**。
 - **格式背包**（格子格式）：≥9 格容器与背包按物品占用尺寸整理，跨格渲染、R 键旋转、快捷栏分级、物品尺寸/类背景色配置。
-- **Web 网页编辑器**：浏览器可视化管理配置 / 工作台 / 配方 / 升级树 / 玩家数据 / 权限（`/dn web`）。
+- **Web 网页编辑器**：浏览器可视化管理配置 / 工作台 / 配方 / 升级树 / 安全箱 / 玩家数据 / 权限 / 格式背包 / 交易行（`/dn web`）。
 - **货币三类型**（0.2.0Beta 起移除物品货币）：scoreboard（计分板，**默认**，目标 `dn_money` 由模组启动时自动创建）/
   vault（Vault 经济）/ playerpoints（PlayerPoints 点券）。旧配置 `currency_type=item` 启动时自动迁移为 scoreboard。
 - **交易行**（0.2.0Beta）：系统商店——不新增任何物品，商品目录默认为空、由管理员逐件上架并**自定价格**；
@@ -334,6 +334,8 @@ grid/
 - `/dn web` 查看状态与访问地址；`/dn web on|off` 启停并写入自动启动开关（enabled）。
 - 默认监听 `0.0.0.0:21003`，`token_auth` 默认开启（token 仅存内存，重启失效）。
 - 监听地址 / 端口 / 鉴权仅能手动编辑 `config/deltanexus/web-editor.yml`（防注入/防社工）。
+- **可用性特性**：记住上次页签；`Ctrl+K` 全局搜索（配方 / 工作台 / 商品 / 玩家，定位高亮）；
+  配方 / 交易商品列表分页 + 密度列与筛选；配方**批量改耗时 / 等级**与**一键复制**；顶部「下载配置」全量 JSON 备份。
 
 ## 构建
 
@@ -341,7 +343,7 @@ grid/
 gradlew build
 ```
 
-产物：`build/libs/deltanexus-0.4.0Beta.jar`
+产物：`build/libs/deltanexus-0.4.1Beta.jar`
 
 编译元数据（`gradle.properties` 的 `mod_license`）与模组列表展示的许可均为 **MIT**。
 
@@ -391,12 +393,16 @@ gradlew build
 - 0.2.1Beta：**出售交互修复**——①未选中物品时按钮显示「取消」（点击退回正常存储功能）；
   ②按钮按 18×18 槽位外框对齐，不再压住仓库最后一行的格子 UI；③出售模式下物品完全冻结
   （取放/Shift 快捷移动/数字键换位/Q 丢弃/跨格捡起/R 旋转一律无效，与物品能否回收无关）。
-- 0.3.0Beta（当前）：**格式背包内核重写**——`grid` 拆成 `core`（纯函数求解器 / 事务写入 / 顺序锁 / 服务编排）
+- 0.3.0Beta：**格式背包内核重写**——`grid` 拆成 `core`（纯函数求解器 / 事务写入 / 顺序锁 / 服务编排）
   与 `adapter`（菜单 / 处理器 / 门闸 / 渲染），`InventoryGridHandler` 降级为门面保留全部旧入口；
   **菜单层统一点击重定向**（左键/右键/Shift/数字键/Q/拖拽/quickMove 全路径指向主格，修掉「主格瞬移」）；
   占位物 `master_slot` 统一为**容器索引**（仓库滚动不再重写占位物）、占位物**绝不落盘**（保存/登出/重生前清理 + 加载扫描）、
   仓库/安全箱**禁止抽取或覆盖占位物**、容器**显式注册**（`/dn grid register`，兼容开关 `legacy_any_container`）、
   渲染跳过隐藏槽并按容器维度去重、旋转标记改 `deltanexus.grid.rotated`（兼容旧键）；新增 7 个内核 GameTest。
+- 0.4.0Beta：**刷兵系统**（零活动设计，仅供 `/dn spawner run` 按需刷一次）、`/dn spawner` 指令树（setup 向导）、
+  配置分层（全球层 global.json/logging.json + 世界层 spawners.json/pointgroups.json）热加载。
+- 0.4.1Beta（当前）：**Web 编辑器可用性大改**——记住上次页签 + `Ctrl+K` 全局搜索、配方/交易列表分页与密度列、
+  配方批量改参（`/api/recipe/batch`）与一键复制（`/api/recipe/copy`）、「下载配置」全量 JSON 备份；修复 `recipeBatch` NPE 等；回归代码审查与文档更正。
 
 > ### ⚠️ 版本号记录事故警示（必读）
 >

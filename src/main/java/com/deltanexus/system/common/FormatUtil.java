@@ -30,6 +30,11 @@ public final class FormatUtil {
         return String.valueOf(v);
     }
 
+    /** 完整数字（千分位），不缩写不丢精度；用于空间充足的价格显示。 */
+    public static String plain(long v) {
+        return String.format(java.util.Locale.ROOT, "%,d", v);
+    }
+
     /** 持有/需求紧凑格式：{@code "1K/5K"}。 */
     public static String compactNeed(long held, long needed) {
         return compact(held) + "/" + compact(needed);

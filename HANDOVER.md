@@ -1,6 +1,6 @@
 # 三角联结（DeltaNexus）交接文档
 
-  版本：0.4.0Beta（Forge 1.20.1 / Minecraft 1.20.1，兼容 Mohist 混合服务端
+  版本：0.4.1Beta（Forge 1.20.1 / Minecraft 1.20.1，兼容 Mohist 混合服务端
   模组 ID：`deltanexus`｜显示名：三角联结｜指令：`/dn`｜日志前缀：`[DN]`｜许可：**MIT**（见根目录 `LICENSE`）
 
 ---
@@ -33,8 +33,8 @@
 | 0.2.0Beta             | **交易行 + 仓库卖出/回收 + 货币改造 + 数据安全**（本版本一次性发布，此前误记为 `3.0.0Alpha`/`3.1.0Alpha` 的内容全部归入本行）：<br ①**交易行（系统商店）**：目录默认空、管理员逐件上架并自定价格；价格三模式 fixed/formula/code（Rhino JS 受限沙箱统一执行）+ ctx 库存/时间/方向/feed 变量；Feed SPI（私有 moligod companion 仅服务端注册外部价格源）；匹配模式 id/full_nbt/partial_nbt，`ignore` 弃用 → **`specified`（指定键名与对应值）**；商品**耐久度要求**（默认关，= / < /   / <= /  = 比较剩余耐久，可与匹配模式共存）；库存上下限 + 补货；买入落玩家仓库（格式背包空间判定，不足禁买并提示）；`/dn open trade` + 未绑定按键 + `trade` 权限 + `/dn trade` 管理指令 + Web 交易行页；<br ②**仓库界面卖出（回收）**：来源 = 仓库 + 背包/快捷栏 + 安全箱（`C2STradeSellPacket` 增 source）；出售模式多选（左键整堆 / 右键 1 个）+ 二次确认、可回收/选中高亮、tooltip 回收价、预计总额；服务端权威逐项结算（匹配优先级 / 库存上限 / 价差保护 / 计分板加分 / 失败跳过汇总）；客户端 id 分桶索引 + NBT 预解析 + 视口结果缓存；<br ③**货币改造**：默认计分板并自动创建 `dn_money`，移除 item 物品货币（旧配置自动迁移）；<br ④**数据安全**：tick 濒死检测 + 死亡事件 + 登出快照（覆盖 `setHealth(0)` 等绕过 `LivingDeathEvent` 的路径）、备份绝不空覆盖、Clone/重生/登录恢复且**恢复后保留备份**、仅管理员重置才清备份；<br ⑤协议 `dn1 → dn2`（客户端与服务端必须同版本）；⑥许可改为 **MIT** |
 | 0.2.1Beta             | **出售交互修复（三项）**：<br ①**「取消」语义**：仓库界面进入出售模式但未选中任何物品时，按钮文字为「取消」（新增 lang 键 `gui.dn.trade.sell.cancel`），点击即 `clearSellState()` 退回正常存储功能——原实现在出售模式下按钮仍写「出售」，用户无从得知点它会退出；<br ②**按钮不再压格子**：槽位物品区 16×16、而槽位底图（含边框）18×18 且向右下各多 2px，原按钮按物品区定位（`whY+214`）会重叠仓库最后一行格子；现按外框对齐为 `(whX+2, 行信息条顶边+1, 54, 17)`，行信息条顶边 = `whY + 已解锁行数(≤12)*18`（新增 `infoStripY()`：面板按解锁行数绘制，固定偏移会让低等级玩家的按钮悬在面板外），行信息/预计总额文字同步为 `infoStripY()+5`；<br ③**出售模式冻结物品**：`WarehouseScreen.slotClicked` 在出售模式下直接 return（屏蔽左/右键取放、Shift 快捷移动、数字键换位、Q 丢弃，不管物品能否回收），`mouseClicked` 在出售模式下吞掉一切点击（槽位外点击也不会把光标物品丢进世界）；`GridClientRendering` 的全局拦截（跨格「非左上角捡起」`C2SPickupGridStackPacket`、R 旋转光标物品）也加了 `WarehouseScreen#isSellMode()` 判断 |
 | 0.3.0Beta             | **格式背包（格子背包）内核重写**——按《0.3.0Beta格子背包系统重写文档.md》落地（以代码实际为准）：<br ①**架构**：`grid` 拆为 `grid.core`（`GridDim`/`UsableMask`/`StackSnapshot`/`GridContext`/`GridSolver` 纯函数求解/`SolvePlan`/`GridMutation` 事务写入/`GridLockManager` 顺序锁/`GridService` 脏标记与生命周期）与 `grid.adapter`（`MenuGridAdapter`/`HandlerGridAdapter`/`InputGate`/`GridInputRedirect`/`GridRenderAdapter`）；`InventoryGridHandler` 从 758 行单体降级为**门面**（保留 0.2.x 全部静态入口 + 3 个事件订阅）；<br ②**菜单层统一点击重定向**：`GridAwareMenu`（`WarehouseMenu` 继承）在 `clicked`/`quickMoveStack` 把占位物格解析到主格，客户端在 `WarehouseScreen`/`BackpackScreen`/`DnContainerScreen` 的 `slotClicked` 同样重定向——PICKUP/QUICK_MOVE/SWAP/THROW/QUICK_CRAFT 全路径覆盖，修掉「点击非主格格子导致主格瞬移」；<br ③**索引口径统一**：占位物 `master_slot` 改为记录**容器索引**（旧版混用菜单索引，仓库滚动一行即全部失配 → 每滚一次重写整片占位物），解析时按容器索引反查菜单槽位；<br ④**占位物只存在于运行态**：`PlayerDataImpl.buildTag()` 落盘前清理（自动保存/备份/Clone 均覆盖）、登录与重生扫描清除、`isEmptyData` 不再把「只有占位物的仓库」当进度（避免阻断死亡备份恢复）；仓库/安全箱 Handler 覆写 `extractItem`/`insertItem`/`isItemValid` 守卫占位物格；<br ⑤**容器显式注册**：`GridRegistry` + `common.toml` 的 `registered_containers` / `legacy_any_container`（默认 false = 未注册的模组容器不再接管，原版 ≥9 格容器与玩家背包/仓库/安全箱为内置注册）+ `/dn grid containers|register|unregister`；<br ⑥**渲染修正**：跳过 `!slot.isActive()`、去重键改「容器身份 + 容器索引」（旧键跨组撞车导致偶发少画两格）；grid 包不再引用任何屏幕类（`InputGate` 接口注册出售模式）；<br ⑦**旋转**：标记改 `deltanexus.grid.rotated`（读取永久兼容旧键 `deltanexus.is_rotated`），`RotationPacket` 补权限/门闸/网格容器校验，`GridTags.stripped()` 供交易与管道比较剥离网格键；<br ⑧**网络包校验补强**：`C2SPickupGridStackPacket` 校验容器/光标为空/出售门闸并按容器索引解析主格；<br ⑨新增 `GridRegressionTests`（7 个内核 GameTest：足迹与占位物、锁定格重排、旋转落位、同类合并、孤立占位物清理、精确数量回退、旋转键迁移与剥离）；<br ⑩**协议 `dn2 → dn3`**：新增 C2S `C2SSellModePacket`（进入/退出出售模式），出售模式改为**服务端权威**——`WarehouseMenu.setSellMode` + `GridAwareMenu` 门闸冻结一切物品移动，`InputGate.serverSellMode` 同样拦住跨格拾取与 R 旋转；屏幕关闭/菜单销毁/断线自动解除；<br ⑪**止血三步（同版本内，针对复制/重叠）**：①**不再每 tick 重排**——每 tick 只做只读一致性校验 `GridIntegrity.check`（越界/跨锁定格/跨口袋分区/足迹重叠/缺占位物/孤立占位物），不一致才收敛一次，空闲零写入；②**事务原子化**——`GridMutation` 与 `GridService.placeInto` 改为「影子数组 + 逐项 CAS（源格内容未变 + 目标足迹空闲或属自己旧占位物）+ 守恒校验（总量不变）+ `ItemStack` 实例共享校验 + 只写变化格」，任何一项不过关即**整体放弃写入并打 ERROR**；占位物改为按影子**实际内容**重新推导（不再照抄计划 owner 表）；③**几何判定唯一化**——手动放置/整理/交付/买入预演共用同一 `GridContext` 足迹判定；新增 5 个安全网 GameTest（过期计划不复活物品、不覆盖已占足迹、事务守恒、几何违规判定、守恒/共享工具自检）；调试开关 `-Ddeltanexus.grid.debug=true`；<br ⑫**第二阶段：布局显式化（随 dn3 一并发布）**——新增 `GridLayout.derive(ctx, cells)` 作为**全模组唯一几何推导**（求解/占位物重建/一致性校验/下发客户端四处共用）；新增 S2C `SyncGridLayoutPacket`（菜单打开与布局变化时下发锚点槽位+宽高+旋转+行宽，指纹相同不发包、玩家侧版本单调）；客户端 `GridLayoutClient` 驱动渲染与点击重定向（无布局时回退占位物 NBT），消除「客户端自行推导几何」造成的假性复制/重叠；新增 2 个布局推导 GameTest；<br>⑬**第三阶段：去掉占位物（协议仍 dn3）**——①`GridMutation` <b>只清不写</b>占位物（足迹非主格=普通空格，旧残留按历史数据清除）；②`GridLayout.derive` 不再把「足迹格为空」判为违规，只把残留占位物判为待清理；③点击重定向改由布局承担：服务端新增 `GridService.anchorSlotOf(menu, slot)`（与下发布局同一份推导）作为 `GridAwareMenu.resolveMaster` 的首选，占位物 NBT 仅兜底；④新增 `GridFootprints.covered(handler, slot, width)` 作为外部写入**软闸**，仓库/安全箱 `insertItem`/`isItemValid` 拒绝落在足迹内的插入（管道/漏斗/其他模组）；⑤决策：**旋转标记继续存物品 NBT**（稳定性优先：随物品走、不引入槽位侧表、不会因移动/滚动/重连失配）；⑥Shift 快捷移动仍可能先落进足迹格，由下一次收敛**合法位移**（只移动 + 守恒校验）纠正，不复制不覆盖 |
-| 0.4.0Beta             | **刷兵系统（零活动设计）**——按《0.4.0beta刷兵系统设计方案.md》落地（以代码实际为准）：<br ①**零活动**：不监听事件、不自动刷兵、无冷却/定时/波次，仅在收到执行请求时刷一次并立即结束；<br ②**配置分层**：全局配置 `global.json`（总开关 `enabled`、黑名单世界 `blacklisted_worlds`、上限）与 `logging.json`（日志级别/控制台/文件开关）；世界级配置 `spawners.json`（刷兵器）与 `pointgroups.json`（点位组）按**世界文件夹路径缓存**到 `config/deltanexus/spawner/<world>/`；<br ③**指令**：新增 `/dn spawner` 子指令树——`new/del/list/info/set/nbt/point/group/run/preview/dry-run/log`，权限 `2`；热加载挂在现有 `/dn reload` 上（`SpawnerManager.reloadAll` 重载全部世界配置，不重启即生效）；<br ④**执行**：`SpawnerService.run/preview/dry-run`——校验实体池→全局限制（实体数/TPS/内存/黑名单）→条件（难度/在线玩家数）→点位与数量（`count` 支持 `per_point` 区间）→安全寻位（坚实地面/熔岩水规避/最大尝试）→应用 NBT/行为/粒子/音效/命令；<br ⑤**Zero-Activity 日志**：执行全程按 `logging.json` 输出到控制台与 `logs/deltanexus/spawn/<日期>.log` | 
-
+| 0.4.0Beta             | **刷兵系统（零活动设计）**——按《0.4.0beta刷兵系统设计方案.md》落地（以代码实际为准）：<br ①**零活动**：不监听事件、不自动刷兵、无冷却/定时/波次，仅在收到执行请求时刷一次并立即结束；<br ②**配置分层**：全局配置 `global.json`（总开关 `enabled`、黑名单世界 `blacklisted_worlds`、上限）与 `logging.json`（日志级别/控制台/文件开关）；世界级配置 `spawners.json`（刷兵器）与 `pointgroups.json`（点位组）按**世界文件夹路径缓存**到 `config/deltanexus/spawner/<world>/`；<br ③**指令**：新增 `/dn spawner` 子指令树——`new/del/list/info/set/nbt/point/group/run/preview/dry-run/log`，权限 `2`；热加载挂在现有 `/dn reload` 上（`SpawnerManager.reloadAll` 重载全部世界配置，不重启即生效）；<br ④**执行**：`SpawnerService.run/preview/dry-run`——校验实体池→全局限制（实体数/TPS/内存/黑名单）→条件（难度/在线玩家数）→点位与数量（`count` 支持 `per_point` 区间）→安全寻位（坚实地面/熔岩水规避/最大尝试）→应用 NBT/行为/粒子/音效/命令；<br ⑤**Zero-Activity 日志**：执行全程按 `logging.json` 输出到控制台与 `logs/deltanexus/spawn/<日期>.log` |
+| 0.4.1Beta                | **Web 编辑器可用性大改 + 代码审查与文档更正**：<br ① 记住上次活跃页签（`dn_activeTab`）、`Ctrl+K` 全局搜索（配方/工作台/商品/玩家，定位高亮）、右上角「下载配置」全量 JSON 备份；<br ② 配方与交易商品列表分页 + 密度列与筛选；配方行内勾选**批量改耗时/等级**（新增 `/api/recipe/batch`）与**一键复制**新 id（新增 `/api/recipe/copy`）；<br ③ Bug 修复：`recipeBatch` 单字段 NPE、复制 id 校验统一小写、页签白名单防注入、下载延迟 revokeObjectURL；<br ④ README/HANDOVER 更正（产物名 0.4.1Beta、补刷兵配置目录/指令/目录树、删重复按键行） | 
 
   ⚠️ **版本号记录事故警示**：交易行相关开发曾被错误地标成 `3.0` / `3.1Alpha`——本表里写过 `3.0.0Alpha`、
   `3.1.0Alpha` 两条“版本历史”行，README 的交易行/货币/配置章节与源码注释也带着 `（3.0）`、`（3.1）` 标注；
@@ -59,7 +59,7 @@
 | Gradle | 8.8（wrapper），ForgeGradle 6.x |
 | 兼容目标 | Mohist 混合服务端（Vault/PlayerPoints 经 Bukkit API 反射访问） |
 
-构建：`gradlew.bat build` → 产物 `build/libs/deltanexus-0.3.0Beta.jar`
+构建：`gradlew.bat build` → 产物 `build/libs/deltanexus-0.4.1Beta.jar`
 
 ---
 
@@ -137,7 +137,15 @@ src/main/java/com/deltanexus/system/
 │   ├── PermissionManager.java     # 权限（warehouse/workbench/special/safe_box/trade，JSON 热加载）
 │   ├── TradeService.java          # 交易行服务（0.2.0Beta：求价/买入流水线/目录/Feed 定时刷新）
 │   └── TradeAdminHandler.java     # /dn trade 管理指令（0.2.0Beta）
-└── web/                           # Web 网页编辑器（HTTP 服务 + JSON API）
+├── web/                           # Web 网页编辑器（HTTP 服务 + JSON API）
+└── spawner/                       # ★ 刷兵系统（0.4.0Beta，零活动）
+│   ├── Spawner.java               # 刷兵器数据模型（实体池/点位/条件/安全/行为）
+│   ├── GlobalConfig.java          # 刷兵全局配置（spawner/global.json）
+│   ├── LogConfig.java             # 刷兵日志配置（spawner/logging.json）
+│   ├── SpawnerWorldStore.java     # 世界级 spawners.json + pointgroups.json 读写
+│   ├── SpawnerManager.java        # 按世界文件夹路径缓存 + 重载
+│   ├── SpawnerService.java        # run/preview/dry-run 执行 + 全局限制/条件/安全/行为/日志
+│   └── SpawnerCommand.java        # /dn spawner 指令树
 ```
 
 资源：`src/main/resources/assets/deltanexus/`（语言 zh_cn/en_us、GUI 贴图、web/index.html）
@@ -183,6 +191,10 @@ trade item durability <id  <on|off  [op] [值]                耐久度要求（
                                       玩家卖出：仓库界面「出售」→ 多选（仓库/背包/安全箱）→「确认」
 info                                  查看当前配置
 workbench|recipe|tree|data|web        工作台/配方/升级树/玩家数据/网页编辑器
+spawner new|del|list|info|setup <名>  刷兵配置管理（setup 为配置向导）
+spawner point|group|set|nbt <…>       点位、点位组、字段、NBT 设置
+spawner run|preview|dry-run <…>       执行 / 预演 / 干跑刷兵（零活动，按需一次）
+spawner log <…>                       查看刷兵日志配置
 help                                  指令总览（/dn <指令  help 查看详情）
 ```
 
@@ -205,6 +217,10 @@ help                                  指令总览（/dn <指令  help 查看详
 | trade.json | config/deltanexus/ | 交易行（全局设置 + 分类 + 商品定义；商品含 item/NBT/匹配/价格/上下限） |
 | trade-stock.json | config/deltanexus/ | 交易行运行时库存（买入扣除/管理员补货，与定义分离防写放大） |
 | web-editor.yml | config/deltanexus/ | Web 编辑器（host/port/public-url/token_auth） |
+| spawner/global.json | config/deltanexus/spawner/ | 刷兵全局（总开关 enabled/黑名单世界/实体数/TPS/内存上限） |
+| spawner/logging.json | config/deltanexus/spawner/ | 刷兵日志（级别/控制台开关/文件写入，输出 logs/deltanexus/spawn/<日期>.log） |
+| spawner/<世界文件夹>/spawners.json | config/deltanexus/spawner/ | 刷兵器定义（实体池/点位/条件/安全/行为） |
+| spawner/<世界文件夹>/pointgroups.json | config/deltanexus/spawner/ | 点位组（组名 → 点位列表） |
 
 ---
 
@@ -216,8 +232,7 @@ help                                  指令总览（/dn <指令  help 查看详
 | （未绑定） | 打开工作台总览 |
 | （未绑定） | 打开特勤处 |
 | R     | 旋转光标物品（格式背包容器界面内） |
-| R     | 旋转光标物品（容器界面内） |
-| （未绑定） | 打开交易行（默认不绑定，可自行设置） |
+|（未绑定） | 打开交易行（默认不绑定，可自行设置） |
 
 ---
 
@@ -317,7 +332,7 @@ help                                  指令总览（/dn <指令  help 查看详
 ```bat
 cd D:\Work\java\DeltaNexus
 gradlew.bat build
-:: 产物：build/libs/deltanexus-0.3.0Beta.jar → 放入服务器/客户端 mods/
+:: 产物：build/libs/deltanexus-0.4.1Beta.jar → 放入服务器/客户端 mods/
 ```
 
 开发运行：`gradlew.bat runClient` / `runServer`（工作目录 `run/`）。

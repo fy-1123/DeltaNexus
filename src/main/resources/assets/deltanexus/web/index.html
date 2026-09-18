@@ -102,6 +102,87 @@
             margin-right: 6px;
         }
 
+        /* ===== 全局搜索 ===== */
+        .header-top .global-search {
+            position: relative;
+            flex: 1 1 260px;
+            min-width: 220px;
+            max-width: 420px;
+        }
+        .header-top .global-search input {
+            width: 100%;
+        }
+        .gl-suggest {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            z-index: 50;
+            background: #1b1d2b;
+            border: 1px solid #3a3a4a;
+            border-radius: 6px;
+            max-height: 300px;
+            overflow-y: auto;
+            box-shadow: 0 6px 16px rgba(0,0,0,.4);
+        }
+        .gl-suggest .gl-item {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 6px 10px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            color: #e0e6f5;
+        }
+        .gl-suggest .gl-item:hover,
+        .gl-suggest .gl-item.active {
+            background: #2a2d42;
+        }
+        .gl-suggest .gl-item .gl-label {
+            font-weight: 500;
+        }
+        .gl-suggest .gl-item .gl-sub {
+            color: #9aa0b5;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+        .gl-empty {
+            padding: 8px 10px;
+            color: #9aa0b5;
+        }
+        .pager {
+            margin-top: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .batch-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            font-size: 13px;
+            margin-bottom: 6px;
+            padding: 5px 8px;
+            background: #1d2030;
+            border-radius: 6px;
+            border: 1px solid #2a2c3a;
+        }
+        .batch-bar .sep {
+            color: #3a3d52;
+            margin: 0 2px;
+        }
+
+        /* 行定位高亮 */
+        @keyframes hl-flash {
+            0% { background: #ffaa3344; }
+            100% { background: transparent; }
+        }
+        tr.hl-flash td {
+            animation: hl-flash 1.6s ease;
+        }
+
         /* ===== 内容区域 ===== */
         .content-area {
             max-width: 1100px;
@@ -197,6 +278,13 @@
         }
         .btn.orange:hover {
             background: #5c4a2e;
+        }
+        .btn.blue {
+            background: #223a4a;
+            border-color: #3a6a7a;
+        }
+        .btn.blue:hover {
+            background: #2e4a5c;
         }
         .btn.small {
             padding: 2px 10px;
@@ -381,10 +469,15 @@
                 <input id="tokenInput" placeholder="访问令牌（留空则从地址栏 ?token= 读取）" spellcheck="false">
                 <button class="btn" onclick="saveToken()">保存</button>
             </div>
+            <div class="global-search">
+                <input id="globalSearch" placeholder="全局搜索：配方 / 工作台 / 商品 / 玩家  (Ctrl+K)" spellcheck="false" autocomplete="off">
+                <div class="gl-suggest" id="glSuggest"></div>
+            </div>
             <div class="actions">
                 <button class="btn green" onclick="loadAll()">↻ 刷新</button>
                 <button class="btn orange" onclick="doAction('/api/reload')">重载配置</button>
                 <button class="btn orange" onclick="doAction('/api/export')">导出备份</button>
+                <button class="btn blue" onclick="downloadBackup()">下载配置</button>
             </div>
         </div>
 
@@ -455,11 +548,22 @@
             <div class="row"><label>工作台</label><select id="recipeWb"></select>
                 <span class="muted" id="recipeCount"></span>
                 <span style="flex:1"></span>
+                <input id="recipeFilter" placeholder="筛选配方 id/名称…" style="width:180px">
                 <label>新增配方</label><input id="recipeIdNew" placeholder="配方 id"><button class="btn green" onclick="addRecipe()">添加</button>
             </div>
             <div class="recipe-layout">
                 <div class="recipe-side">
-                    <table id="recipeList"><thead><tr><th>配方</th></tr></thead><tbody></tbody></table>
+                    <div class="batch-bar">
+                        <label title="全选当前页"><input type="checkbox" id="recipeSelAll"> 全选</label>
+                        <span>已选 <b id="recipeSelCount">0</b></span>
+                        <span class="sep">|</span>
+                        <label>耗时 <input type="number" id="batchTime" placeholder="秒" min="1" style="width:56px"></label>
+                        <button class="btn small green" onclick="recipeBatchApply('time')">应用耗时</button>
+                        <label>等级 <input type="number" id="batchLevel" placeholder="级" min="0" style="width:48px"></label>
+                        <button class="btn small green" onclick="recipeBatchApply('level')">应用等级</button>
+                    </div>
+                    <table id="recipeList"><thead><tr><th style="width:34px"></th><th>配方</th><th>耗时</th><th>等级</th><th>主要产物</th><th style="width:54px"></th></tr></thead><tbody></tbody></table>
+                    <div class="pager" id="recipePager"></div>
                 </div>
                 <div class="recipe-detail-side">
                     <div id="recipeDetail" class="muted">点击左侧配方查看/编辑</div>
@@ -556,6 +660,9 @@
             <h3>商品</h3>
             <div class="inline-form row">
                 <button class="btn green" onclick="tradeNew()">＋ 新增商品</button>
+                <input id="tradeFilter" placeholder="筛选商品 id/名称/分类…" style="width:200px">
+                <span class="muted" id="tradeGoodCount"></span>
+                <span style="flex:1"></span>
                 <span class="muted">点表格行「编辑」打开表单修改；补货/删除可在行内直接操作。</span>
             </div>
             <div id="tradeEditor" class="inline-form" style="display:none; border:1px solid #46536B; border-radius:6px; padding:10px; margin:8px 0; background:#10131A;">
@@ -663,6 +770,7 @@
                 </div>
             </div>
             <table id="tradeGoodTable"><thead><tr><th>id / 名称</th><th>分类</th><th>状态</th><th>库存</th><th>买入价</th><th>卖出价</th><th>限购</th><th>补货</th><th>操作</th></tr></thead><tbody></tbody></table>
+            <div class="pager" id="tradeGoodPager"></div>
         </section>
 
     </main>
@@ -671,26 +779,63 @@
         "use strict";
 
         // ============================================================
-        //  导航切换
+        //  导航切换（记住上次页签）
         // ============================================================
+        function activateTab(targetId) {
+            document.querySelectorAll('.nav-bar .nav-item').forEach(n => n.classList.toggle('active', n.dataset.target === targetId));
+            document.querySelectorAll('.section-panel').forEach(p => p.classList.toggle('active', p.id === targetId));
+            localStorage.setItem('dn_activeTab', targetId);
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
-            const navItems = document.querySelectorAll('.nav-bar .nav-item');
-            const panels = document.querySelectorAll('.section-panel');
-
-            navItems.forEach(item => {
+            document.querySelectorAll('.nav-bar .nav-item').forEach(item => {
                 item.addEventListener('click', function() {
-                    // 导航高亮
-                    navItems.forEach(n => n.classList.remove('active'));
-                    this.classList.add('active');
-
-                    // 显示对应面板
-                    const targetId = this.dataset.target;
-                    panels.forEach(p => {
-                        p.classList.toggle('active', p.id === targetId);
-                    });
+                    activateTab(this.dataset.target);
                 });
             });
+
+            // 恢复上次活跃页签（仅白名单内 id，防 localStorage 注入非法选择器）
+            const TABS = ['sec-settings', 'sec-grid', 'sec-workbench', 'sec-recipe', 'sec-tree', 'sec-safe', 'sec-player', 'sec-perm', 'sec-trade'];
+            const saved = localStorage.getItem('dn_activeTab');
+            if (TABS.indexOf(saved) >= 0) activateTab(saved);
+
+            // 全局搜索：输入建议 / 键盘导航 / 点击跳转
+            const gs = document.getElementById('globalSearch');
+            gs.addEventListener('input', function() {
+                glRenderSuggest(glSuggest(this.value));
+            });
+            gs.addEventListener('keydown', function(e) {
+                const box = document.getElementById('glSuggest');
+                const items = box._items || [];
+                const active = box.querySelector('.gl-item.active');
+                let i = active ? Array.prototype.indexOf.call(box.children, active) : 0;
+                if (e.key === 'Enter') { e.preventDefault(); if (items.length) glPick(items, i >= 0 ? i : 0); }
+                else if (e.key === 'ArrowDown') { e.preventDefault(); if (items.length) glSetActive(box, (i + 1) % items.length); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); if (items.length) glSetActive(box, (i - 1 + items.length) % items.length); }
+                else if (e.key === 'Escape') { clearSuggestText(false); gs.blur(); }
+            });
+            document.getElementById('glSuggest').addEventListener('click', function(e) {
+                const btn = e.target.closest('.gl-item');
+                if (btn) glPick(this._items, parseInt(btn.dataset.i, 10));
+            });
+            // 点击外部关闭建议
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.global-search')) clearSuggestText(false);
+            });
+
+            // Ctrl+K 聚焦搜索
+            document.addEventListener('keydown', function(e) {
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+                    e.preventDefault();
+                    gs.focus();
+                    gs.select();
+                }
+            });
         });
+
+        function glSetActive(box, i) {
+            Array.prototype.forEach.call(box.children, (c, n) => c.classList.toggle('active', n === i));
+        }
 
         // ============================================================
         //  全局状态 & API
@@ -746,6 +891,7 @@
             if (!r.ok) { status(r.msg || '加载失败（token 可能无效）', false); return; }
             STATE = r;
             document.getElementById('ver').textContent = 'v' + r.version;
+            buildSearchIndex();
             renderSettings();
             renderWorkbenches();
             renderRecipeWb();
@@ -755,6 +901,115 @@
             renderPlayers();
             renderPerms();
             renderTrade();
+        }
+
+        // ============================================================
+        //  全局搜索（配方 / 工作台 / 商品 / 玩家）
+        // ============================================================
+        let _glIndex = [];
+
+        function buildSearchIndex() {
+            const idx = [];
+            if (!STATE) { _glIndex = idx; return; }
+            const wbs = STATE.workbenches || [];
+            const wbName = id => (wbs.find(x => x.id === id) || {}).display || id;
+            (STATE.recipes || []).forEach(r => {
+                idx.push({ kind: 'recipe', label: r.display_name || r.recipe_id, sub: '配方 · ' + wbName(r.workbench),
+                    wb: r.workbench, id: r.recipe_id });
+                idx.push({ kind: 'recipe', label: r.recipe_id, sub: '配方 · ' + wbName(r.workbench),
+                    wb: r.workbench, id: r.recipe_id });
+            });
+            wbs.forEach(w => idx.push({ kind: 'wb', label: w.display || w.id, sub: '工作台 · ' + w.id, id: w.id }));
+            const t = STATE.trade || {};
+            (t.goods || []).forEach(g => {
+                idx.push({ kind: 'good', label: (g.display_name || '') || g.id, sub: '交易所 · ' + (g.category || ''),
+                    id: g.id });
+                idx.push({ kind: 'good', label: g.id, sub: '交易所 · ' + (g.category || ''), id: g.id });
+            });
+            (STATE.players || []).forEach(p => idx.push({ kind: 'player', label: p.name, sub: '玩家', id: p.name }));
+            _glIndex = idx;
+        }
+
+        function glSuggest(q) {
+            const s = (q || '').trim().toLowerCase();
+            if (!s) return [];
+            return _glIndex.filter(it => (it.label + ' ' + it.sub + ' ' + it.id).toLowerCase().includes(s)).slice(0, 10);
+        }
+
+        function glRenderSuggest(items) {
+            const box = document.getElementById('glSuggest');
+            if (!items.length) { box.innerHTML = '<div class="gl-empty">无匹配项</div>'; return; }
+            box.innerHTML = items.map((it, i) =>
+                '<button type="button" class="gl-item' + (i === 0 ? ' active' : '') + '" data-i="' + i + '">' +
+                '<span class="gl-label">' + esc(it.label) + '</span><span class="gl-sub">' + esc(it.sub) + '</span></button>'
+            ).join('');
+            box._items = items;
+        }
+
+        function glPick(items, i) {
+            const it = items[i];
+            if (!it) return;
+            glRenderSuggest([]);
+            clearSuggestText(it.label);
+            searchJump(it);
+        }
+
+        function clearSuggestText(label) {
+            const inp = document.getElementById('globalSearch');
+            if (label !== false) inp.value = label;
+            document.getElementById('glSuggest').innerHTML = '';
+        }
+
+        function searchJump(it) {
+            if (it.kind === 'recipe') {
+                activateTab('sec-recipe');
+                const sel = document.getElementById('recipeWb');
+                sel.value = it.wb;
+                recipeCtx.wb = it.wb; recipeCtx.recipe = '';
+                localStorage.setItem('dn_recipeWb', it.wb); localStorage.setItem('dn_recipeItem', '');
+                renderRecipes();
+                showRecipe(it.id);
+                status('已定位配方 ' + it.id, true);
+            } else if (it.kind === 'wb') {
+                activateTab('sec-workbench');
+                flashRow('#wbTable tbody tr', it.id);
+            } else if (it.kind === 'good') {
+                activateTab('sec-trade');
+                flashRow('#tradeGoodTable tbody tr', it.id);
+            } else if (it.kind === 'player') {
+                activateTab('sec-player');
+                const sel = document.getElementById('playerSel');
+                sel.value = it.id;
+                _playerSel = it.id;
+                localStorage.setItem('dn_playerSel', it.id);
+                renderPlayerInfo();
+                status('已定位玩家 ' + it.id, true);
+            }
+        }
+
+        function downloadBackup() {
+            if (!STATE) { status('请先加载数据', false); return; }
+            const blob = new Blob([JSON.stringify(STATE, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            const href = URL.createObjectURL(blob);
+            a.href = href;
+            a.download = 'dn-config-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(href), 1000);
+            status('已下载配置备份', true);
+        }
+
+        function flashRow(selector, key) {
+            const rows = document.querySelectorAll(selector);
+            let target = null;
+            rows.forEach(tr => { if (tr.textContent.indexOf(key) >= 0) target = tr; });
+            if (!target) { status('未找到条目', false); return; }
+            target.classList.add('hl-flash');
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            clearTimeout(flashRow._t);
+            flashRow._t = setTimeout(() => target.classList.remove('hl-flash'), 1600);
         }
 
         // ============================================================
@@ -894,33 +1149,123 @@
         // ============================================================
         //  配方管理
         // ============================================================
+        // 配方管理上下文：跨“保存后自动刷新”与手动刷新(F5)保持所选工作台与配方
+        let recipeCtx = { wb: localStorage.getItem('dn_recipeWb') || '', recipe: localStorage.getItem('dn_recipeItem') || '' };
+
         function renderRecipeWb() {
             const sel = document.getElementById('recipeWb');
             sel.innerHTML = '';
+            let hasSel = false;
             for (const w of STATE.workbenches) {
                 const o = document.createElement('option');
                 o.value = w.id;
                 o.textContent = w.display + ' (' + w.id + ')';
                 sel.appendChild(o);
+                if (recipeCtx.wb && recipeCtx.wb === w.id) hasSel = true;
             }
+            if (hasSel) sel.value = recipeCtx.wb;
+            sel.onchange = function () {
+                recipeCtx.wb = this.value;
+                recipeCtx.recipe = '';
+                localStorage.setItem('dn_recipeWb', recipeCtx.wb);
+                localStorage.setItem('dn_recipeItem', '');
+            };
             renderRecipes();
         }
 
         function recipesOf(wb) { return STATE.recipes.filter(r => r.workbench === wb); }
 
+        let recipePage = 1;
+        const RECIPE_PAGE_SIZE = 15;
+
         function renderRecipes() {
             const wb = document.getElementById('recipeWb').value;
-            const list = recipesOf(wb);
-            document.getElementById('recipeCount').textContent = list.length + ' 个配方';
+            let list = recipesOf(wb);
+            // 过滤（Phase C 搜索框，可为空）
+            const q = (document.getElementById('recipeFilter') || {}).value || '';
+            if (q.trim()) {
+                const s = q.trim().toLowerCase();
+                list = list.filter(r => (r.recipe_id + ' ' + (r.display_name || '')).toLowerCase().includes(s));
+            }
+            const total = list.length;
+            // 剪枝：只保留当前工作台仍存在的勾选
+            if (recipeSelected.size) {
+                const live = new Set(recipesOf(wb).map(r => r.recipe_id));
+                recipeSelected.forEach(id => { if (!live.has(id)) recipeSelected.delete(id); });
+            }
+            const pages = Math.max(1, Math.ceil(total / RECIPE_PAGE_SIZE));
+            if (recipePage > pages) recipePage = pages;
+            const slice = list.slice((recipePage - 1) * RECIPE_PAGE_SIZE, recipePage * RECIPE_PAGE_SIZE);
+            document.getElementById('recipeCount').textContent = total + ' 个配方';
             const tb = document.querySelector('#recipeList tbody');
             tb.innerHTML = '';
-            for (const r of list) {
+            for (const r of slice) {
                 const tr = document.createElement('tr');
-                tr.innerHTML = '<td style="cursor:pointer" onclick="showRecipe(\'' + esc(r.recipe_id) + '\')">' + esc(r
-                    .display_name) + ' <span class="muted">[' + esc(r.recipe_id) + ']</span></td>';
+                const out = (r.output && r.output[0]) ? r.output[0].item : '—';
+                const chk = recipeSelected.has(r.recipe_id) ? ' checked' : '';
+                tr.innerHTML =
+                    '<td><input type="checkbox" class="recipeChk" data-id="' + esc(r.recipe_id) + '"' + chk + '></td>' +
+                    '<td style="cursor:pointer" onclick="showRecipe(\'' + esc(r.recipe_id) + '\')">' + esc(r
+                    .display_name) + ' <span class="muted">[' + esc(r.recipe_id) + ']</span></td>' +
+                    '<td>' + r.base_duration + 's</td>' +
+                    '<td>' + (r.required_level || 0) + '</td>' +
+                    '<td class="muted" title="' + esc(out) + '">' + esc(out) + '</td>' +
+                    '<td><button class="btn small" title="复制为新配方" onclick="copyRecipe(\'' + esc(r.recipe_id) + '\')">复制</button></td>';
                 tb.appendChild(tr);
             }
-            if (list.length) showRecipe(list[0].recipe_id);
+            if (!slice.length && !q.trim()) {
+                tb.innerHTML = '<tr><td colspan="6" class="muted">暂无配方</td></tr>';
+            } else if (!slice.length) {
+                tb.innerHTML = '<tr><td colspan="6" class="muted">无匹配配方</td></tr>';
+            }
+            recipeSelCount();
+            renderRecipePager(recipePage, pages, total);
+            if (list.length && !q.trim()) {
+                const keep = recipeCtx.recipe && list.some(r => r.recipe_id === recipeCtx.recipe)
+                    ? recipeCtx.recipe : list[0].recipe_id;
+                showRecipe(keep);
+            }
+        }
+
+        function renderRecipePager(cur, pages, total) {
+            const el = document.getElementById('recipePager');
+            if (pages <= 1) { el.innerHTML = total ? ('<span class="muted">共 ' + total + ' 条，' + pages + ' 页</span>') : ''; return; }
+            el.innerHTML = '<button class="btn small" onclick="recipePageGo(' + (cur - 1) + ')"' + (cur <= 1 ? ' disabled' : '') + '>‹ 上一页</button> ' +
+                '<span class="muted">' + cur + ' / ' + pages + ' 页（共 ' + total + ' 条）</span> ' +
+                '<button class="btn small" onclick="recipePageGo(' + (cur + 1) + ')"' + (cur >= pages ? ' disabled' : '') + '>下一页 ›</button>';
+        }
+
+        function recipePageGo(p) {
+            recipePage = Math.max(1, p);
+            renderRecipes();
+        }
+
+        let recipeSelected = new Set();
+
+        function recipeSelCount() {
+            document.getElementById('recipeSelCount').textContent = recipeSelected.size;
+        }
+
+        function copyRecipe(id) {
+            const nid = prompt('复制配方 ' + id + '，输入新 id：', id + '_copy');
+            if (!nid) return;
+            doAction('/api/recipe/copy', { recipe_id: id, new_recipe_id: nid.trim() });
+        }
+
+        function recipeBatchApply(mode) {
+            const ids = Array.from(recipeSelected);
+            if (!ids.length) { status('请先勾选要修改的配方', false); return; }
+            const body = { ids: ids };
+            if (mode === 'time') {
+                const v = parseInt(document.getElementById('batchTime').value, 10);
+                if (isNaN(v) || v < 1) { status('请输入有效的耗时（秒）', false); return; }
+                body.seconds = v;
+            } else {
+                const v = parseInt(document.getElementById('batchLevel').value, 10);
+                if (isNaN(v) || v < 0) { status('请输入有效的等级（≥0）', false); return; }
+                body.level = v;
+            }
+            doAction('/api/recipe/batch', body);
         }
 
         async function addRecipe() {
@@ -929,6 +1274,8 @@
         }
 
         function showRecipe(id) {
+            recipeCtx.recipe = id;
+            localStorage.setItem('dn_recipeItem', id);
             const r = STATE.recipes.find(x => x.recipe_id === id);
             if (!r) return;
             const d = document.getElementById('recipeDetail');
@@ -1170,15 +1517,22 @@
         // ============================================================
         //  玩家数据（仓库等级 / 安全箱等级）
         // ============================================================
+        // 玩家选择：跨“保存后刷新”与 F5 保持当前选中玩家
+        let _playerSel = localStorage.getItem('dn_playerSel') || '';
+
         function renderPlayers() {
             const sel = document.getElementById('playerSel');
+            const prev = _playerSel;
             sel.innerHTML = '';
+            let has = false;
             for (const p of STATE.players) {
                 const o = document.createElement('option');
                 o.value = p.name;
                 o.textContent = p.name;
                 sel.appendChild(o);
+                if (prev && prev === p.name) has = true;
             }
+            if (has) sel.value = prev;
             renderPlayerInfo();
         }
 
@@ -1276,6 +1630,9 @@
         function tradeEscId(s) { return String(s == null ? '' : s).replace(/[^\w-]/g, '_'); }
         function tradeEscJs(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
 
+        // 商品编辑器分类：跨“保存后刷新”与 F5 保持当前选中分类
+        let _tradeCat = localStorage.getItem('dn_tradeCat') || '';
+
         // ---- 商品表单式编辑器状态 ----
         let _tradeKeys = [];
         let _editorVisible = false;
@@ -1302,14 +1659,24 @@
             });
             document.querySelector('#tradeCatTable tbody').innerHTML = h || '<tr><td colspan="3" class="muted">暂无分类</td></tr>';
 
-            // 编辑器分类下拉（同步最新分类）
+            // 编辑器分类下拉（同步最新分类；恢复上次所选）
             const catSel = $id('trCat');
-            const prev = catSel.value;
+            const prev = _tradeCat && (t.categories || []).some(c => c.id === _tradeCat) ? _tradeCat : catSel.value;
             catSel.innerHTML = (t.categories || []).map(c => '<option value="' + esc(c.id) + '">' + esc(c.display_name || c.name || c.id) + '</option>').join('');
-            if (prev && [...catSel.options].some(o => o.value === prev)) catSel.value = prev;
+            catSel.value = prev;
 
             let g = '';
-            (t.goods || []).forEach(go => {
+            const fq = (($id('tradeFilter')) || {}).value || '';
+            let goods = t.goods || [];
+            if (fq.trim()) {
+                const s = fq.trim().toLowerCase();
+                goods = goods.filter(x => (x.id + ' ' + (x.display_name || '') + ' ' + (x.category || '')).toLowerCase().includes(s));
+            }
+            const tTotal = goods.length, tPages = Math.max(1, Math.ceil(tTotal / TRADE_PAGE_SIZE));
+            if (tradePage > tPages) tradePage = tPages;
+            $id('tradeGoodCount').textContent = tTotal + ' 个商品';
+            goods = goods.slice((tradePage - 1) * TRADE_PAGE_SIZE, tradePage * TRADE_PAGE_SIZE);
+            goods.forEach(go => {
                 const v = viewMap[go.id] || {};
                 const idS = tradeEscJs(go.id);
                 const idH = tradeEscId(go.id);
@@ -1338,6 +1705,23 @@
             });
             const goodTbody = document.querySelector('#tradeGoodTable tbody');
             goodTbody.innerHTML = g || '<tr><td colspan="9" class="muted">暂无商品：先在上方建分类，再点「＋ 新增商品」。</td></tr>';
+            tradeRenderPager(tradePage, tPages, tTotal);
+        }
+
+        let tradePage = 1;
+        const TRADE_PAGE_SIZE = 20;
+
+        function tradeRenderPager(cur, pages, total) {
+            const el = document.getElementById('tradeGoodPager');
+            if (pages <= 1) { el.innerHTML = total ? '' : ''; return; }
+            el.innerHTML = '<button class="btn small" onclick="tradePageGo(' + (cur - 1) + ')"' + (cur <= 1 ? ' disabled' : '') + '>‹ 上一页</button> ' +
+                '<span class="muted">' + cur + ' / ' + pages + ' 页</span> ' +
+                '<button class="btn small" onclick="tradePageGo(' + (cur + 1) + ')"' + (cur >= pages ? ' disabled' : '') + '>下一页 ›</button>';
+        }
+
+        function tradePageGo(p) {
+            tradePage = Math.max(1, p);
+            renderTrade();
         }
 
         async function tradeSaveSettings() {
@@ -1498,7 +1882,8 @@
             if (!STATE.trade || !STATE.trade.categories || !STATE.trade.categories.length) {
                 $id('trCat').innerHTML = '';
             } else {
-                $id('trCat').value = STATE.trade.categories[0].id;
+                const cats = STATE.trade.categories;
+                $id('trCat').value = _tradeCat && cats.some(c => c.id === _tradeCat) ? _tradeCat : cats[0].id;
             }
             tradeEditorShow('新增商品');
         }
@@ -1621,7 +2006,28 @@
         //  事件绑定
         // ============================================================
         document.getElementById('recipeWb').addEventListener('change', renderRecipes);
-        document.getElementById('playerSel').addEventListener('change', renderPlayerInfo);
+        document.getElementById('recipeFilter').addEventListener('input', function () { recipePage = 1; renderRecipes(); });
+        document.getElementById('recipeSelAll').addEventListener('change', function () {
+            const boxes = document.querySelectorAll('#recipeList .recipeChk');
+            boxes.forEach(c => { c.checked = this.checked; this.checked ? recipeSelected.add(c.dataset.id) : recipeSelected.delete(c.dataset.id); });
+            recipeSelCount();
+        });
+        document.querySelector('#recipeList tbody').addEventListener('change', function (e) {
+            const cb = e.target.closest('input.recipeChk');
+            if (!cb) return;
+            cb.checked ? recipeSelected.add(cb.dataset.id) : recipeSelected.delete(cb.dataset.id);
+            recipeSelCount();
+        });
+        document.getElementById('tradeFilter').addEventListener('input', function () { tradePage = 1; renderTrade(); });
+        document.getElementById('playerSel').addEventListener('change', function () {
+            _playerSel = this.value;
+            localStorage.setItem('dn_playerSel', _playerSel);
+            renderPlayerInfo();
+        });
+        document.getElementById('trCat').addEventListener('change', function () {
+            _tradeCat = this.value;
+            localStorage.setItem('dn_tradeCat', _tradeCat);
+        });
         document.getElementById('sCurrency').addEventListener('change', renderCurrencyParams);
 
         // ============================================================

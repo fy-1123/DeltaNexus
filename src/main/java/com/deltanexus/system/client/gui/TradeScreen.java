@@ -375,7 +375,7 @@ public class TradeScreen extends Screen {
                 int color;
                 if (g.buyCode == 0) {
                     priceText = Component.translatable("gui.dn.trade.buy_price_short",
-                            FormatUtil.compact(g.buyPrice)).getString();
+                            FormatUtil.plain(g.buyPrice)).getString();
                     color = GOLD;
                 } else {
                     priceText = buyStateText(g);
@@ -436,13 +436,13 @@ public class TradeScreen extends Screen {
         long market = g.marketCode == 0 ? g.marketPrice : -1;
         infoRow(gg, lx, ly + rowH,
                 Component.translatable("gui.dn.trade.market_price").getString(),
-                market >= 0 ? FormatUtil.compact(market) : "—", TEXT_MAIN);
+                market >= 0 ? FormatUtil.plain(market) : "—", TEXT_MAIN);
         infoRow(gg, lx, ly + rowH * 2,
                 Component.translatable("gui.dn.trade.sell_price").getString(),
-                (g.sellCode == 0 ? FormatUtil.compact(g.sellPrice) : "—"), TEXT_GREEN);
+                (g.sellCode == 0 ? FormatUtil.plain(g.sellPrice) : "—"), TEXT_GREEN);
         infoRow(gg, lx, ly + rowH * 3,
                 Component.translatable("gui.dn.trade.buy_price").getString(),
-                (g.buyCode == 0 ? FormatUtil.compact(g.buyPrice)
+                (g.buyCode == 0 ? FormatUtil.plain(g.buyPrice)
                         : Component.translatable("gui.dn.trade.price_na").getString()), TEXT_RED);
         int noteY = ly + rowH * 4;
         if (g.unitCount > 1) {
@@ -482,7 +482,7 @@ public class TradeScreen extends Screen {
         int total = Math.max(1, qty);
         long unit = g.buyCode == 0 ? g.buyPrice : 0;
         String totalText = Component.translatable("gui.dn.trade.total_price",
-                FormatUtil.compact(unit * total)).getString();
+                FormatUtil.plain(unit * total)).getString();
         gg.drawString(font, trunc(totalText, buyR.x - (body.x + 24) - 10),
                 body.x + 24, buyR.y + 7, GOLD);
         boolean canBuy = g.buyCode == 0;

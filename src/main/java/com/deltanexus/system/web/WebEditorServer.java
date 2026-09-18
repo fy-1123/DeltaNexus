@@ -327,6 +327,8 @@ public final class WebEditorServer {
             case "/api/recipe/time" -> onServer(() -> recipeTime(body));
             case "/api/recipe/level" -> onServer(() -> recipeLevel(body));
             case "/api/recipe/parallel" -> onServer(() -> recipeParallel(body));
+            case "/api/recipe/copy" -> onServer(() -> recipeCopy(body));
+            case "/api/recipe/batch" -> onServer(() -> recipeBatch(body));
             case "/api/tree/add" -> onServer(() -> treeAdd(body));
             case "/api/tree/remove" -> onServer(() -> treeRemove(body));
             case "/api/tree/cost" -> onServer(() -> treeCost(body));
@@ -872,6 +874,86 @@ public final class WebEditorServer {
             return err(msg("msg.dn.recipe.not_found"));
         }
         return ok(msg("msg.dn.recipe.parallel_set", id, limit));
+    }
+
+    /** 复制配方为新 id（保留同工作台与全部字段，1.0.4 网页批编辑）。 */
+    private static JsonObject recipeCopy(JsonObject body) {
+        String id = str(body, "recipe_id");
+        String newId = str(body, "new_recipe_id");
+        if (newId.isBlank()) {
+            return err("新配方 id 不能为空");
+        }
+        RecipeCache cache = RecipeCache.get();
+        Recipe src = cache.get(id);
+        if (src == null) {
+            return err(msg("msg.dn.recipe.not_found", id));
+        }
+        newId = newId.trim().toLowerCase();
+        if (!newId.matches("[a-z0-9_\\-.]+")) {
+            return err("配方 id 只能含小写字母/数字/下划线/连字符/点: " + newId);
+        }
+        if (cache.get(newId) != null) {
+            return err("配方 id 已存在: " + newId);
+        }
+        Recipe copy = new Recipe();
+        copy.type = src.type;
+        copy.recipeId = newId;
+        copy.displayName = src.displayName;
+        copy.requiredLevel = src.requiredLevel;
+        copy.baseDuration = src.baseDuration;
+        copy.maxParallel = src.maxParallel;
+        for (Recipe.Ingredient ing : src.input) {
+            Recipe.Ingredient c = new Recipe.Ingredient();
+            c.item = ing.item;
+            c.count = ing.count;
+            c.matchType = ing.matchType;
+            c.nbt = ing.nbt;
+            copy.input.add(c);
+        }
+        for (Recipe.Output o : src.output) {
+            Recipe.Output c = new Recipe.Output();
+            c.item = o.item;
+            c.count = o.count;
+            c.nbt = o.nbt;
+            copy.output.add(c);
+        }
+        cache.saveSingleRecipe(copy);
+        return ok("已复制配方 " + id + " → " + newId);
+    }
+
+    /** 批量改参数（耗时/等级），一次落盘并重载。 */
+    private static JsonObject recipeBatch(JsonObject body) {
+        JsonArray ids = body.has("ids") ? body.getAsJsonArray("ids") : null;
+        if (ids == null || ids.size() == 0) {
+            return err("未选择任何配方");
+        }
+        boolean hasTime = body.has("seconds") && !body.get("seconds").isJsonNull() && body.get("seconds").getAsLong() >= 1;
+        boolean hasLevel = body.has("level") && !body.get("level").isJsonNull() && body.get("level").getAsInt() >= 0;
+        if (!hasTime && !hasLevel) {
+            return err("请至少填写耗时或等级一项");
+        }
+        long seconds = hasTime ? body.get("seconds").getAsLong() : -1;
+        int level = hasLevel ? body.get("level").getAsInt() : -1;
+        RecipeCache cache = RecipeCache.get();
+        int n = 0;
+        for (JsonElement e : ids) {
+            Recipe r = cache.get(e.getAsString());
+            if (r == null) {
+                continue;
+            }
+            if (hasTime) {
+                r.baseDuration = Math.max(1, seconds);
+            }
+            if (hasLevel) {
+                r.requiredLevel = Math.max(0, level);
+            }
+            cache.saveSingleRecipe(r);
+            n++;
+        }
+        if (n == 0) {
+            return err("没有有效的配方可更新");
+        }
+        return ok("已批量更新 " + n + " 个配方");
     }
 
     private static JsonObject treeAdd(JsonObject body) {
