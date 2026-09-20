@@ -1,6 +1,6 @@
 # 三角联结（DeltaNexus）交接文档
 
-  版本：0.4.1Beta（Forge 1.20.1 / Minecraft 1.20.1，兼容 Mohist 混合服务端
+  版本：0.4.2Beta（Forge 1.20.1 / Minecraft 1.20.1，兼容 Mohist 混合服务端
   模组 ID：`deltanexus`｜显示名：三角联结｜指令：`/dn`｜日志前缀：`[DN]`｜许可：**MIT**（见根目录 `LICENSE`）
 
 ---
@@ -59,7 +59,7 @@
 | Gradle | 8.8（wrapper），ForgeGradle 6.x |
 | 兼容目标 | Mohist 混合服务端（Vault/PlayerPoints 经 Bukkit API 反射访问） |
 
-构建：`gradlew.bat build` → 产物 `build/libs/deltanexus-0.4.1Beta.jar`
+构建：`gradlew.bat build` → 产物 `build/libs/deltanexus-0.4.2Beta.jar`
 
 ---
 
@@ -332,7 +332,7 @@ help                                  指令总览（/dn <指令  help 查看详
 ```bat
 cd D:\Work\java\DeltaNexus
 gradlew.bat build
-:: 产物：build/libs/deltanexus-0.4.1Beta.jar → 放入服务器/客户端 mods/
+::::: 产物：build/libs/deltanexus-0.4.2Beta.jar → 放入服务器/客户端 mods/
 ```
 
 开发运行：`gradlew.bat runClient` / `runServer`（工作目录 `run/`）。

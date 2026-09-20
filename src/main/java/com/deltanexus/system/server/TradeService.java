@@ -107,6 +107,7 @@ public final class TradeService {
     public static SyncTradeCatalogPacket buildCatalog() {
         TradeConfig cfg = TradeConfig.get();
         String feedJson = buildFeedJson();
+        long feedFp = feedFingerprint(feedJson);
         long now = System.currentTimeMillis();
 
         List<SyncTradeCatalogPacket.Category> categories = new ArrayList<>();
@@ -125,7 +126,7 @@ public final class TradeService {
             long sellPrice = -1;
             int sellCode = PRICE_NONE;
             if (listed && g.sell != null && g.sell.isValid()) {
-                Eval r = evalPrice(g, "sell", 1, feedJson);
+                Eval r = evalPrice(g, "sell", 1, feedJson, feedFp);
                 if (r.ok) {
                     sellPrice = r.price;
                     sellCode = BUY_OK;
@@ -134,7 +135,7 @@ public final class TradeService {
             long marketPrice = -1;
             int marketCode = PRICE_NONE;
             if (listed && g.market != null && g.market.isValid()) {
-                Eval r = evalPrice(g, "market", 1, feedJson);
+                Eval r = evalPrice(g, "market", 1, feedJson, feedFp);
                 if (r.ok) {
                     marketPrice = r.price;
                     marketCode = BUY_OK;
@@ -154,7 +155,7 @@ public final class TradeService {
                 } else if (limit <= 0) {
                     buyCode = BUY_LOW_STOCK;
                 } else {
-                    Eval r = evalPrice(g, "buy", 1, feedJson);
+                    Eval r = evalPrice(g, "buy", 1, feedJson, feedFp);
                     if (r.ok) {
                         buyCode = BUY_OK;
                         buyPrice = r.price;
@@ -218,7 +219,8 @@ public final class TradeService {
 
         // 求价（按本次数量做单价求值；支持按量计价公式）
         String feedJson = buildFeedJson();
-        Eval r = evalPrice(g, "buy", qty, feedJson);
+        long feedFp = feedFingerprint(feedJson);
+        Eval r = evalPrice(g, "buy", qty, feedJson, feedFp);
         if (!r.ok) {
             DeltaNexus.LOGGER.warn("[DN] 交易行买入被拒 {}：商品 {} ({}) 定价不可用: {}",
                     player.getGameProfile().getName(), goodId, r.error);
@@ -378,6 +380,7 @@ public final class TradeService {
             return;
         }
         String feedJson = buildFeedJson();
+        long feedFp = feedFingerprint(feedJson);
         List<TradeGood> goods = TradeConfig.get().goodsSnapshot();
 
         List<SellPlan> plans = new ArrayList<>();
@@ -408,7 +411,7 @@ public final class TradeService {
                 bump(skipReasons, "回收已满");
                 continue;
             }
-            Eval r = evalPrice(g, "sell", qty, feedJson);
+            Eval r = evalPrice(g, "sell", qty, feedJson, feedFp);
             if (!r.ok) {
                 bump(skipReasons, "价格不可用");
                 continue;
@@ -416,7 +419,7 @@ public final class TradeService {
             // 套利保护：卖出价 ≥ 买入价
             String guard = TradeConfig.get().settings().sellSpreadGuard;
             if (!"off".equals(guard) && g.buyable && g.buy != null && g.buy.isValid()) {
-                Eval buyUnit = evalPrice(g, "buy", 1, feedJson);
+                Eval buyUnit = evalPrice(g, "buy", 1, feedJson, feedFp);
                 if (buyUnit.ok && r.price >= buyUnit.price) {
                     if ("block".equals(guard)) {
                         bump(skipReasons, "价差保护");
@@ -569,8 +572,13 @@ public final class TradeService {
         }
     }
 
-    /** 单方向单价求值（结果已乘全局倍率并 floor；失败 ok=false）。 */
-    private static Eval evalPrice(TradeGood g, String direction, int qty, @Nullable String feedJson) {
+    /** 单方向单价求值（结果已乘全局倍率并 floor；失败 ok=false）。feedFp = feedJson 的指纹。 */
+    private static Eval evalPrice(TradeGood g, String direction, int qty, @Nullable String feedJson, long feedFp) {
+        // feed 快照变化：旧求值结果整体失效（key 含 stock/qty/时间，其余由 policy 身份守卫）
+        if (feedFp != lastFeedFp) {
+            PRICE_CACHE.clear();
+            lastFeedFp = feedFp;
+        }
         PricePolicy policy = switch (direction) {
             case "sell" -> g.sell;
             case "market" -> g.market;
@@ -580,6 +588,18 @@ public final class TradeService {
             return new Eval(false, -1, "missing policy");
         }
         int stock = TradeStockStore.get(g.id);
+        java.time.ZonedDateTime now = java.time.ZonedDateTime.now();
+        int hour = now.getHour();
+        int weekday = now.getDayOfWeek().getValue();
+        int day = now.getDayOfMonth();
+
+        // 内容寻址缓存：命中即与"即时重算"等价（FIXED 模式极廉价，不走缓存）
+        PriceKey key = new PriceKey(g.id, direction, stock, qty, hour, weekday, day);
+        CachedPrice hit = PRICE_CACHE.get(key);
+        if (hit != null && hit.policy == policy) {
+            return hit.ok ? new Eval(true, hit.price, null) : new Eval(false, -1, hit.error);
+        }
+
         PriceEngine.Input in = new PriceEngine.Input();
         in.goodId = g.id;
         in.displayName = g.displayName();
@@ -589,34 +609,53 @@ public final class TradeService {
         in.unitCount = g.spec.unitCount;
         in.qty = qty;
         in.direction = direction;
-        java.time.ZonedDateTime now = java.time.ZonedDateTime.now();
-        in.hour = now.getHour();
-        in.weekday = now.getDayOfWeek().getValue();
-        in.day = now.getDayOfMonth();
+        in.hour = hour;
+        in.weekday = weekday;
+        in.day = day;
 
         try {
             double raw = PriceEngine.eval(policy, in, feedJson, TradeConfig.get().settings().evalTimeoutMs);
             if (!Double.isFinite(raw) || raw < 1.0) {
-                return new Eval(false, -1, "non-positive or non-finite: " + raw);
+                return cacheAndEval(key, new CachedPrice(policy, false, -1, "non-positive or non-finite: " + raw));
             }
             double mult = TradeConfig.get().settings().multiplier;
             long price = (long) Math.floor(raw * (mult > 0 ? mult : 1.0));
             if (price < 1) {
-                return new Eval(false, -1, "below 1 after multiplier");
+                return cacheAndEval(key, new CachedPrice(policy, false, -1, "below 1 after multiplier"));
             }
-            return new Eval(true, price, null);
+            return cacheAndEval(key, new CachedPrice(policy, true, price, null));
         } catch (PriceEngine.EvalException e) {
-            return new Eval(false, -1, e.getMessage());
+            return cacheAndEval(key, new CachedPrice(policy, false, -1, e.getMessage()));
         }
     }
 
+    /** 有界写入缓存并返回对应 Eval（结果只在缓存未超限时入缓存，绝不替换已有条目导致无限膨胀）。 */
+    private static Eval cacheAndEval(PriceKey key, CachedPrice c) {
+        if (PRICE_CACHE.size() < PRICE_CACHE_MAX) {
+            PRICE_CACHE.put(key, c);
+        }
+        return c.ok ? new Eval(true, c.price, null) : new Eval(false, -1, c.error);
+    }
+
     /** 汇聚全部外部源快照并序列化为 JS ctx.feeds 字面量。 */
+    /** feed 快照记忆化 TTL：窗口内多次打开/成交不重复抓网、不改指纹，价格缓存才能命中。 */
+    private static final long FEED_TTL_MS = 3000L;
+    private static volatile long feedBuiltAt = Long.MIN_VALUE;
+    private static volatile String feedCacheJson = null;
+
     private static String buildFeedJson() {
+        long now = System.currentTimeMillis();
+        if (now - feedBuiltAt < FEED_TTL_MS && feedCacheJson != null) {
+            return feedCacheJson;
+        }
         List<FeedSnapshot> snaps = new ArrayList<>();
         for (MarketFeed feed : TradeFeedRegistry.all()) {
             snaps.add(feed.snapshot());
         }
-        return PriceEngine.buildFeedsJson(snaps);
+        String json = PriceEngine.buildFeedsJson(snaps);
+        feedCacheJson = json;
+        feedBuiltAt = now;
+        return json;
     }
 
     // ------------------------------------------------------------------
@@ -625,6 +664,49 @@ public final class TradeService {
 
     private static final Map<String, Long> LAST_REFRESH = new ConcurrentHashMap<>();
     private static long lastTick = 0;
+
+    // ------------------------------------------------------------------
+    // 价格求值缓存（内容寻址；商品多 + 重复打开/成交后重发目录时避免重复跑 JS）
+    // ------------------------------------------------------------------
+    // key 捕获全部求值输入（stock/qty/时分日 + 方向）；policy 身份守卫配置热重载；
+    // feed 内容变化用全局指纹整表失效。命中即与"即时重算"完全等价，无过期风险。
+    private static final java.util.Map<PriceKey, CachedPrice> PRICE_CACHE = new ConcurrentHashMap<>();
+    private static final int PRICE_CACHE_MAX = 200_000;
+    /** 上次参与求值的 feed 指纹（变化则整体失效缓存）。 */
+    private static volatile long lastFeedFp = Long.MIN_VALUE;
+
+    /** 价格求值缓存键（不含 feed——feed 用全局指纹统一失效；不含配置——policy 身份守卫）。 */
+    private static record PriceKey(String goodId, String direction, int stock, int qty,
+                                   int hour, int weekday, int day) {
+    }
+
+    private static final class CachedPrice {
+        /** 求值所用策略实例：配置热重载后同一 good 的策略为不同实例，据此判失效。 */
+        final PricePolicy policy;
+        final boolean ok;
+        final long price;
+        final String error;
+
+        CachedPrice(PricePolicy policy, boolean ok, long price, String error) {
+            this.policy = policy;
+            this.ok = ok;
+            this.price = price;
+            this.error = error;
+        }
+    }
+
+    /** FNV-1a 64：用廉价强指纹识别 feed 快照是否变化（一次构建只算一次）。 */
+    private static long feedFingerprint(String s) {
+        if (s == null) {
+            return 0L;
+        }
+        long h = 0xcbf29ce484222325L;
+        for (int i = 0; i < s.length(); i++) {
+            h ^= s.charAt(i);
+            h *= 0x100000001b3L;
+        }
+        return h;
+    }
 
     /** 服务器停止：把防反跳中的库存/定义立即刷盘（避免关服瞬间丢库存）。 */
     @SubscribeEvent

@@ -206,7 +206,7 @@ public final class CommandDN {
                         .requires(s -> s.hasPermission(2))
                         .then(Commands.literal("help").executes(ctx -> helpWarehouse(ctx.getSource())))
                         .then(Commands.literal("rows")
-                                .then(Commands.argument("rows", com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 64))
+                                .then(Commands.argument("rows", com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, com.deltanexus.system.config.ModConfig.WAREHOUSE_ROWS_MAX))
                                         .executes(ctx -> whRows(ctx.getSource(),
                                                 com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "rows")))))
                         .then(Commands.literal("slots")

@@ -781,9 +781,9 @@ public final class ManufacturingService {
             msg(player, "msg.dn.task.no_materials");
             return;
         }
-        // 新任务耗时 = 配方 base_duration x 配置倍率（配置热加载，只影响新任务）
+        // 新任务耗时 = 配方 base_duration ÷ 配置倍率（速度倍率：越大越快；配置热加载，只影响新任务）
         double mult = ModConfig.timeMultiplier();
-        long durationMs = Math.max(1000L, (long) (recipe.baseDurationMs() * mult));
+        long durationMs = Math.max(1000L, (long) (recipe.baseDurationMs() / mult));
 
         Task task = new Task(data.nextTaskId(), recipeId, System.currentTimeMillis(), durationMs, TaskStatus.WAITING);
         deque.addLast(task);

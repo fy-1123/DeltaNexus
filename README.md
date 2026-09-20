@@ -1,7 +1,7 @@
 # 三角联结（DeltaNexus）
 
 Minecraft 1.20.1 / Forge 47.4.x 的「制造 + 仓库」整合 Mod（缩写 `dn`，兼容 Mohist 混合服务端）。
-版本 `0.4.1Beta`；模组 ID `deltanexus`。
+版本 `0.4.2Beta`；模组 ID `deltanexus`。
 中文名 **三角联结**、指令前缀 `/dn`、控制台日志前缀 `[DN]`、配置目录 `config/deltanexus/`。
 
 > 核心设计哲学：**配置热加载（不停机修改）、时间戳驱动（零 Tick 依赖）、增量网络包（省流量）**。
@@ -343,7 +343,7 @@ grid/
 gradlew build
 ```
 
-产物：`build/libs/deltanexus-0.4.1Beta.jar`
+产物：`build/libs/deltanexus-0.4.2Beta.jar`
 
 编译元数据（`gradle.properties` 的 `mod_license`）与模组列表展示的许可均为 **MIT**。
 
@@ -401,7 +401,8 @@ gradlew build
   渲染跳过隐藏槽并按容器维度去重、旋转标记改 `deltanexus.grid.rotated`（兼容旧键）；新增 7 个内核 GameTest。
 - 0.4.0Beta：**刷兵系统**（零活动设计，仅供 `/dn spawner run` 按需刷一次）、`/dn spawner` 指令树（setup 向导）、
   配置分层（全球层 global.json/logging.json + 世界层 spawners.json/pointgroups.json）热加载。
-- 0.4.1Beta（当前）：**Web 编辑器可用性大改**——记住上次页签 + `Ctrl+K` 全局搜索、配方/交易列表分页与密度列、
+- 0.4.2Beta（当前）：**工作量台倍率改为速度倍率、Web 编辑器全面重写与侧边栏导航、交易行价格求值优化与仓库行数上限 256**。
+- 0.4.1Beta：**Web 编辑器可用性大改**——记住上次页签 + `Ctrl+K` 全局搜索、配方/交易列表分页与密度列、
   配方批量改参（`/api/recipe/batch`）与一键复制（`/api/recipe/copy`）、「下载配置」全量 JSON 备份；修复 `recipeBatch` NPE 等；回归代码审查与文档更正。
 
 > ### ⚠️ 版本号记录事故警示（必读）

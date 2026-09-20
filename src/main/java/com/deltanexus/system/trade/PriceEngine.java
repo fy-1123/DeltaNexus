@@ -7,6 +7,7 @@ import com.deltanexus.libs.mozilla.javascript.ContextFactory;
 import com.deltanexus.libs.mozilla.javascript.Scriptable;
 
 import javax.annotation.Nullable;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -134,15 +135,18 @@ public final class PriceEngine {
         if (policy.mode == PricePolicy.Mode.FIXED) {
             return policy.value;
         }
-        String source = buildSource(policy, in, feedJson);
+        String source = buildSource(policy, in);
         Budget budget = new Budget();
         budget.deadlineNanos = System.nanoTime() + Math.max(1, timeoutMs) * 1_000_000L;
         Context cx = null;
         try {
             cx = Context.enter();
             BUDGET.set(budget);
+            // 预制备的 feeds（按 feed 内容寻址，本线程内复用）：较大 feed 只解析+包装一次。
+            // 每个 eval 仍用全新 initStandardObjects scope（与原点完全一致的全局隔离），
+            // 仅把已就绪的 __dnFeeds 注入其中，故每次 eval 只执行 buildSource 生成的小片段。
+            Scriptable feeds = preparedFeeds(cx, feedJson);
             Scriptable scope = cx.initStandardObjects();
-            // 移除脚本可触及的 Java 顶层对象（纵深防御；ClassShutter 已全拒）
             for (String name : new String[]{"Packages", "java", "javax", "org", "com", "getClass"}) {
                 try {
                     scope.delete(name);
@@ -150,6 +154,7 @@ public final class PriceEngine {
                     // 部分对象可能为不可删属性，忽略
                 }
             }
+            scope.put("__dnFeeds", scope, feeds);
             Object result = cx.evaluateString(scope, source, "<trade-price>", 1, null);
             return Context.toNumber(result);
         } catch (EvalTimeout t) {
@@ -168,8 +173,54 @@ public final class PriceEngine {
     // 源码构建
     // ------------------------------------------------------------------
 
-    private static String buildSource(PricePolicy policy, Input in, @Nullable String feedJson) throws EvalException {
-        StringBuilder sb = new StringBuilder(256 + (feedJson == null ? 0 : feedJson.length()));
+    // ------------------------------------------------------------------
+    // 预制备 feed 对象（大 feed 只解析一次并复用；其余 eval 只跑小片段）
+    // ------------------------------------------------------------------
+
+    /**
+     * 预制备的 feeds：按 feed 内容寻址（指纹），每线程一份。
+     * 仅做一次真实 JSON 解析（把文本构造成 JS 对象），之后每次 eval 复用同一个 Scriptable，
+     * 不再对整份大 feed 重复解析。
+     *
+     * <p>线程安全：使用 ThreadLocal，每线程各自持有并构建自己的对象，天然隔离、无需加锁；
+     * 单线程内顺序调用复用同一个对象（原子性由本线程串行保证）。</p>
+     */
+    private static final ThreadLocal<Map<Long, Scriptable>> PREPARED_FEEDS = new ThreadLocal<>();
+
+    /** 取（必要时构建）与 feedJson 匹配的预制备 feeds 对象。构建需在已进入的 Context 中进行。 */
+    private static Scriptable preparedFeeds(Context cx, @Nullable String feedJson) {
+        long fp = feedFingerprint(feedJson);
+        Map<Long, Scriptable> map = PREPARED_FEEDS.get();
+        if (map == null) {
+            map = new HashMap<>();
+            PREPARED_FEEDS.set(map);
+        }
+        Scriptable cached = map.get(fp);
+        if (cached != null) {
+            return cached;
+        }
+        Scriptable feeds = buildPreparedFeeds(cx, feedJson);
+        map.put(fp, feeds);
+        return feeds;
+    }
+
+    /** 构造预制备 feeds 对象：只做一次大 JSON 的解析，构造出 feeds 对象本身。 */
+    private static Scriptable buildPreparedFeeds(Context cx, @Nullable String feedJson) {
+        Scriptable scope = cx.initStandardObjects();
+        for (String name : new String[]{"Packages", "java", "javax", "org", "com", "getClass"}) {
+            try {
+                scope.delete(name);
+            } catch (Exception ignored) {
+                // 部分对象可能为不可删属性，忽略
+            }
+        }
+        String src = "__dnFeeds = (" + (feedJson == null ? "{}" : feedJson) + ") || {};\n__dnFeeds;";
+        Object v = cx.evaluateString(scope, src, "<dn-feed-prep>", 1, null);
+        return (Scriptable) v;
+    }
+
+    private static String buildSource(PricePolicy policy, Input in) throws EvalException {
+        StringBuilder sb = new StringBuilder(256);
         sb.append("var ctx = {");
         sb.append("good:{id:").append(jsQuote(in.goodId))
                 .append(",displayName:").append(jsQuote(in.displayName))
@@ -182,10 +233,11 @@ public final class PriceEngine {
         sb.append("direction:").append(jsQuote(in.direction)).append(',');
         sb.append("time:{hour:").append(in.hour).append(",weekday:").append(in.weekday)
                 .append(",day:").append(in.day).append("},");
-        sb.append("feeds:").append(feedJson == null ? "{}" : feedJson);
+        // feeds 引用预制备对象（__dnFeeds 已在 eval 阶段注入当前 scope）
+        sb.append("feeds:__dnFeeds");
         sb.append("};\n");
 
-        // 预置函数与 feed 包装
+        // 预置函数与 feed 包装（与原实现完全一致的逻辑）
         sb.append(PRELUDE);
 
         String expr = switch (policy.mode) {
@@ -199,7 +251,7 @@ public final class PriceEngine {
         return sb.toString();
     }
 
-    /** JS 预置：clamp helper + ctx.feed() 包装（每行引用式包装，成本低）。 */
+    /** JS 预置：clamp helper + ctx.feed() 包装（与原来完全一致；等价性由同构源码保证）。 */
     private static final String PRELUDE = """
             function clamp(x, lo, hi){ return Math.min(Math.max(x, lo), hi); }
             (function(){
@@ -235,6 +287,19 @@ public final class PriceEngine {
               ctx.hasFeed = function(name){ return feeds.hasOwnProperty(name); };
             })();
             """;
+
+    /** feed 指纹（FNV-1a 64，与 TradeService 一致；null→0）。 */
+    private static long feedFingerprint(@Nullable String feedJson) {
+        if (feedJson == null) {
+            return 0L;
+        }
+        long h = 0xcbf29ce484222325L;
+        for (int i = 0; i < feedJson.length(); i++) {
+            h ^= feedJson.charAt(i);
+            h *= 0x100000001b3L;
+        }
+        return h;
+    }
 
     /** 将若干 FeedSnapshot 预序列化为 JS 对象字面量（批量求值可复用）。 */
     public static String buildFeedsJson(List<FeedSnapshot> feeds) {

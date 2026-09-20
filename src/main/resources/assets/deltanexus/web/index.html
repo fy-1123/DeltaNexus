@@ -3,486 +3,903 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>三角联结 · 网页编辑器</title>
+    <title>三角联结 · 配置后台</title>
     <style>
-        /* ===== 全局 ===== */
+        /* ===== 设计令牌（深色 · 单一主强调色） ===== */
         :root {
             color-scheme: dark;
+            --bg-base: #0d1017;          /* 页面底层 */
+            --bg-surface: #141922;       /* 面板 / 分组面 */
+            --bg-subtle: #1a2130;        /* 次级面板 / 表头 / 虚线框 */
+            --bg-hover: #212a3c;         /* 行 / 悬浮 */
+            --bg-input: #10151e;         /* 输入框底 */
+            --border: #262e3f;           /* 常规分隔线 */
+            --border-strong: #3a4560;    /* 强调边框 */
+            --text: #e7ebf3;             /* 正文 */
+            --text-2nd: #9aa4bb;         /* 次要 */
+            --text-muted: #6d788e;       /* 弱化 */
+            --accent: #7b93ff;           /* 唯一主强调色 */
+            --accent-strong: #a3b4ff;
+            --accent-soft: rgba(123, 147, 255, .16);
+            --accent-border: rgba(123, 147, 255, .45);
+            --success: #3ccf8f;
+            --warn: #f0b04b;
+            --danger: #f0656b;
+            --info: #4fc3ec;
+            --radius: 10px;
+            --radius-sm: 8px;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, .28);
+            --shadow-md: 0 10px 28px rgba(0, 0, 0, .42);
+            --font-stack: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+            --mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
         }
         * {
             box-sizing: border-box;
         }
+        html,
+        body {
+            height: 100%;
+        }
         body {
             margin: 0;
-            background: #0f1017;
-            color: #e6e6f0;
-            font: 14px/1.5 "Microsoft YaHei", system-ui, sans-serif;
+            background: var(--bg-base);
+            color: var(--text);
+            font: 14px/1.55 var(--font-stack);
+            -webkit-font-smoothing: antialiased;
+        }
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-strong);
+            border-radius: 8px;
+            border: 2px solid var(--bg-base);
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4a5673;
         }
 
-        /* ===== Header + 导航栏 ===== */
+        /* ===== 布局骨架：左固定侧边栏 + 右侧主列 ===== */
+        .main-col {
+            margin-left: 232px;
+            min-height: 100vh;
+        }
+
+        /* ===== Header ===== */
         .app-header {
-            background: #1a1c28;
-            border-bottom: 2px solid #3a3a4a;
             position: sticky;
             top: 0;
-            z-index: 10;
-            padding: 8px 18px 0 18px;
+            z-index: 30;
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
         }
         .header-top {
             display: flex;
             align-items: center;
-            gap: 14px;
+            gap: 20px;
             flex-wrap: wrap;
-            padding-bottom: 8px;
+            padding: 16px 24px 14px;
         }
-        .header-top h1 {
-            font-size: 18px;
-            margin: 0;
-            color: #ffaa33;
+        .brand {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 168px;
+        }
+        .brand-title {
+            font-size: 16px;
+            font-weight: 650;
+            letter-spacing: .2px;
+            color: var(--text);
+        }
+        .brand-title .ver {
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+        .brand-sub {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+        .token-area {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1 1 300px;
+        }
+        .token-area label {
+            font-size: 12px;
+            color: var(--text-2nd);
             white-space: nowrap;
         }
-        .header-top .ver {
-            color: #777;
-            font-size: 12px;
-            margin-left: -6px;
-        }
-        .header-top .token-area {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            flex: 1 1 280px;
-        }
-        .header-top .token-area input {
-            background: #24263a;
-            border: 1px solid #3a3a4a;
-            color: #eee;
-            padding: 5px 8px;
-            border-radius: 4px;
+        .token-area input {
             flex: 1;
-            min-width: 120px;
-        }
-        .header-top .actions {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            flex-wrap: wrap;
-        }
-
-        /* ===== 导航栏 ===== */
-        .nav-bar {
-            display: flex;
-            gap: 2px;
-            flex-wrap: wrap;
-            padding: 4px 0 0 0;
-            border-top: 1px solid #2a2c3a;
-            margin-top: 2px;
-        }
-        .nav-bar .nav-item {
-            padding: 8px 18px 10px 18px;
-            cursor: pointer;
-            color: #9aa0b5;
-            font-size: 14px;
-            border-radius: 6px 6px 0 0;
-            transition: background 0.15s, color 0.15s;
-            user-select: none;
-            border-bottom: 3px solid transparent;
-            font-weight: 500;
-            letter-spacing: 0.3px;
-        }
-        .nav-bar .nav-item:hover {
-            background: #24263a;
-            color: #d0d8ee;
-        }
-        .nav-bar .nav-item.active {
-            color: #ffaa33;
-            border-bottom-color: #ffaa33;
-            background: #161824;
-        }
-        .nav-bar .nav-item .icon {
-            margin-right: 6px;
+            min-width: 150px;
         }
 
         /* ===== 全局搜索 ===== */
-        .header-top .global-search {
+        .global-search {
             position: relative;
+            display: flex;
             flex: 1 1 260px;
-            min-width: 220px;
             max-width: 420px;
+            min-width: 220px;
         }
-        .header-top .global-search input {
+        .global-search input {
             width: 100%;
         }
         .gl-suggest {
             position: absolute;
-            top: calc(100% + 4px);
+            top: calc(100% + 6px);
             left: 0;
             right: 0;
-            z-index: 50;
-            background: #1b1d2b;
-            border: 1px solid #3a3a4a;
-            border-radius: 6px;
-            max-height: 300px;
+            z-index: 60;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-md);
+            max-height: 320px;
             overflow-y: auto;
-            box-shadow: 0 6px 16px rgba(0,0,0,.4);
         }
-        .gl-suggest .gl-item {
-            display: block;
+        .gl-item {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
             width: 100%;
             text-align: left;
-            padding: 6px 10px;
-            cursor: pointer;
+            padding: 9px 14px;
             background: none;
             border: none;
-            color: #e0e6f5;
+            color: var(--text);
+            cursor: pointer;
+            font-size: 13px;
         }
-        .gl-suggest .gl-item:hover,
-        .gl-suggest .gl-item.active {
-            background: #2a2d42;
+        .gl-item:hover,
+        .gl-item.active {
+            background: var(--bg-hover);
         }
-        .gl-suggest .gl-item .gl-label {
-            font-weight: 500;
+        .gl-item .gl-label {
+            font-weight: 600;
         }
-        .gl-suggest .gl-item .gl-sub {
-            color: #9aa0b5;
+        .gl-item .gl-sub {
+            color: var(--text-2nd);
             font-size: 12px;
-            margin-left: 8px;
         }
         .gl-empty {
-            padding: 8px 10px;
-            color: #9aa0b5;
+            padding: 12px 14px;
+            color: var(--text-muted);
+            font-size: 13px;
         }
-        .pager {
-            margin-top: 6px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .batch-bar {
+
+        .actions {
             display: flex;
             align-items: center;
             gap: 8px;
             flex-wrap: wrap;
-            font-size: 13px;
-            margin-bottom: 6px;
-            padding: 5px 8px;
-            background: #1d2030;
-            border-radius: 6px;
-            border: 1px solid #2a2c3a;
-        }
-        .batch-bar .sep {
-            color: #3a3d52;
-            margin: 0 2px;
         }
 
-        /* 行定位高亮 */
-        @keyframes hl-flash {
-            0% { background: #ffaa3344; }
-            100% { background: transparent; }
+        /* ===== 左侧固定侧边栏 + 竖排导航 ===== */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 232px;
+            height: 100vh;
+            overflow-y: auto;
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            padding: 14px 10px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            z-index: 30;
         }
-        tr.hl-flash td {
-            animation: hl-flash 1.6s ease;
+        .sidebar-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 4px 10px 14px;
+            margin-bottom: 6px;
+            border-bottom: 1px solid var(--border);
+        }
+        .sidebar-brand .logo {
+            display: grid;
+            place-items: center;
+            width: 27px;
+            height: 27px;
+            border-radius: 7px;
+            background: var(--accent);
+            color: var(--bg-base);
+            font-weight: 800;
+            font-size: 15px;
+            flex: none;
+        }
+        .sidebar-brand .bname {
+            font-size: 14px;
+            font-weight: 650;
+            letter-spacing: .2px;
+            color: var(--text);
+            line-height: 1.2;
+        }
+        .sidebar-brand .bsub {
+            font-size: 10px;
+            color: var(--text-muted);
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+        .nav-bar {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .nav-bar .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            border-radius: 7px;
+            color: var(--text-2nd);
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+            font-size: 13.5px;
+            font-weight: 500;
+            border-left: 3px solid transparent;
+            transition: color .15s, background .15s, border-color .15s;
+        }
+        .nav-bar .nav-item:hover {
+            color: var(--text);
+            background: var(--bg-hover);
+        }
+        .nav-bar .nav-item.active {
+            color: var(--accent-strong);
+            background: var(--accent-soft);
+            border-left-color: var(--accent);
+        }
+        .nav-bar .nav-item .icon {
+            font-size: 14px;
+            width: 20px;
+            text-align: center;
+            flex: none;
         }
 
         /* ===== 内容区域 ===== */
         .content-area {
-            max-width: 1100px;
-            margin: 16px auto 20px auto;
-            padding: 0 18px;
+            max-width: 1240px;
+            margin: 24px auto 48px;
+            padding: 0 24px;
         }
-        .content-area .section-panel {
+        .section-panel {
             display: none;
-            background: #161824;
-            border: 1px solid #2a2c3a;
-            border-radius: 8px;
-            padding: 14px 16px;
-            animation: fadeIn 0.2s ease;
+            animation: fadeIn .18s ease;
         }
-        .content-area .section-panel.active {
+        .section-panel.active {
             display: block;
         }
         @keyframes fadeIn {
-            0% {
-                opacity: 0.4;
+            from {
+                opacity: 0;
                 transform: translateY(4px);
             }
-            100% {
+            to {
                 opacity: 1;
-                transform: translateY(0);
+                transform: none;
             }
         }
+        .sec-head {
+            margin-bottom: 22px;
+        }
+        .sec-head h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 650;
+            letter-spacing: .2px;
+        }
+        .sec-desc {
+            margin: 6px 0 0;
+            color: var(--text-2nd);
+            font-size: 13px;
+            line-height: 1.6;
+            max-width: 780px;
+        }
 
-        .section-panel h2 {
-            margin: 0 0 12px 0;
-            font-size: 16px;
-            color: #88aaff;
-            border-bottom: 1px solid #2a2c3a;
-            padding-bottom: 8px;
+        /* ===== 字段 / 工具条 ===== */
+        .field {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 16px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .field:last-child {
+            border-bottom: 0;
+        }
+        .field-top {
+            flex: 1 1 auto;
+            min-width: 190px;
+        }
+        .field-name {
+            display: block;
+            font-size: 13.5px;
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+        .field-note {
+            display: block;
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+        .field-ctl {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            flex: 0 1 auto;
+        }
+        .toolbar-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 12px 14px;
+            margin-bottom: 16px;
+        }
+        .ctl-label {
+            font-size: 12px;
+            color: var(--text-2nd);
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .setup-group {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 18px;
+            margin-bottom: 16px;
+            background: var(--bg-surface);
+        }
+        .setup-group-title {
+            font-size: 13px;
+            font-weight: 650;
+            color: var(--text);
+            margin: 0 0 14px;
+        }
+        .tag-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            min-height: 28px;
+            margin-bottom: 12px;
+        }
+        .dim-sep {
+            color: var(--text-muted);
         }
 
         /* ===== 通用组件 ===== */
         .row {
             display: flex;
-            gap: 8px;
             align-items: center;
+            gap: 10px;
             flex-wrap: wrap;
-            margin: 6px 0;
+            margin: 8px 0;
         }
         .row label {
-            color: #9aa0b5;
-            min-width: 90px;
+            color: var(--text-2nd);
+            white-space: nowrap;
         }
-        input,
-        select {
-            background: #24263a;
-            border: 1px solid #3a3a4a;
-            color: #eee;
-            padding: 4px 8px;
-            border-radius: 4px;
-        }
-        input[type="number"] {
-            width: 90px;
-        }
-        input.wide {
-            width: 220px;
-        }
-        .btn {
-            background: #2c3a4a;
-            border: 1px solid #4a5a6a;
-            color: #eee;
-            padding: 5px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 13px;
-            transition: background 0.15s;
-        }
-        .btn:hover {
-            background: #3a4c60;
-        }
-        .btn.green {
-            background: #2c4a34;
-            border-color: #4a7a5a;
-        }
-        .btn.green:hover {
-            background: #3a5c44;
-        }
-        .btn.red {
-            background: #4a2c30;
-            border-color: #7a4a52;
-        }
-        .btn.red:hover {
-            background: #5c3a40;
-        }
-        .btn.orange {
-            background: #4a3a1e;
-            border-color: #7a6a3a;
-        }
-        .btn.orange:hover {
-            background: #5c4a2e;
-        }
-        .btn.blue {
-            background: #223a4a;
-            border-color: #3a6a7a;
-        }
-        .btn.blue:hover {
-            background: #2e4a5c;
-        }
-        .btn.small {
-            padding: 2px 10px;
-            font-size: 12px;
-        }
-
         .muted {
-            color: #777;
+            color: var(--text-muted);
             font-size: 12px;
         }
         .inline-form {
-            background: #1c1e2c;
-            border: 1px dashed #3a3a4a;
-            padding: 8px 10px;
-            border-radius: 6px;
-            margin: 6px 0;
+            background: var(--bg-subtle);
+            border: 1px dashed var(--border-strong);
+            padding: 12px;
+            border-radius: var(--radius-sm);
+            margin: 0 0 14px;
+        }
+
+        input,
+        select,
+        textarea {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 6px 10px;
+            border-radius: 7px;
+            font-size: 13px;
+            font-family: inherit;
+            min-height: 32px;
+            transition: border-color .14s, box-shadow .14s;
+        }
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-soft);
+        }
+        input:disabled,
+        select:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+        input[type="number"] {
+            width: 90px;
+            font-variant-numeric: tabular-nums;
+        }
+        input.wide {
+            width: 240px;
+        }
+        input[type="checkbox"],
+        input[type="radio"] {
+            accent-color: var(--accent);
+            width: auto;
+            height: auto;
+            min-height: auto;
+            margin: 0;
+            padding: 0;
+        }
+        select {
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a7b0c3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 9px center;
+            padding-right: 28px;
+            cursor: pointer;
+        }
+        textarea {
+            resize: vertical;
+            font-family: var(--mono);
+            line-height: 1.5;
+        }
+
+        /* ===== 按钮 ===== */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            background: var(--bg-subtle);
+            color: var(--text);
+            border: 1px solid var(--border-strong);
+            padding: 6px 13px;
+            border-radius: 7px;
+            font-size: 12.5px;
+            font-weight: 550;
+            line-height: 1;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background .14s, border-color .14s, color .14s, transform .04s, opacity .14s;
+        }
+        .btn:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent-border);
+            color: var(--accent-strong);
+        }
+        .btn:active {
+            transform: translateY(1px);
+        }
+        .btn:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 1px;
+        }
+        .btn:disabled,
+        .btn[disabled] {
+            opacity: .45;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        .btn.green {
+            background: rgba(60, 207, 143, .12);
+            border-color: rgba(60, 207, 143, .4);
+            color: #6fe0ae;
+        }
+        .btn.green:hover {
+            background: rgba(60, 207, 143, .22);
+            border-color: var(--success);
+            color: #9becc8;
+        }
+        .btn.red {
+            background: rgba(240, 101, 107, .12);
+            border-color: rgba(240, 101, 107, .4);
+            color: #f5a1a5;
+        }
+        .btn.red:hover {
+            background: rgba(240, 101, 107, .22);
+            border-color: var(--danger);
+            color: #fbc0c3;
+        }
+        .btn.orange {
+            background: rgba(240, 176, 75, .12);
+            border-color: rgba(240, 176, 75, .38);
+            color: #f2c37f;
+        }
+        .btn.orange:hover {
+            background: rgba(240, 176, 75, .22);
+            border-color: var(--warn);
+            color: #f8d9a6;
+        }
+        .btn.blue {
+            background: rgba(79, 195, 236, .12);
+            border-color: rgba(79, 195, 236, .4);
+            color: #8fd4f0;
+        }
+        .btn.blue:hover {
+            background: rgba(79, 195, 236, .22);
+            border-color: var(--info);
+            color: #bfe6f7;
+        }
+        .btn.small {
+            padding: 4px 9px;
+            font-size: 12px;
+        }
+
+        /* ===== 标签 chips ===== */
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--bg-subtle);
+            border: 1px solid var(--border);
+            border-radius: 99px;
+            padding: 3px 9px;
+            font-size: 12px;
+            color: var(--text-2nd);
+        }
+        .tag .btn {
+            padding: 1px 6px;
+        }
+        .tag-allow {
+            color: #6fe0ae;
+            font-weight: 600;
+        }
+        .tag-deny {
+            color: #f5a1a5;
+            font-weight: 600;
         }
 
         /* ===== 表格 ===== */
+        .table-scroll {
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--bg-surface);
+        }
+        .table-scroll table {
+            margin: 0;
+        }
         table {
-            border-collapse: collapse;
             width: 100%;
-            margin-top: 8px;
+            border-collapse: collapse;
+            font-size: 13px;
         }
         th,
         td {
-            border: 1px solid #2a2c3a;
-            padding: 4px 8px;
+            padding: 9px 12px;
             text-align: left;
-            font-size: 13px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
         }
         th {
-            background: #1c1e2c;
-            color: #9aa0b5;
-        }
-        td .btn {
-            padding: 2px 8px;
+            background: var(--bg-subtle);
+            color: var(--text-2nd);
+            font-weight: 600;
+            white-space: nowrap;
             font-size: 12px;
+            letter-spacing: .3px;
+        }
+        tbody tr:nth-child(even) {
+            background: rgba(255, 255, 255, .02);
+        }
+        tbody tr {
+            transition: background .12s;
+        }
+        tbody tr:hover {
+            background: var(--bg-hover);
+        }
+        td.num,
+        th.num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+        td.center,
+        th.center {
+            text-align: center;
+        }
+        input.recipeChk {
+            accent-color: var(--accent);
+        }
+
+        /* 批量/分页工具条 */
+        .batch-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            background: var(--bg-subtle);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 8px 12px;
+            margin-bottom: 12px;
+            font-size: 12.5px;
+        }
+        .batch-bar label {
+            color: var(--text-2nd);
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .batch-bar .sep {
+            color: var(--text-muted);
+        }
+        .pager {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 12px;
+            font-size: 12.5px;
+        }
+        .pager .btn {
+            padding: 5px 12px;
+        }
+
+        /* ===== 配方布局 ===== */
+        .recipe-layout {
+            display: grid;
+            grid-template-columns: minmax(380px, 5fr) minmax(330px, 4fr);
+            gap: 20px;
+            align-items: start;
+        }
+        #recipeDetail h3 {
+            font-size: 13px;
+            font-weight: 650;
+            color: var(--text);
+            margin: 18px 0 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border);
+        }
+        #recipeDetail .row {
+            margin: 6px 0;
+        }
+        #recipeDetail .inline-form {
+            padding: 8px 10px;
+        }
+
+        /* ===== 升级树卡片 ===== */
+        .tree-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 15px 16px;
+            margin-bottom: 12px;
+        }
+        .tree-card .row {
+            margin: 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .tree-card .row>b {
+            font-size: 13px;
+            min-width: 46px;
+            color: var(--accent-strong);
+        }
+        .tree-card .row label {
+            font-size: 12px;
+            color: var(--text-2nd);
+        }
+        .tree-card .row.muted span {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            padding: 3px 8px;
+            margin: 2px 4px 2px 0;
         }
 
         /* ===== 状态提示 ===== */
         #status {
             position: fixed;
-            right: 16px;
-            bottom: 16px;
-            background: #22263a;
-            border: 1px solid #4a5a7a;
-            padding: 8px 14px;
-            border-radius: 6px;
+            right: 18px;
+            bottom: 18px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-strong);
+            padding: 10px 26px 10px 14px;
+            border-radius: 9px;
             display: none;
-            max-width: 480px;
-            z-index: 20;
+            max-width: 460px;
+            z-index: 70;
             font-size: 13px;
+            box-shadow: var(--shadow-md);
         }
         #status.show {
             display: block;
+            animation: toastIn .18s ease;
+        }
+        @keyframes toastIn {
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
+            to {
+                opacity: 1;
+                transform: none;
+            }
         }
         #status.ok {
-            color: #88ff88;
-            border-color: #4a7a5a;
+            color: #6fe0ae;
+            border-color: var(--success);
+            background: rgba(60, 207, 143, .1);
         }
         #status.err {
-            color: #ff8888;
-            border-color: #7a4a52;
+            color: #f5a1a5;
+            border-color: var(--danger);
+            background: rgba(240, 101, 107, .1);
+        }
+
+        /* 行定位高亮 */
+        @keyframes hl-flash {
+            0% {
+                background: rgba(123, 147, 255, .42);
+            }
+            100% {
+                background: transparent;
+            }
+        }
+        tr.hl-flash td {
+            animation: hl-flash 1.5s ease;
+        }
+
+        /* ===== 交易编辑器 ===== */
+        .editor-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin: 16px 0;
+        }
+        .editor-card>h3 {
+            margin: 0 0 4px;
+            font-size: 16px;
+            font-weight: 650;
+        }
+        .editor-card .sec-note {
+            color: var(--text-muted);
+            font-size: 12px;
+            margin: 0 0 6px;
+        }
+        .editor-card h4 {
+            font-size: 13px;
+            font-weight: 650;
+            color: var(--text);
+            margin: 22px 0 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border);
+        }
+        .price-box {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            padding: 14px;
+            margin: 12px 0;
+        }
+        .price-title {
+            font-weight: 650;
+            font-size: 13px;
+            margin-bottom: 2px;
+        }
+        .price-note {
+            color: var(--text-muted);
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+        .price-modes {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        .price-modes label {
+            color: var(--text-2nd);
+            font-size: 12.5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
         }
 
         /* ===== 响应式 ===== */
+        @media (max-width: 980px) {
+            .recipe-layout {
+                grid-template-columns: 1fr;
+            }
+        }
         @media (max-width: 720px) {
+            /* 窄屏：侧边栏收起为顶部的水平抽屉，不破坏桌面端 */
+            .sidebar {
+                position: static;
+                width: auto;
+                height: auto;
+                overflow-x: auto;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                padding: 8px 10px;
+            }
+            .sidebar-brand {
+                display: none;
+            }
+            .nav-bar {
+                flex-direction: row;
+            }
+            .nav-bar .nav-item {
+                border-left: none;
+                border-bottom: 2px solid transparent;
+                border-radius: 0;
+            }
+            .nav-bar .nav-item.active {
+                border-left: none;
+                border-bottom-color: var(--accent);
+                background: none;
+            }
+            .main-col {
+                margin-left: 0;
+            }
             .header-top {
                 flex-direction: column;
                 align-items: stretch;
+                gap: 12px;
             }
-            .header-top .token-area {
+            .token-area {
                 flex: 1;
             }
-            .nav-bar .nav-item {
-                padding: 6px 12px 8px 12px;
-                font-size: 13px;
-            }
-            .row label {
-                min-width: 70px;
-            }
-            input.wide {
-                width: 140px;
+            .global-search {
+                max-width: none;
             }
             .content-area {
-                padding: 0 10px;
+                padding: 0 12px;
             }
-            .section-panel {
-                padding: 10px 12px;
+            .field {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
             }
         }
         @media (max-width: 480px) {
             .nav-bar .nav-item {
                 font-size: 12px;
-                padding: 4px 8px 6px 8px;
+                padding: 9px 10px;
             }
-            .nav-bar .nav-item .icon {
-                margin-right: 2px;
-            }
-            .header-top h1 {
-                font-size: 15px;
-            }
-        }
-
-        /* ===== 配方详情内联样式 ===== */
-        #recipeDetail h3 {
-            font-size: 13px;
-            color: #88aaff;
-            margin: 10px 0 4px;
-        }
-        #recipeDetail .row {
-            margin: 4px 0;
-        }
-        #recipeDetail .inline-form {
-            padding: 6px 8px;
-        }
-        #recipeDetail .inline-form .row {
-            margin: 2px 0;
-        }
-        .recipe-layout {
-            display: flex;
-            gap: 16px;
-            flex-wrap: wrap;
-        }
-        .recipe-layout .recipe-side {
-            flex: 0 0 38%;
-            min-width: 200px;
-        }
-        .recipe-layout .recipe-side table {
-            margin-top: 0;
-        }
-        .recipe-layout .recipe-side table td {
-            cursor: pointer;
-        }
-        .recipe-layout .recipe-side table td:hover {
-            background: #1c1e2c;
-        }
-        .recipe-layout .recipe-detail-side {
-            flex: 1;
-            min-width: 260px;
-        }
-
-        /* ===== 升级树卡片 ===== */
-        #treeList .tree-card,
-        #safeTreeList .tree-card {
-            background: #1c1e2c;
-            border: 1px solid #2a2c3a;
-            border-radius: 6px;
-            padding: 10px 12px;
-            margin-bottom: 10px;
-        }
-        #treeList .tree-card .row,
-        #safeTreeList .tree-card .row {
-            margin: 4px 0;
-        }
-        #treeList .tree-card .row .muted span,
-        #safeTreeList .tree-card .row .muted span {
-            display: inline-block;
-            background: #24263a;
-            padding: 2px 8px;
-            border-radius: 4px;
-            margin: 2px 4px 2px 0;
-            border: 1px solid #2a2c3a;
-        }
-        .tag-allow {
-            color: #88ff88;
-        }
-        .tag-deny {
-            color: #ff8888;
         }
     </style>
 </head>
 <body>
 
-    <!-- ===== HEADER + 导航栏 ===== -->
-    <header class="app-header">
-        <div class="header-top">
-            <h1>三角联结 · 网页编辑器 <span class="ver" id="ver"></span></h1>
-            <div class="token-area">
-                <label style="min-width:auto;color:#9aa0b5;">令牌</label>
-                <input id="tokenInput" placeholder="访问令牌（留空则从地址栏 ?token= 读取）" spellcheck="false">
-                <button class="btn" onclick="saveToken()">保存</button>
-            </div>
-            <div class="global-search">
-                <input id="globalSearch" placeholder="全局搜索：配方 / 工作台 / 商品 / 玩家  (Ctrl+K)" spellcheck="false" autocomplete="off">
-                <div class="gl-suggest" id="glSuggest"></div>
-            </div>
-            <div class="actions">
-                <button class="btn green" onclick="loadAll()">↻ 刷新</button>
-                <button class="btn orange" onclick="doAction('/api/reload')">重载配置</button>
-                <button class="btn orange" onclick="doAction('/api/export')">导出备份</button>
-                <button class="btn blue" onclick="downloadBackup()">下载配置</button>
+    <!-- ===== 左侧固定侧边栏 ===== -->
+    <aside class="sidebar" id="mainNav">
+        <div class="sidebar-brand">
+            <span class="logo">△</span>
+            <div>
+                <div class="bname">三角联结</div>
+                <div class="bsub">DeltaNexus Console</div>
             </div>
         </div>
-
-        <!-- 导航栏 -->
-        <nav class="nav-bar" id="mainNav">
+        <nav class="nav-bar">
             <span class="nav-item active" data-target="sec-settings"><span class="icon">⚙️</span>全局设置</span>
             <span class="nav-item" data-target="sec-grid"><span class="icon">🎒</span>格式背包</span>
             <span class="nav-item" data-target="sec-workbench"><span class="icon">🔧</span>工作台管理</span>
@@ -493,63 +910,155 @@
             <span class="nav-item" data-target="sec-perm"><span class="icon">🔐</span>权限管理</span>
             <span class="nav-item" data-target="sec-trade"><span class="icon">🛒</span>交易行</span>
         </nav>
-    </header>
+    </aside>
 
-    <!-- ===== 状态提示 ===== -->
-    <div id="status"></div>
+    <!-- ===== 右侧主内容列 ===== -->
+    <div class="main-col">
 
-    <!-- ===== 内容区域 ===== -->
-    <main class="content-area">
+        <header class="app-header">
+            <div class="header-top">
+                <div class="brand">
+                    <div class="brand-title">三角联结 <span class="ver" id="ver"></span></div>
+                    <div class="brand-sub">DeltaNexus · 配置后台</div>
+                </div>
+                <div class="token-area">
+                    <label for="tokenInput">访问令牌</label>
+                    <input id="tokenInput" placeholder="留空则从地址栏 ?token= 读取" spellcheck="false">
+                    <button class="btn" onclick="saveToken()">保存</button>
+                </div>
+                <div class="global-search">
+                    <input id="globalSearch" placeholder="全局搜索：配方 / 工作台 / 商品 / 玩家（Ctrl+K）" spellcheck="false" autocomplete="off">
+                    <div class="gl-suggest" id="glSuggest"></div>
+                </div>
+                <div class="actions">
+                    <button class="btn" onclick="loadAll()">↻ 刷新</button>
+                    <button class="btn" onclick="doAction('/api/reload')">重载配置</button>
+                    <button class="btn" onclick="doAction('/api/export')">导出备份</button>
+                    <button class="btn" onclick="downloadBackup()">下载配置</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- ===== 状态提示 ===== -->
+        <div id="status"></div>
+
+        <!-- ===== 内容区域 ===== -->
+        <main class="content-area">
 
         <!-- 全局设置 -->
         <section id="sec-settings" class="section-panel active">
-            <h2>全局设置</h2>
-            <div class="row"><label>制造速度倍率</label><input type="number" id="sSpeed" step="0.01" min="0.01" max="100"><button class="btn green" onclick="saveSpeed()">保存</button><span class="muted">0.01 ~ 100，只影响新任务</span></div>
-            <div class="row"><label>并行队列数</label><input type="number" id="sQueue" min="1" max="100"><button class="btn green" onclick="saveQueue()">保存</button></div>
-            <div class="row"><label>制造计时模式</label><select id="sMode"><option value="offline">离线模式（离线照常计时）</option><option value="online">在线模式（仅在线计时）</option></select><button class="btn green" onclick="saveMode()">保存</button></div>
-            <div class="row"><label>货币类型</label>
-                <select id="sCurrency"><option value="scoreboard">计分板</option><option value="vault">Vault 经济</option><option value="playerpoints">PlayerPoints 点券</option></select>
-                <span id="currencyParams"></span><button class="btn green" onclick="saveCurrency()">保存</button>
+            <div class="sec-head">
+                <h2>全局设置</h2>
+                <p class="sec-desc">工作台与仓库的核心参数：制造速度、并行队列、计时模式、货币与仓库初始容量。修改后仅影响新任务。</p>
             </div>
-            <div class="row"><label>仓库行数</label><input type="number" id="sPages" min="1" max="64"><button class="btn green" onclick="savePages()">保存</button><span class="muted">每行 9 格，滚轮向下滚动，自动随升级树扩容</span></div>
-            <div class="row"><label>初始槽位数</label><input type="number" id="sSlots" min="0" max="576"><button class="btn green" onclick="saveSlots()">保存</button><span class="muted">0 级仓库初始解锁槽位</span></div>
+            <div class="setup-group">
+                <div class="field">
+                    <div class="field-top"><span class="field-name">制造速度倍率</span><span class="field-note">倍率 = 速度倍数（越大越快），只影响新任务</span></div>
+                    <div class="field-ctl"><input type="number" id="sSpeed" step="0.01" min="0.01" max="100"><button class="btn" onclick="saveSpeed()">保存</button></div>
+                </div>
+                <div class="field">
+                    <div class="field-top"><span class="field-name">并行队列数</span><span class="field-note">同一时间最多同时运行的任务数量</span></div>
+                    <div class="field-ctl"><input type="number" id="sQueue" min="1" max="100"><button class="btn" onclick="saveQueue()">保存</button></div>
+                </div>
+                <div class="field">
+                    <div class="field-top"><span class="field-name">制造计时模式</span><span class="field-note">离线模式下玩家离线后制造仍按真实时间推进</span></div>
+                    <div class="field-ctl"><select id="sMode"><option value="offline">离线模式（离线照常计时）</option><option value="online">在线模式（仅在线计时）</option></select><button class="btn" onclick="saveMode()">保存</button></div>
+                </div>
+                <div class="field">
+                    <div class="field-top"><span class="field-name">货币类型</span><span class="field-note">决定制造 / 升级 / 交易使用的经济系统</span></div>
+                    <div class="field-ctl">
+                        <select id="sCurrency"><option value="scoreboard">计分板</option><option value="vault">Vault 经济</option><option value="playerpoints">PlayerPoints 点券</option></select>
+                        <span id="currencyParams"></span>
+                        <button class="btn" onclick="saveCurrency()">保存</button>
+                    </div>
+                </div>
+                <div class="field">
+                    <div class="field-top"><span class="field-name">仓库行数</span><span class="field-note">每行 9 格，滚轮向下滚动，自动随升级树扩容</span></div>
+                    <div class="field-ctl"><input type="number" id="sPages" min="1" max="256"><button class="btn" onclick="savePages()">保存</button></div>
+                </div>
+                <div class="field">
+                    <div class="field-top"><span class="field-name">初始槽位数</span><span class="field-note">0 级仓库初始解锁槽位</span></div>
+                    <div class="field-ctl"><input type="number" id="sSlots" min="0" max="576"><button class="btn" onclick="saveSlots()">保存</button></div>
+                </div>
+            </div>
         </section>
 
-        <!-- 格式背包（2.0.3Alpha 独立导航页） -->
+        <!-- 格式背包 -->
         <section id="sec-grid" class="section-panel">
-            <h2>格式背包</h2>
-            <div class="row"><label>快捷栏规则</label><input id="sHotbar" placeholder="如 0-2:ANY,3-6:GRID,7-8:FOOD" class="wide"><button class="btn green" onclick="saveHotbar()">保存</button><span class="muted">起始-结束:模式（ANY/GRID/FOOD），修改后同步客户端</span></div>
-            <div class="row"><label>物品尺寸</label>
-                <div id="gridSizes" style="display:inline-flex;flex-wrap:wrap;gap:6px"></div>
-                <input id="gItem" placeholder="物品ID" style="width:150px"><input type="number" id="gW" value="2" min="1" max="9" style="width:52px"><input type="number" id="gH" value="1" min="1" max="9" style="width:52px"><button class="btn green" onclick="addGridSize()">添加</button>
+            <div class="sec-head">
+                <h2>格式背包</h2>
+                <p class="sec-desc">快捷栏规则、物品尺寸与背景色类配置，修改后同步客户端。</p>
             </div>
-            <div class="row"><label>类（背景色）</label>
-                <div id="gridClasses" style="display:inline-flex;flex-wrap:wrap;gap:6px"></div>
-                <input id="gcName" placeholder="类名" style="width:90px"><input type="number" id="gcR" value="90" min="0" max="255" style="width:52px"><input type="number" id="gcG" value="96" min="0" max="255" style="width:52px"><input type="number" id="gcB" value="104" min="0" max="255" style="width:52px"><button class="btn green" onclick="addGridClass()">添加/改色</button>
+            <div class="setup-group">
+                <div class="field">
+                    <div class="field-top"><span class="field-name">快捷栏规则</span><span class="field-note">起始-结束:模式（ANY / GRID / FOOD）</span></div>
+                    <div class="field-ctl"><input id="sHotbar" placeholder="如 0-2:ANY,3-6:GRID,7-8:FOOD" class="wide"><button class="btn" onclick="saveHotbar()">保存</button></div>
+                </div>
             </div>
-            <div class="row"><label>物品归属类</label>
-                <div id="gridItemClasses" style="display:inline-flex;flex-wrap:wrap;gap:6px"></div>
-                <input id="gicItem" placeholder="物品ID" style="width:150px"><input id="gicClass" placeholder="类名" style="width:90px"><button class="btn green" onclick="setGridItemClass()">设置</button>
+            <div class="setup-group">
+                <div class="setup-group-title">物品尺寸</div>
+                <div class="tag-stack" id="gridSizes"></div>
+                <div class="field-ctl">
+                    <input id="gItem" placeholder="物品ID" style="width:160px">
+                    <input type="number" id="gW" value="2" min="1" max="9" style="width:60px">
+                    <span class="dim-sep">×</span>
+                    <input type="number" id="gH" value="1" min="1" max="9" style="width:60px">
+                    <button class="btn" onclick="addGridSize()">添加</button>
+                </div>
+            </div>
+            <div class="setup-group">
+                <div class="setup-group-title">类（背景色）</div>
+                <div class="tag-stack" id="gridClasses"></div>
+                <div class="field-ctl">
+                    <input id="gcName" placeholder="类名" style="width:110px">
+                    <input type="number" id="gcR" value="90" min="0" max="255" style="width:60px">
+                    <input type="number" id="gcG" value="96" min="0" max="255" style="width:60px">
+                    <input type="number" id="gcB" value="104" min="0" max="255" style="width:60px">
+                    <button class="btn" onclick="addGridClass()">添加 / 改色</button>
+                </div>
+            </div>
+            <div class="setup-group">
+                <div class="setup-group-title">物品归属类</div>
+                <div class="tag-stack" id="gridItemClasses"></div>
+                <div class="field-ctl">
+                    <input id="gicItem" placeholder="物品ID" style="width:160px">
+                    <input id="gicClass" placeholder="类名" style="width:120px">
+                    <button class="btn" onclick="setGridItemClass()">设置</button>
+                </div>
             </div>
         </section>
 
         <!-- 工作台管理 -->
         <section id="sec-workbench" class="section-panel">
-            <h2>工作台管理</h2>
-            <div class="inline-form row">
-                <label>新增</label><input id="wbId" placeholder="id（英文）" class="wide"><input id="wbDisplay" placeholder="显示名"><button class="btn green" onclick="addWorkbench()">添加</button>
+            <div class="sec-head">
+                <h2>工作台管理</h2>
+                <p class="sec-desc">登记各个配方工作台（id / 显示名 / 配方目录），配方归属于某一工作台。</p>
             </div>
-            <table id="wbTable"><thead><tr><th>id</th><th>显示名</th><th>配方目录</th><th>操作</th></tr></thead><tbody></tbody></table>
+            <div class="toolbar-row">
+                <input id="wbId" placeholder="id（英文）" class="wide">
+                <input id="wbDisplay" placeholder="显示名">
+                <button class="btn" onclick="addWorkbench()">添加</button>
+            </div>
+            <div class="table-scroll">
+                <table id="wbTable"><thead><tr><th>id</th><th>显示名</th><th>配方目录</th><th class="center">操作</th></tr></thead><tbody></tbody></table>
+            </div>
         </section>
 
         <!-- 配方管理 -->
         <section id="sec-recipe" class="section-panel">
-            <h2>配方管理</h2>
-            <div class="row"><label>工作台</label><select id="recipeWb"></select>
+            <div class="sec-head">
+                <h2>配方管理</h2>
+                <p class="sec-desc">按工作台查看与编辑配方：耗时、等级、并行上限、原料与产物。支持勾选后批量应用与筛选。</p>
+            </div>
+            <div class="toolbar-row">
+                <label class="ctl-label" for="recipeWb">工作台</label>
+                <select id="recipeWb"></select>
                 <span class="muted" id="recipeCount"></span>
                 <span style="flex:1"></span>
-                <input id="recipeFilter" placeholder="筛选配方 id/名称…" style="width:180px">
-                <label>新增配方</label><input id="recipeIdNew" placeholder="配方 id"><button class="btn green" onclick="addRecipe()">添加</button>
+                <input id="recipeFilter" placeholder="筛选配方 id / 名称…" style="width:200px">
+                <label class="ctl-label" for="recipeIdNew">新增配方</label>
+                <input id="recipeIdNew" placeholder="配方 id">
+                <button class="btn" onclick="addRecipe()">添加</button>
             </div>
             <div class="recipe-layout">
                 <div class="recipe-side">
@@ -559,221 +1068,311 @@
                         <span class="sep">|</span>
                         <label>耗时 <input type="number" id="batchTime" placeholder="秒" min="1" style="width:56px"></label>
                         <button class="btn small green" onclick="recipeBatchApply('time')">应用耗时</button>
-                        <label>等级 <input type="number" id="batchLevel" placeholder="级" min="0" style="width:48px"></label>
+                        <label>等级 <input type="number" id="batchLevel" placeholder="级" min="0" style="width:52px"></label>
                         <button class="btn small green" onclick="recipeBatchApply('level')">应用等级</button>
                     </div>
-                    <table id="recipeList"><thead><tr><th style="width:34px"></th><th>配方</th><th>耗时</th><th>等级</th><th>主要产物</th><th style="width:54px"></th></tr></thead><tbody></tbody></table>
+                    <div class="table-scroll">
+                        <table id="recipeList"><thead><tr><th class="center" style="width:34px"></th><th>配方</th><th class="num">耗时</th><th class="num">等级</th><th>主要产物</th><th class="center" style="width:64px">操作</th></tr></thead><tbody></tbody></table>
+                    </div>
                     <div class="pager" id="recipePager"></div>
                 </div>
                 <div class="recipe-detail-side">
-                    <div id="recipeDetail" class="muted">点击左侧配方查看/编辑</div>
+                    <div id="recipeDetail" class="muted">点击左侧配方查看 / 编辑</div>
                 </div>
             </div>
         </section>
 
-        <!-- 升级树（仓库） -->
+        <!-- 仓库升级树 -->
         <section id="sec-tree" class="section-panel">
-            <h2>仓库升级树</h2>
-            <div class="inline-form row"><label>新增等级</label><input type="number" id="treeLevelNew" min="1"><button class="btn green" onclick="treeAdd()">添加</button></div>
+            <div class="sec-head">
+                <h2>仓库升级树</h2>
+                <p class="sec-desc">每个等级的费用与解锁槽位，以及所需材料（数量 / NBT / 匹配方式）。</p>
+            </div>
+            <div class="toolbar-row">
+                <label class="ctl-label">新增等级</label>
+                <input type="number" id="treeLevelNew" min="1">
+                <button class="btn" onclick="treeAdd()">添加</button>
+            </div>
             <div id="treeList"></div>
         </section>
 
-        <!-- 安全箱（默认尺寸 + 升级树 + NBT 限制） -->
+        <!-- 安全箱 -->
         <section id="sec-safe" class="section-panel">
-            <h2>安全箱</h2>
-            <div class="inline-form row"><label>默认尺寸</label>
-                <input type="number" id="safeW" min="1" max="3" style="width:70px"><span class="muted">x</span>
-                <input type="number" id="safeH" min="1" max="3" style="width:70px">
-                <button class="btn green" onclick="saveSafeSize()">保存</button>
-                <span class="muted">0 级玩家初始尺寸（最大 3x3，默认 1x1）</span>
+            <div class="sec-head">
+                <h2>安全箱</h2>
+                <p class="sec-desc">0 级玩家默认尺寸、随等级增长的升级树，以及禁止放入安全箱的 NBT 限制。</p>
             </div>
-            <div class="inline-form row"><label>新增等级</label><input type="number" id="safeTreeLevelNew" min="1"><button class="btn green" onclick="safeTreeAdd()">添加</button></div>
-            <div id="safeTreeList"></div>
-            <h2 style="margin-top:16px">安全箱 NBT 限制</h2>
-            <div class="inline-form row">
-                <label>新增限制</label><input id="srNbt" placeholder="NBT（如 {display:{Name:\"\\\"禁入\\\"\"}}）" style="width:260px" spellcheck="false">
-                <input id="srItem" placeholder="物品ID（留空 = 任意）" style="width:150px" spellcheck="false">
-                <select id="srMatch"><option value="contains">包含匹配</option><option value="exact">完全匹配</option></select>
-                <button class="btn green" onclick="safeRestrictAdd()">添加</button>
-                <span class="muted">拥有指定 NBT 的物品无法放入安全箱</span>
+            <div class="setup-group">
+                <div class="field">
+                    <div class="field-top"><span class="field-name">默认尺寸</span><span class="field-note">0 级玩家初始尺寸（最大 3×3，默认 1×1）</span></div>
+                    <div class="field-ctl">
+                        <input type="number" id="safeW" min="1" max="3" style="width:64px">
+                        <span class="dim-sep">×</span>
+                        <input type="number" id="safeH" min="1" max="3" style="width:64px">
+                        <button class="btn" onclick="saveSafeSize()">保存</button>
+                    </div>
+                </div>
             </div>
-            <table id="safeRestrictTable"><thead><tr><th>#</th><th>物品</th><th>匹配</th><th>NBT</th><th></th></tr></thead><tbody></tbody></table>
+            <div class="setup-group">
+                <div class="setup-group-title">安全箱升级树</div>
+                <div class="toolbar-row" style="margin-bottom:12px">
+                    <label class="ctl-label">新增等级</label>
+                    <input type="number" id="safeTreeLevelNew" min="1">
+                    <button class="btn" onclick="safeTreeAdd()">添加</button>
+                </div>
+                <div id="safeTreeList"></div>
+            </div>
+            <div class="setup-group">
+                <div class="setup-group-title">NBT 限制</div>
+                <p class="sec-desc" style="margin:0 0 12px">拥有指定 NBT 的物品无法放入安全箱（物品留空 = 任意）。</p>
+                <div class="toolbar-row" style="margin-bottom:12px">
+                    <input id="srNbt" placeholder='NBT（如 {"Damage":0}）' class="wide" spellcheck="false">
+                    <input id="srItem" placeholder="物品ID（留空 = 任意）" style="width:150px" spellcheck="false">
+                    <select id="srMatch"><option value="contains">包含匹配</option><option value="exact">完全匹配</option></select>
+                    <button class="btn" onclick="safeRestrictAdd()">添加</button>
+                </div>
+                <div class="table-scroll">
+                    <table id="safeRestrictTable"><thead><tr><th class="num" style="width:48px">#</th><th>物品</th><th>匹配</th><th>NBT</th><th class="center" style="width:80px">操作</th></tr></thead><tbody></tbody></table>
+                </div>
+            </div>
         </section>
 
-        <!-- 玩家数据（仓库等级 / 安全箱等级） -->
+        <!-- 玩家数据 -->
         <section id="sec-player" class="section-panel">
-            <h2>玩家数据</h2>
-            <div class="row"><label>在线玩家</label><select id="playerSel"></select>
-                <span class="muted" id="playerInfo"></span>
+            <div class="sec-head">
+                <h2>玩家数据</h2>
+                <p class="sec-desc">查看指定玩家的仓库与安全箱等级，或将其恢复为初始状态。</p>
             </div>
-            <div class="row"><label>仓库等级</label><input type="number" id="pLevel" min="0"><button class="btn green" onclick="savePlayerLevel()">保存</button><span class="muted">0 ~ 升级树最大等级，容量联动解锁</span></div>
-            <div class="row"><label>安全箱等级</label><input type="number" id="pSafeLevel" min="0"><button class="btn green" onclick="savePlayerSafeLevel()">保存</button><span class="muted">0 ~ 安全箱升级树最大等级，尺寸随等级增长</span></div>
-            <div class="row"><button class="btn red" onclick="resetPlayer()">重置仓库与安全箱</button><span class="muted">等级归 0（物品保留，缩位部分暂不可取）</span></div>
+            <div class="setup-group">
+                <div class="field">
+                    <div class="field-top"><span class="field-name">在线玩家</span></div>
+                    <div class="field-ctl">
+                        <select id="playerSel" style="min-width:180px"></select>
+                        <span class="muted" id="playerInfo"></span>
+                    </div>
+                </div>
+                <div class="field">
+                    <div class="field-top"><span class="field-name">仓库等级</span><span class="field-note">0 ~ 升级树最大等级，容量联动解锁</span></div>
+                    <div class="field-ctl"><input type="number" id="pLevel" min="0"><button class="btn" onclick="savePlayerLevel()">保存</button></div>
+                </div>
+                <div class="field">
+                    <div class="field-top"><span class="field-name">安全箱等级</span><span class="field-note">0 ~ 安全箱升级树最大等级，尺寸随等级增长</span></div>
+                    <div class="field-ctl"><input type="number" id="pSafeLevel" min="0"><button class="btn" onclick="savePlayerSafeLevel()">保存</button></div>
+                </div>
+                <div class="field">
+                    <div class="field-top"><span class="field-name">重置数据</span><span class="field-note">等级归 0（物品保留，缩位部分暂不可取）</span></div>
+                    <div class="field-ctl"><button class="btn red" onclick="resetPlayer()">重置仓库与安全箱</button></div>
+                </div>
+            </div>
         </section>
 
         <!-- 权限管理 -->
         <section id="sec-perm" class="section-panel">
-            <h2>权限管理</h2>
-            <div class="inline-form">
-                <div class="row"><label>全局默认</label>
-                    <span class="muted">仓库</span><select id="permDefaultWh" style="width:90px"><option value="allow">允许</option><option value="deny">拒绝</option></select>
-                    <span class="muted">工作台</span><select id="permDefaultWb" style="width:90px"><option value="allow">允许</option><option value="deny">拒绝</option></select>
-                    <span class="muted">特勤处</span><select id="permDefaultSp" style="width:90px"><option value="allow">允许</option><option value="deny">拒绝</option></select>
-                    <button class="btn green" onclick="savePermDefaults()">保存</button>
-                    <span class="muted">控制玩家能否用指令/按键打开仓库、配方工作台与特勤处（OP 始终允许）</span>
+            <div class="sec-head">
+                <h2>权限管理</h2>
+                <p class="sec-desc">控制玩家能否用指令 / 按键打开仓库、配方工作台与特勤处（OP 始终允许）。</p>
+            </div>
+            <div class="setup-group">
+                <div class="setup-group-title">全局默认</div>
+                <div class="field-ctl">
+                    <span class="ctl-label">仓库</span><select id="permDefaultWh" style="width:96px"><option value="allow">允许</option><option value="deny">拒绝</option></select>
+                    <span class="ctl-label">工作台</span><select id="permDefaultWb" style="width:96px"><option value="allow">允许</option><option value="deny">拒绝</option></select>
+                    <span class="ctl-label">特勤处</span><select id="permDefaultSp" style="width:96px"><option value="allow">允许</option><option value="deny">拒绝</option></select>
+                    <button class="btn" onclick="savePermDefaults()">保存</button>
                 </div>
             </div>
-            <div class="inline-form row">
-                <label>新增覆盖</label><input id="permName" placeholder="玩家名" class="wide">
-                <select id="permType"><option value="all">全部</option><option value="warehouse">仓库</option><option value="workbench">工作台</option><option value="special">特勤处</option></select>
-                <select id="permAllow"><option value="true">允许</option><option value="false">拒绝</option></select>
-                <button class="btn green" onclick="permSet()">设置</button>
+            <div class="setup-group">
+                <div class="setup-group-title">新增覆盖</div>
+                <div class="field-ctl">
+                    <input id="permName" placeholder="玩家名" class="wide">
+                    <select id="permType"><option value="all">全部</option><option value="warehouse">仓库</option><option value="workbench">工作台</option><option value="special">特勤处</option></select>
+                    <select id="permAllow"><option value="true">允许</option><option value="false">拒绝</option></select>
+                    <button class="btn" onclick="permSet()">设置</button>
+                </div>
             </div>
-            <table id="permTable"><thead><tr><th>玩家</th><th>仓库</th><th>工作台</th><th>特勤处</th><th>操作</th></tr></thead><tbody></tbody></table>
+            <div class="table-scroll">
+                <table id="permTable"><thead><tr><th>玩家</th><th>仓库</th><th>工作台</th><th>特勤处</th><th class="center">操作</th></tr></thead><tbody></tbody></table>
+            </div>
         </section>
 
         <!-- 交易行 -->
         <section id="sec-trade" class="section-panel">
-            <h2>交易行</h2>
-            <div class="row"><label>全局倍率</label><input type="number" id="tradeMult" step="0.01" min="0.01" style="width:90px">
-                <label>商品价格刷新间隔(秒)</label><input type="number" id="tradeFeed" min="1" style="width:90px">
-                <label>公式超时(ms)</label><input type="number" id="tradeTimeout" min="1" max="1000" style="width:90px">
-                <label><input type="checkbox" id="tradeSellEnabled" checked> 允许回收</label>
-                <label>价差保护</label><select id="tradeSpreadGuard" style="width:110px">
-                    <option value="warn">仅告警</option>
-                    <option value="block">禁止卖出</option>
-                    <option value="off">关闭</option>
-                </select>
-                <button class="btn green" onclick="tradeSaveSettings()">保存全局设置</button>
-                <span class="muted" id="tradeFeedInfo"></span>
+            <div class="sec-head">
+                <h2>交易行</h2>
+                <p class="sec-desc">全局倍率、价格刷新间隔、上限与回收开关，以及分类 / 商品的表单式配置。</p>
             </div>
-            <div class="row"><button class="btn small" onclick="tradeFeedRefresh()">立即刷新外部价格源</button>
-                <span class="muted">商品按表单式配置：基本信息 / 物品与匹配 / 价格三模式单选 / 库存上下限。</span>
+
+            <div class="setup-group">
+                <div class="setup-group-title">全局设置</div>
+                <div class="field">
+                    <div class="field-top"><span class="field-name">全局倍率</span></div>
+                    <div class="field-ctl"><input type="number" id="tradeMult" step="0.01" min="0.01" style="width:92px"></div>
+                </div>
+                <div class="field">
+                    <div class="field-top"><span class="field-name">商品价格刷新间隔</span><span class="field-note">秒</span></div>
+                    <div class="field-ctl"><input type="number" id="tradeFeed" min="1" style="width:92px"></div>
+                </div>
+                <div class="field">
+                    <div class="field-top"><span class="field-name">公式超时</span><span class="field-note">毫秒</span></div>
+                    <div class="field-ctl"><input type="number" id="tradeTimeout" min="1" max="1000" style="width:92px"></div>
+                </div>
+                <div class="field">
+                    <div class="field-top"><span class="field-name">允许回收</span></div>
+                    <div class="field-ctl"><label class="ctl-label"><input type="checkbox" id="tradeSellEnabled" checked> 玩家回收开关</label></div>
+                </div>
+                <div class="field">
+                    <div class="field-top"><span class="field-name">价差保护</span></div>
+                    <div class="field-ctl">
+                        <select id="tradeSpreadGuard" style="width:128px"><option value="warn">仅告警</option><option value="block">禁止卖出</option><option value="off">关闭</option></select>
+                    </div>
+                </div>
+                <div class="field">
+                    <div class="field-ctl">
+                        <button class="btn" onclick="tradeSaveSettings()">保存全局设置</button>
+                        <button class="btn small" onclick="tradeFeedRefresh()">立即刷新外部价格源</button>
+                        <span class="muted" id="tradeFeedInfo"></span>
+                    </div>
+                </div>
             </div>
-            <h3>分类</h3>
-            <div class="inline-form row">
-                <input id="trCatId" placeholder="分类id（唯一）" style="width:150px">
-                <input id="trCatName" placeholder="显示名" style="width:150px">
-                <button class="btn green" onclick="tradeCatAdd()">新增分类</button>
+
+            <div class="setup-group">
+                <div class="setup-group-title">分类</div>
+                <div class="field-ctl" style="margin-bottom:12px">
+                    <input id="trCatId" placeholder="分类 id（唯一）" style="width:150px">
+                    <input id="trCatName" placeholder="显示名" style="width:150px">
+                    <button class="btn" onclick="tradeCatAdd()">新增分类</button>
+                </div>
+                <div class="table-scroll">
+                    <table id="tradeCatTable"><thead><tr><th>id</th><th>名称</th><th class="center" style="width:170px">操作</th></tr></thead><tbody></tbody></table>
+                </div>
             </div>
-            <table id="tradeCatTable"><thead><tr><th>id</th><th>名称</th><th>操作</th></tr></thead><tbody></tbody></table>
-            <h3>商品</h3>
-            <div class="inline-form row">
-                <button class="btn green" onclick="tradeNew()">＋ 新增商品</button>
-                <input id="tradeFilter" placeholder="筛选商品 id/名称/分类…" style="width:200px">
-                <span class="muted" id="tradeGoodCount"></span>
-                <span style="flex:1"></span>
-                <span class="muted">点表格行「编辑」打开表单修改；补货/删除可在行内直接操作。</span>
-            </div>
-            <div id="tradeEditor" class="inline-form" style="display:none; border:1px solid #46536B; border-radius:6px; padding:10px; margin:8px 0; background:#10131A;">
-                <h3 id="tradeEditorTitle" style="margin-top:0">商品配置</h3>
-                <div class="row">
-                    <label>商品ID</label><input id="trId" style="width:190px" placeholder="如 diamond（唯一）">
-                    <label>显示名</label><input id="trDisplay" style="width:170px">
+
+            <div class="setup-group">
+                <div class="setup-group-title">商品</div>
+                <div class="field-ctl" style="margin-bottom:12px">
+                    <button class="btn" onclick="tradeNew()">＋ 新增商品</button>
+                    <input id="tradeFilter" placeholder="筛选商品 id / 名称 / 分类…" style="width:210px">
+                    <span class="muted" id="tradeGoodCount"></span>
                 </div>
-                <div class="row">
-                    <label>分类</label><select id="trCat" style="width:160px"></select>
-                    <label><input type="checkbox" id="trEnabled" checked> 上架</label>
-                    <label><input type="checkbox" id="trBuyable" checked> 可买入</label>
-                </div>
-                <h4 style="margin:10px 0 2px">物品与匹配</h4>
-                <div class="row">
-                    <label>物品ID</label><input id="trItemId" style="width:230px" placeholder="minecraft:diamond">
-                    <label>单位数量</label><input id="trUnit" type="number" min="1" value="1" style="width:70px">
-                </div>
-                <div class="row">
-                    <label>NBT模板(SNBT)</label><input id="trNbt" style="width:60%" placeholder='如 {Damage:0}，留空=无 NBT'>
-                </div>
-                <div class="row">
-                    <label>匹配模式</label>
-                    <select id="trMatch" onchange="trMatchChange()">
-                        <option value="id">id：只按物品</option>
-                        <option value="full_nbt">full_nbt：整份 NBT 精确</option>
-                        <option value="partial_nbt">partial_nbt：只比指定键</option>
-                    </select>
-                </div>
-                <div id="trKeysWrap" class="inline-form" style="display:none; margin:6px 0;">
-                    <div class="row muted">键规则：exact / contains 的值取自上方 NBT 模板；“指定”= 指定键名与对应值（不依赖模板）。</div>
-                    <div id="trKeysList"></div>
+
+                <div id="tradeEditor" class="editor-card" style="display:none">
+                    <h3 id="tradeEditorTitle">商品配置</h3>
+                    <p class="sec-note">以表单方式配置单个商品的物品匹配、三向价格与库存上下限。</p>
+
+                    <h4>基本信息</h4>
                     <div class="row">
-                        <input id="trKeyName" style="width:150px" placeholder="键名，如 Damage">
-                        <select id="trKeyOp" onchange="trKeyAddOpChange()">
-                            <option value="exact">精确 exact</option>
-                            <option value="contains">包含 contains</option>
-                            <option value="specified">指定（键+值）</option>
+                        <label class="ctl-label">商品 ID</label><input id="trId" placeholder="如 diamond（唯一）">
+                        <label class="ctl-label">显示名</label><input id="trDisplay" placeholder="如 钻石">
+                    </div>
+                    <div class="row">
+                        <label class="ctl-label">分类</label><select id="trCat" style="min-width:160px"></select>
+                        <label class="ctl-label"><input type="checkbox" id="trEnabled" checked> 上架</label>
+                        <label class="ctl-label"><input type="checkbox" id="trBuyable" checked> 可买入</label>
+                    </div>
+
+                    <h4>物品与匹配</h4>
+                    <div class="row">
+                        <label class="ctl-label">物品 ID</label><input id="trItemId" placeholder="minecraft:diamond">
+                        <label class="ctl-label">单位数量</label><input id="trUnit" type="number" min="1" value="1" style="width:72px">
+                    </div>
+                    <div class="row">
+                        <label class="ctl-label">NBT 模板 (SNBT)</label><input id="trNbt" style="flex:1;min-width:260px" placeholder='如 {Damage:0}，留空 = 无 NBT'>
+                    </div>
+                    <div class="row">
+                        <label class="ctl-label">匹配模式</label>
+                        <select id="trMatch" onchange="trMatchChange()">
+                            <option value="id">id：只按物品</option>
+                            <option value="full_nbt">full_nbt：整份 NBT 精确</option>
+                            <option value="partial_nbt">partial_nbt：只比指定键</option>
                         </select>
-                        <input id="trKeyValue" style="width:180px; display:none" placeholder="指定值，如 0 或 文本">
-                        <button class="btn small green" onclick="trKeyAdd()">＋ 加键</button>
                     </div>
-                </div>
-                <div class="row">
-                    <label>耐久度要求</label>
-                    <label><input type="checkbox" id="trDurEnabled" onchange="trDurChange()"> 开启</label>
-                    <select id="trDurOp" style="width:80px" disabled>
-                        <option value="=">=</option>
-                        <option value="<">&lt;</option>
-                        <option value=">">&gt;</option>
-                        <option value="<=">&lt;=</option>
-                        <option value=">=">&gt;=</option>
-                    </select>
-                    <input id="trDurValue" type="number" min="0" style="width:110px" value="0" placeholder="剩余耐久" disabled>
-                    <span class="muted">对可损坏物品比较“剩余耐久 = 最大耐久 − Damage”，可与匹配模式共存（默认关闭）。</span>
-                </div>
-                <h4 style="margin:10px 0 2px">价格（买入/卖出/参考三向同时配置）</h4>
-                <div class="inline-form" style="border:1px solid #252B38; border-radius:6px; padding:8px; margin:6px 0;">
-                    <div class="row"><b>买入价</b><span class="muted">玩家向交易行购买，实际结算价</span></div>
+                    <div id="trKeysWrap" class="inline-form" style="display:none;margin:8px 0">
+                        <div class="row muted">键规则：exact / contains 的值取自上方 NBT 模板；“指定” = 指定键名与对应值（不依赖模板）。</div>
+                        <div id="trKeysList"></div>
+                        <div class="row">
+                            <input id="trKeyName" style="width:150px" placeholder="键名，如 Damage">
+                            <select id="trKeyOp" onchange="trKeyAddOpChange()">
+                                <option value="exact">精确 exact</option>
+                                <option value="contains">包含 contains</option>
+                                <option value="specified">指定（键 + 值）</option>
+                            </select>
+                            <input id="trKeyValue" style="width:180px;display:none" placeholder="指定值，如 0 或 文本">
+                            <button class="btn small green" onclick="trKeyAdd()">＋ 加键</button>
+                        </div>
+                    </div>
                     <div class="row">
-                        <label><input type="radio" name="trBuyMode" value="fixed" checked onchange="trPriceUi('buy')"> 固定价格</label>
-                        <label><input type="radio" name="trBuyMode" value="formula" onchange="trPriceUi('buy')"> 单行JS表达式</label>
-                        <label><input type="radio" name="trBuyMode" value="code" onchange="trPriceUi('buy')"> Code 完整代码</label>
-                        <label><input type="radio" name="trBuyMode" value="none" onchange="trPriceUi('buy')"> 不配置</label>
+                        <label class="ctl-label">耐久度要求</label>
+                        <label class="ctl-label"><input type="checkbox" id="trDurEnabled" onchange="trDurChange()"> 开启</label>
+                        <select id="trDurOp" style="width:80px" disabled><option value="=">=</option><option value="<">&lt;</option><option value=">">&gt;</option><option value="<=">&lt;=</option><option value=">=">&gt;=</option></select>
+                        <input id="trDurValue" type="number" min="0" style="width:110px" value="0" placeholder="剩余耐久" disabled>
+                        <span class="muted">对可损坏物品比较“剩余耐久 = 最大耐久 − Damage”，可与匹配模式共存（默认关闭）。</span>
                     </div>
-                    <div id="trBuyFixedWrap" class="row"><label>固定值</label><input id="trBuyFixed" type="number" min="0" step="0.01" style="width:130px" value="0"></div>
-                    <div id="trBuyFormulaWrap" class="row" style="display:none"><label>JS 表达式</label><input id="trBuyFormula" style="width:75%" placeholder='如 floor(clamp(feed("moligod").price("1029")*0.9,1,1000000))'></div>
-                    <div id="trBuyCodeWrap" class="row" style="display:none"><label>函数体</label><textarea id="trBuyCode" rows="5" style="width:100%" placeholder='return clamp(ctx.good.stock * 10, 1, 100000);'></textarea></div>
-                </div>
-                <div class="inline-form" style="border:1px solid #252B38; border-radius:6px; padding:8px; margin:6px 0;">
-                    <div class="row"><b>卖出价</b><span class="muted">玩家卖给交易行（v1 仅展示，预留）</span></div>
+
+                    <h4>价格（买入 / 卖出 / 参考，三向同时配置）</h4>
+                    <div class="price-box">
+                        <div class="price-title">买入价</div>
+                        <div class="price-note">玩家向交易行购买，实际结算价</div>
+                        <div class="price-modes">
+                            <label><input type="radio" name="trBuyMode" value="fixed" checked onchange="trPriceUi('buy')"> 固定价格</label>
+                            <label><input type="radio" name="trBuyMode" value="formula" onchange="trPriceUi('buy')"> 单行 JS 表达式</label>
+                            <label><input type="radio" name="trBuyMode" value="code" onchange="trPriceUi('buy')"> Code 完整代码</label>
+                            <label><input type="radio" name="trBuyMode" value="none" onchange="trPriceUi('buy')"> 不配置</label>
+                        </div>
+                        <div id="trBuyFixedWrap" class="row"><label class="ctl-label">固定值</label><input id="trBuyFixed" type="number" min="0" step="0.01" style="width:140px" value="0"></div>
+                        <div id="trBuyFormulaWrap" class="row" style="display:none"><label class="ctl-label">JS 表达式</label><input id="trBuyFormula" style="flex:1;min-width:260px" placeholder='如 floor(clamp(feed("moligod").price("1029")*0.9,1,1000000))'></div>
+                        <div id="trBuyCodeWrap" class="row" style="display:none"><label class="ctl-label">函数体</label><textarea id="trBuyCode" rows="5" style="width:100%" placeholder='return clamp(ctx.good.stock * 10, 1, 100000);'></textarea></div>
+                    </div>
+                    <div class="price-box">
+                        <div class="price-title">卖出价</div>
+                        <div class="price-note">玩家卖给交易行（v1 仅展示，预留）</div>
+                        <div class="price-modes">
+                            <label><input type="radio" name="trSellMode" value="fixed" checked onchange="trPriceUi('sell')"> 固定价格</label>
+                            <label><input type="radio" name="trSellMode" value="formula" onchange="trPriceUi('sell')"> 单行 JS 表达式</label>
+                            <label><input type="radio" name="trSellMode" value="code" onchange="trPriceUi('sell')"> Code 完整代码</label>
+                            <label><input type="radio" name="trSellMode" value="none" onchange="trPriceUi('sell')"> 不配置</label>
+                        </div>
+                        <div id="trSellFixedWrap" class="row"><label class="ctl-label">固定值</label><input id="trSellFixed" type="number" min="0" step="0.01" style="width:140px" value="0"></div>
+                        <div id="trSellFormulaWrap" class="row" style="display:none"><label class="ctl-label">JS 表达式</label><input id="trSellFormula" style="flex:1;min-width:260px" placeholder='如 floor(ctx.good.stock * 0.8)'></div>
+                        <div id="trSellCodeWrap" class="row" style="display:none"><label class="ctl-label">函数体</label><textarea id="trSellCode" rows="5" style="width:100%" placeholder='return ctx.good.stock * 5;'></textarea></div>
+                    </div>
+                    <div class="price-box">
+                        <div class="price-title">参考价</div>
+                        <div class="price-note">市场参考 / 中间价（仅展示）</div>
+                        <div class="price-modes">
+                            <label><input type="radio" name="trMarketMode" value="fixed" checked onchange="trPriceUi('market')"> 固定价格</label>
+                            <label><input type="radio" name="trMarketMode" value="formula" onchange="trPriceUi('market')"> 单行 JS 表达式</label>
+                            <label><input type="radio" name="trMarketMode" value="code" onchange="trPriceUi('market')"> Code 完整代码</label>
+                            <label><input type="radio" name="trMarketMode" value="none" onchange="trPriceUi('market')"> 不配置</label>
+                        </div>
+                        <div id="trMarketFixedWrap" class="row"><label class="ctl-label">固定值</label><input id="trMarketFixed" type="number" min="0" step="0.01" style="width:140px" value="0"></div>
+                        <div id="trMarketFormulaWrap" class="row" style="display:none"><label class="ctl-label">JS 表达式</label><input id="trMarketFormula" style="flex:1;min-width:260px" placeholder='如 feed("moligod").price("1029")'></div>
+                        <div id="trMarketCodeWrap" class="row" style="display:none"><label class="ctl-label">函数体</label><textarea id="trMarketCode" rows="5" style="width:100%" placeholder='return ctx.qty * 100;'></textarea></div>
+                    </div>
+
+                    <div class="row muted">变量：ctx.good{stock,stockMin,stockMax…} / ctx.limits / ctx.time / ctx.qty / ctx.feed(name) / clamp / Math</div>
+
+                    <h4>库存上下限</h4>
                     <div class="row">
-                        <label><input type="radio" name="trSellMode" value="fixed" checked onchange="trPriceUi('sell')"> 固定价格</label>
-                        <label><input type="radio" name="trSellMode" value="formula" onchange="trPriceUi('sell')"> 单行JS表达式</label>
-                        <label><input type="radio" name="trSellMode" value="code" onchange="trPriceUi('sell')"> Code 完整代码</label>
-                        <label><input type="radio" name="trSellMode" value="none" onchange="trPriceUi('sell')"> 不配置</label>
+                        <label class="ctl-label">下限 (0 不限)</label><input id="trStockMin" type="number" min="0" value="0" style="width:88px">
+                        <label class="ctl-label">上限 (0 不限)</label><input id="trStockMax" type="number" min="0" value="0" style="width:88px">
+                        <label class="ctl-label"><input type="checkbox" id="trBlockMin" checked> 低于下限禁买</label>
                     </div>
-                    <div id="trSellFixedWrap" class="row"><label>固定值</label><input id="trSellFixed" type="number" min="0" step="0.01" style="width:130px" value="0"></div>
-                    <div id="trSellFormulaWrap" class="row" style="display:none"><label>JS 表达式</label><input id="trSellFormula" style="width:75%" placeholder='如 floor(ctx.good.stock * 0.8)'></div>
-                    <div id="trSellCodeWrap" class="row" style="display:none"><label>函数体</label><textarea id="trSellCode" rows="5" style="width:100%" placeholder='return ctx.good.stock * 5;'></textarea></div>
-                </div>
-                <div class="inline-form" style="border:1px solid #252B38; border-radius:6px; padding:8px; margin:6px 0;">
-                    <div class="row"><b>参考价</b><span class="muted">市场参考/中间价（仅展示）</span></div>
-                    <div class="row">
-                        <label><input type="radio" name="trMarketMode" value="fixed" checked onchange="trPriceUi('market')"> 固定价格</label>
-                        <label><input type="radio" name="trMarketMode" value="formula" onchange="trPriceUi('market')"> 单行JS表达式</label>
-                        <label><input type="radio" name="trMarketMode" value="code" onchange="trPriceUi('market')"> Code 完整代码</label>
-                        <label><input type="radio" name="trMarketMode" value="none" onchange="trPriceUi('market')"> 不配置</label>
+                    <div class="row" style="margin-top:16px">
+                        <button class="btn" onclick="tradeSave()">保存商品</button>
+                        <button class="btn" onclick="tradeEditorHide()">收起</button>
+                        <span class="muted" id="trEditorStatus"></span>
                     </div>
-                    <div id="trMarketFixedWrap" class="row"><label>固定值</label><input id="trMarketFixed" type="number" min="0" step="0.01" style="width:130px" value="0"></div>
-                    <div id="trMarketFormulaWrap" class="row" style="display:none"><label>JS 表达式</label><input id="trMarketFormula" style="width:75%" placeholder='如 feed("moligod").price("1029")'></div>
-                    <div id="trMarketCodeWrap" class="row" style="display:none"><label>函数体</label><textarea id="trMarketCode" rows="5" style="width:100%" placeholder='return ctx.qty * 100;'></textarea></div>
                 </div>
-                <div class="row muted">变量：ctx.good{stock,stockMin,stockMax…} / ctx.limits / ctx.time / ctx.qty / ctx.feed(name) / clamp / Math</div>
-                <h4 style="margin:10px 0 2px">库存上下限</h4>
-                <div class="row">
-                    <label>下限(0不限)</label><input id="trStockMin" type="number" min="0" value="0" style="width:80px">
-                    <label>上限(0不限)</label><input id="trStockMax" type="number" min="0" value="0" style="width:80px">
-                    <label><input type="checkbox" id="trBlockMin" checked> 低于下限禁买</label>
+
+                <div class="table-scroll">
+                    <table id="tradeGoodTable"><thead><tr><th>id / 名称</th><th>分类</th><th>状态</th><th class="num">库存</th><th class="num">买入价</th><th class="num">卖出价</th><th class="num">限购</th><th class="center">补货</th><th class="center" style="width:130px">操作</th></tr></thead><tbody></tbody></table>
                 </div>
-                <div class="row">
-                    <button class="btn green" onclick="tradeSave()">保存商品</button>
-                    <button class="btn" onclick="tradeEditorHide()">收起</button>
-                    <span class="muted" id="trEditorStatus"></span>
-                </div>
+                <div class="pager" id="tradeGoodPager"></div>
             </div>
-            <table id="tradeGoodTable"><thead><tr><th>id / 名称</th><th>分类</th><th>状态</th><th>库存</th><th>买入价</th><th>卖出价</th><th>限购</th><th>补货</th><th>操作</th></tr></thead><tbody></tbody></table>
-            <div class="pager" id="tradeGoodPager"></div>
         </section>
 
     </main>
+    </div><!-- /main-col -->
 
     <script>
         "use strict";
@@ -1207,8 +1806,8 @@
                     '<td><input type="checkbox" class="recipeChk" data-id="' + esc(r.recipe_id) + '"' + chk + '></td>' +
                     '<td style="cursor:pointer" onclick="showRecipe(\'' + esc(r.recipe_id) + '\')">' + esc(r
                     .display_name) + ' <span class="muted">[' + esc(r.recipe_id) + ']</span></td>' +
-                    '<td>' + r.base_duration + 's</td>' +
-                    '<td>' + (r.required_level || 0) + '</td>' +
+                    '<td class="num">' + r.base_duration + 's</td>' +
+                    '<td class="num">' + (r.required_level || 0) + '</td>' +
                     '<td class="muted" title="' + esc(out) + '">' + esc(out) + '</td>' +
                     '<td><button class="btn small" title="复制为新配方" onclick="copyRecipe(\'' + esc(r.recipe_id) + '\')">复制</button></td>';
                 tb.appendChild(tr);
@@ -1693,11 +2292,11 @@
                     + '<td>' + esc(go.id) + '<br><span class="muted">' + esc(go.display_name || '') + '</span></td>'
                     + '<td>' + esc(go.category || '') + '</td>'
                     + '<td>' + esc(go.enabled ? '上架' : '停用') + ' / ' + esc(go.buyable ? '可买' : '禁买') + '</td>'
-                    + '<td>' + esc(v.stock !== undefined ? v.stock : go.stock) + '</td>'
-                    + '<td>' + esc(buyTxt) + '</td>'
-                    + '<td' + (spreadWarn ? ' style="color:#FF6B6B"' : '') + '>' + esc(sellTxt + spreadWarn) + '</td>'
-                    + '<td>' + esc(v.buy_limit) + '</td>'
-                    + '<td><input type="number" id="tradeStock_' + idH + '" min="0" style="width:64px" value="1">'
+                    + '<td class="num">' + esc(v.stock !== undefined ? v.stock : go.stock) + '</td>'
+                    + '<td class="num">' + esc(buyTxt) + '</td>'
+                    + '<td class="num"' + (spreadWarn ? ' style="color:#FF6B6B"' : '') + '>' + esc(sellTxt + spreadWarn) + '</td>'
+                    + '<td class="num">' + esc(v.buy_limit) + '</td>'
+                    + '<td><input type="number" id="tradeStock_' + idH + '" min="0" style="width:60px" value="1">'
                     + '<button class="btn small green" onclick="tradeStockOp(\'' + idS + '\',\'add\')">补货</button>'
                     + '<button class="btn small" onclick="tradeStockOp(\'' + idS + '\',\'set\')">设为</button></td>'
                     + '<td><button class="btn small" onclick="tradeEdit(\'' + idS + '\')">编辑</button> '

@@ -19,7 +19,9 @@ public final class ModConfig {
 
     public static final ForgeConfigSpec SERVER_SPEC;
 
-    /** 仓库总行数（每行 9 格，总容量 = 行数 x 9，上限 64 行 = 576 格；2.0.1Alpha 由 warehouse_pages 迁移而来）。 */
+    /** 仓库行数上限（统一在此定义，一处引用；256 行 = 2304 格）。 */
+    public static final int WAREHOUSE_ROWS_MAX = 256;
+    /** 仓库总行数（每行 9 格，总容量 = 行数 x 9，上限 WAREHOUSE_ROWS_MAX；2.0.1Alpha 由 warehouse_pages 迁移而来）。 */
     public static final ForgeConfigSpec.IntValue WAREHOUSE_ROWS;
     /** 0 级玩家初始解锁槽位数。 */
     public static final ForgeConfigSpec.IntValue BASE_SLOTS;
@@ -50,8 +52,8 @@ public final class ModConfig {
         b.comment("DeltaNexus 服务端配置").push("deltanexus");
 
         WAREHOUSE_ROWS = b
-                .comment("仓库总行数（每行 9 格，总容量 = 行数 x 9，上限 64 行；仓库界面滚轮向下滚动查看）")
-                .defineInRange("warehouse_rows", migrateOldPages(), 1, 64);
+                .comment("仓库总行数（每行 9 格，总容量 = 行数 x 9，上限 " + WAREHOUSE_ROWS_MAX + " 行；仓库界面滚轮向下滚动查看）")
+                .defineInRange("warehouse_rows", migrateOldPages(), 1, WAREHOUSE_ROWS_MAX);
 
         BASE_SLOTS = b
                 .comment("0 级玩家初始解锁槽位数（默认 9 = 首行；升级由升级树逐级解锁更多槽位）")
@@ -274,9 +276,9 @@ public final class ModConfig {
         }
     }
 
-    /** 仓库总行数（默认 12，上限 64；每行 9 格）。 */
+    /** 仓库总行数（默认 12，上限 WAREHOUSE_ROWS_MAX；每行 9 格）。 */
     public static int warehouseRows() {
-        return Math.max(1, Math.min(64, safeGet(WAREHOUSE_ROWS, 12)));
+        return Math.max(1, Math.min(WAREHOUSE_ROWS_MAX, safeGet(WAREHOUSE_ROWS, 12)));
     }
 
     /**

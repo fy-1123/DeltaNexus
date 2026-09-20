@@ -1113,8 +1113,8 @@ public final class WebEditorServer {
 
     private static JsonObject settingRows(JsonObject body) {
         int v = body.has("rows") ? body.get("rows").getAsInt() : -1;
-        if (v < 1 || v > 64) {
-            return err("行数范围 1 ~ 64");
+        if (v < 1 || v > ModConfig.WAREHOUSE_ROWS_MAX) {
+            return err("行数范围 1 ~ " + ModConfig.WAREHOUSE_ROWS_MAX);
         }
         ModConfig.WAREHOUSE_ROWS.set(v);
         ModConfig.SERVER_SPEC.save();
