@@ -94,6 +94,33 @@ public interface IPlayerData extends ICapabilitySerializable<CompoundTag> {
     /** 指定安全箱槽位是否已解锁。 */
     boolean isSafeSlotUnlocked(int index);
 
+    // ------------------------------------------------------------------
+    // 装备（0.5.0Beta）：背包 / 胸挂（格子容器，内容存物品自身 NBT）
+    // ------------------------------------------------------------------
+
+    /**
+     * 已装备的指定种类装备（未装备返回 {@link ItemStack#EMPTY}）。
+     *
+     * <p>「哪些物品算背包/胸挂」由配置决定（{@code GearConfig}），因此装备槽按<b>种类</b>而不是按槽位编号管理：
+     * 种类为背包的物品只能进背包槽，胸挂只能进胸挂槽。</p>
+     */
+    ItemStack getEquipped(com.deltanexus.system.grid.GearKind kind);
+
+    /**
+     * 设置指定种类的装备槽（传空栈 = 卸下）。
+     *
+     * <p>调用方必须先保证物品确实是该种类的装备且已从原位置扣除；本方法只做「种类校验 + 落槽」，
+     * 不做背包空间判定。</p>
+     *
+     * @return 是否写入成功（false = 该物品不是这种装备，槽位保持原样）
+     */
+    boolean setEquipped(com.deltanexus.system.grid.GearKind kind, ItemStack stack);
+
+    /** 是否已装备某种类。 */
+    default boolean hasEquipped(com.deltanexus.system.grid.GearKind kind) {
+        return !getEquipped(kind).isEmpty();
+    }
+
     /** 标记数据已变化（任务状态等直接字段修改后调用，确保存档）。 */
     default void markTasksDirty() {
     }

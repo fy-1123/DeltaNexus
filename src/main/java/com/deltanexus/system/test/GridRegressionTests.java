@@ -12,6 +12,7 @@ import com.deltanexus.system.grid.core.UsableMask;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.gametest.framework.GameTestRegistry;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -588,5 +589,262 @@ public class GridRegressionTests {
             helper.fail("退化后不得占用其它格");
         }
         helper.succeed();
+    }
+
+    // ------------------------------------------------------------------
+    // 0.5.0Beta：装备（胸挂/背包）内容在容器间搬运时不丢
+    // ------------------------------------------------------------------
+
+    /**
+     * 装有东西的胸挂/背包在容器之间搬运后内容必须原样保留。
+     *
+     * <p>覆盖三条真实链路：仓库/安全箱处理器（{@link com.deltanexus.system.grid.GridHandlerBridge}）
+     * 的写入与读出、外部交付入口（{@code insertIntoGrid}）、以及存档序列化往返
+     * （{@code serializeNBT → deserializeNBT}）。任何一环丢掉物品 NBT，
+     * 玩家看到的就是「放进容器再拿出来，里面的数据全无」。</p>
+     */
+    @GameTest(template = "empty", templateNamespace = "deltanexus", timeoutTicks = 1200)
+    public void gearContentsSurviveContainerRoundTrip(GameTestHelper helper) {
+        // 登记一件装备（测试结束会撤销，避免污染配置文件）
+        net.minecraft.world.item.Item rigItem = Items.LEATHER_HORSE_ARMOR;
+        com.deltanexus.system.grid.GearConfig.set(rigItem, com.deltanexus.system.grid.GearKind.RIG,
+                new com.deltanexus.system.grid.GridSize(4, 3));
+        try {
+            ItemStack rig = new ItemStack(rigItem);
+            com.deltanexus.system.grid.GridStore contents = new com.deltanexus.system.grid.GridStore(4, 3);
+            contents.place(0, com.deltanexus.system.grid.GridEntry.of(new ItemStack(Items.DIAMOND, 3), false));
+            contents.place(5, com.deltanexus.system.grid.GridEntry.of(new ItemStack(Items.IRON_INGOT, 2), false));
+            com.deltanexus.system.grid.GearData.write(rig, contents);
+            if (gearCount(rig) != 5) {
+                helper.fail("写入后装备内容应为 5 件，实际 " + gearCount(rig));
+            }
+
+            // ① 菜单点击路径：setStackInSlot / getStackInSlot（仓库、安全箱都走这里）
+            com.deltanexus.system.grid.GridHandlerBridge bridge =
+                    new com.deltanexus.system.grid.GridHandlerBridge(9, 6, null);
+            bridge.setStackInSlot(0, rig.copy());
+            ItemStack out = bridge.getStackInSlot(0);
+            if (gearCount(out) != 5) {
+                helper.fail("容器取出后装备内容丢失：应 5 件，实际 " + gearCount(out));
+            }
+
+            // ② 外部交付路径：insertIntoGrid（交易交付 / 指令给物）
+            bridge.setStackInSlot(0, ItemStack.EMPTY);
+            ItemStack left = bridge.insertIntoGrid(rig.copy(), false);
+            if (!left.isEmpty()) {
+                helper.fail("1x1 的装备应当能放进空容器，剩余 " + left);
+            }
+            ItemStack extracted = bridge.extractItem(0, 64, false);
+            if (gearCount(extracted) != 5) {
+                helper.fail("交付后取出装备内容丢失：应 5 件，实际 " + gearCount(extracted));
+            }
+
+            // ③ 存档往返：serializeNBT → deserializeNBT（登出/重载）
+            bridge.setStackInSlot(0, rig.copy());
+            CompoundTag saved = bridge.serializeNBT();
+            com.deltanexus.system.grid.GridHandlerBridge restored =
+                    new com.deltanexus.system.grid.GridHandlerBridge(9, 6, null);
+            restored.deserializeNBT(saved);
+            if (gearCount(restored.getStackInSlot(0)) != 5) {
+                helper.fail("存档往返后装备内容丢失：应 5 件，实际 "
+                        + gearCount(restored.getStackInSlot(0)));
+            }
+            if (restored.grid().validate() != null) {
+                helper.fail("存档往返后容器不变式被破坏：" + restored.grid().validate());
+            }
+
+            // ④ 装备内容块缺少格式标记时也必须容错读出（绝不能当成空容器、更不能被写回抹掉）
+            ItemStack legacy = rig.copy();
+            com.deltanexus.system.grid.GridMarker.namespace(legacy).getCompound("gear").remove("format_version");
+            if (gearCount(legacy) != 5) {
+                helper.fail("缺少格式标记时应容错读取内容：应 5 件，实际 " + gearCount(legacy));
+            }
+        } finally {
+            com.deltanexus.system.grid.GearConfig.remove(rigItem);
+        }
+        helper.succeed();
+    }
+
+    /** 装备内容总件数（非装备或读不出时返回 -1）。 */
+    private static int gearCount(ItemStack stack) {
+        com.deltanexus.system.grid.GridStore store = com.deltanexus.system.grid.GearData.read(stack);
+        return store == null ? -1 : (int) store.totalCount();
+    }
+
+    /**
+     * 快捷移动的「合并同类」不得凭空销毁物品。
+     *
+     * <p>{@code SlotItemHandler}（仓库视口 / 安全箱）的 {@code getItem()} 返回的是**拷贝**：
+     * 就地 {@code grow} 只会改到那份拷贝，而源栈照样 {@code shrink} —— 物品凭空减少。
+     * 这里用一个只含处理器槽位的菜单直接验证「合并后总数守恒」。</p>
+     */
+    @GameTest(template = "empty", templateNamespace = "deltanexus", timeoutTicks = 1200)
+    public void quickMoveMergeKeepsItems(GameTestHelper helper) {
+        com.deltanexus.system.grid.GridHandlerBridge bridge =
+                new com.deltanexus.system.grid.GridHandlerBridge(1, 1, null);
+        bridge.setStackInSlot(0, new ItemStack(Items.DIAMOND, 30));
+        MergeTestMenu menu = new MergeTestMenu(bridge);
+
+        ItemStack source = new ItemStack(Items.DIAMOND, 40);
+        com.deltanexus.system.server.GearService.moveToAllowed(menu, source, 0, 1, false);
+
+        int inContainer = bridge.getStackInSlot(0).getCount();
+        int leftInSource = source.getCount();
+        if (inContainer + leftInSource != 70) {
+            helper.fail("快捷移动合并后总数应守恒（70），实际 容器=" + inContainer + " 源=" + leftInSource);
+        }
+        if (inContainer != 64) {
+            helper.fail("应把容器里的钻石补满到 64，实际 " + inContainer);
+        }
+        if (leftInSource != 6) {
+            helper.fail("源栈应剩 6，实际 " + leftInSource);
+        }
+        helper.succeed();
+    }
+
+    /** 只含一个处理器槽位的测试菜单（用于验证合并写回）。 */
+    private static final class MergeTestMenu extends net.minecraft.world.inventory.AbstractContainerMenu {
+
+        MergeTestMenu(net.minecraftforge.items.ItemStackHandler handler) {
+            super(net.minecraft.world.inventory.MenuType.GENERIC_9x1, 0);
+            addSlot(new net.minecraftforge.items.SlotItemHandler(handler, 0, 0, 0));
+        }
+
+        @Override
+        public ItemStack quickMoveStack(net.minecraft.world.entity.player.Player player, int index) {
+            return ItemStack.EMPTY;
+        }
+
+        @Override
+        public boolean stillValid(net.minecraft.world.entity.player.Player player) {
+            return true;
+        }
+    }
+
+    /**
+     * 0.5.0Beta：口袋 / 快捷栏口径（此前正好相反）。
+     *
+     * <ul>
+     *   <li><b>口袋</b>（主背包前 5 格）只收 1x1 的普通物品——大件与胸挂/背包一律拒绝；</li>
+     *   <li><b>快捷栏</b>默认 {@code 0-8:ANY}：任意大小的物品都能放进去（按 1x1 处理）；
+     *       历史默认值 {@code 0-3:ANY,4-8:GRID} 按新默认处理（旧配置文件同样生效）；</li>
+     *   <li>安全箱不接受胸挂/背包。</li>
+     * </ul>
+     */
+    @GameTest(template = "empty", templateNamespace = "deltanexus", timeoutTicks = 1200)
+    public void pocketAndHotbarRules(GameTestHelper helper) {
+        net.minecraft.world.item.Item rigItem = Items.LEATHER_HORSE_ARMOR;
+        com.deltanexus.system.grid.GearConfig.set(rigItem, com.deltanexus.system.grid.GearKind.RIG,
+                new com.deltanexus.system.grid.GridSize(4, 3));
+        java.util.Map<String, int[]> sizes = new java.util.LinkedHashMap<>();
+        sizes.put("minecraft:diamond", new int[]{2, 2});
+        com.deltanexus.system.grid.ItemSizeConfig.applyRuntime(sizes);
+        try {
+            ItemStack small = new ItemStack(Items.STICK);
+            ItemStack big = new ItemStack(Items.DIAMOND);
+            ItemStack gear = new ItemStack(rigItem);
+
+            if (!com.deltanexus.system.grid.GridSizes.pocketAccepts(small)) {
+                helper.fail("1x1 普通物品应能进 口袋");
+            }
+            if (com.deltanexus.system.grid.GridSizes.pocketAccepts(big)) {
+                helper.fail("2x2 物品不应能进 口袋");
+            }
+            if (com.deltanexus.system.grid.GridSizes.pocketAccepts(gear)) {
+                helper.fail("胸挂/背包不应能进 口袋");
+            }
+            if (com.deltanexus.system.server.GearService.inventorySlotAccepts(9, gear)) {
+                helper.fail("装备不应被放进 口袋（inventory 下标 9..13）");
+            }
+            if (!com.deltanexus.system.server.GearService.inventorySlotAccepts(0, gear)) {
+                helper.fail("装备应能被放进 快捷栏（inventory 下标 0..8）");
+            }
+            if (!com.deltanexus.system.server.GearService.inventorySlotAccepts(0, big)) {
+                helper.fail("大件应能被放进 快捷栏");
+            }
+            if (com.deltanexus.system.server.GearService.inventorySlotAccepts(12, big)) {
+                helper.fail("大件不应被放进 口袋");
+            }
+            // 快捷栏默认 ANY：任何索引都折算为 1x1（旧配置的历史默认值同样按新默认处理）
+            com.deltanexus.system.grid.core.GridDim dim =
+                    com.deltanexus.system.grid.GridSizes.applyHotbarRules(big, 4,
+                            new com.deltanexus.system.grid.core.GridDim(2, 2));
+            if (!dim.is1x1()) {
+                helper.fail("快捷栏默认应为 ANY（按 1x1 存活），实际 " + dim);
+            }
+        } finally {
+            com.deltanexus.system.grid.GearConfig.remove(rigItem);
+            com.deltanexus.system.grid.ItemSizeConfig.applyRuntime(null);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * 嵌套判定的「空」必须是递归的：<b>装着一个空背包的背包也算空</b>，可以放进别的装备；
+     * 而真正装着物品（或装着「有东西的背包」）的装备依旧不能嵌套。
+     *
+     * <p>旧实现只数条目数，于是「空背包套空背包」被判成有东西 → 再也放不进任何装备。</p>
+     */
+    @GameTest(template = "empty", templateNamespace = "deltanexus", timeoutTicks = 1200)
+    public void nestedEmptyGearCountsAsEmpty(GameTestHelper helper) {
+        net.minecraft.world.item.Item bagItem = Items.LEATHER_HORSE_ARMOR;
+        com.deltanexus.system.grid.GearConfig.set(bagItem, com.deltanexus.system.grid.GearKind.BACKPACK,
+                new com.deltanexus.system.grid.GridSize(6, 4));
+        try {
+            ItemStack empty = new ItemStack(bagItem);
+            // 一个背包，里面装一个空背包
+            ItemStack bagWithEmpty = gearWithContents(bagItem, empty);
+            if (!com.deltanexus.system.grid.GearNest.isEmpty(bagWithEmpty)) {
+                helper.fail("装着空背包的背包应被判为「空」");
+            }
+            if (!com.deltanexus.system.grid.GearNest.allows(bagWithEmpty, 1)) {
+                helper.fail("装着空背包的背包应能放进已装备的背包");
+            }
+            // 三层空链：里面那件「装着空背包的背包」同样是空的
+            ItemStack chain = gearWithContents(bagItem, bagWithEmpty);
+            if (!com.deltanexus.system.grid.GearNest.isEmpty(chain)
+                    || !com.deltanexus.system.grid.GearNest.allows(chain, 1)) {
+                helper.fail("多层空背包链同样算空，应允许嵌套");
+            }
+            // 里面那件背包装着真实物品 → 整条链都算非空
+            ItemStack filledInner = gearWithContents(bagItem, new ItemStack(Items.DIAMOND, 1));
+            ItemStack bagWithFilled = gearWithContents(bagItem, filledInner);
+            if (com.deltanexus.system.grid.GearNest.isEmpty(bagWithFilled)) {
+                helper.fail("装着「有东西的背包」的背包不应被判为空");
+            }
+            if (com.deltanexus.system.grid.GearNest.allows(bagWithFilled, 1)) {
+                helper.fail("装着「有东西的背包」的背包不应能嵌套");
+            }
+            // 直接装着普通物品 → 非空
+            if (com.deltanexus.system.grid.GearNest.allows(gearWithContents(bagItem, new ItemStack(Items.DIAMOND, 1)), 1)) {
+                helper.fail("装着普通物品的背包不应能嵌套");
+            }
+            // 深度上限：第 MAX_DEPTH 层之后不再允许嵌套
+            if (!com.deltanexus.system.grid.GearNest.allows(empty,
+                    com.deltanexus.system.grid.GearNest.MAX_DEPTH - 1)) {
+                helper.fail("深度上限内的空背包应可嵌套");
+            }
+            if (com.deltanexus.system.grid.GearNest.allows(empty,
+                    com.deltanexus.system.grid.GearNest.MAX_DEPTH)) {
+                helper.fail("超过深度上限不应允许嵌套");
+            }
+        } finally {
+            com.deltanexus.system.grid.GearConfig.remove(bagItem);
+        }
+        helper.succeed();
+    }
+
+    /** 造一件「装着给定物品」的装备（内容写进物品 NBT）。 */
+    private static ItemStack gearWithContents(net.minecraft.world.item.Item item, ItemStack... contents) {
+        ItemStack gear = new ItemStack(item);
+        com.deltanexus.system.grid.GridStore store = new com.deltanexus.system.grid.GridStore(6, 4);
+        int cell = 0;
+        for (ItemStack content : contents) {
+            if (content != null && !content.isEmpty()) {
+                store.place(cell++, com.deltanexus.system.grid.GridEntry.of(content, false));
+            }
+        }
+        com.deltanexus.system.grid.GearData.write(gear, store);
+        return gear;
     }
 }

@@ -1,6 +1,7 @@
 package com.deltanexus.system.config;
 
 import com.deltanexus.system.DeltaNexus;
+import com.deltanexus.system.common.NbtSpec;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -35,23 +36,16 @@ import java.util.Map;
  */
 public class UpgradeConfig {
 
-    /** 升级所需材料（含 NBT 匹配，结构与配方原料一致）。 */
-    public static class RequiredItem {
+    /** 升级所需材料（NBT 匹配口径继承 {@link NbtSpec}，结构与配方原料一致）。 */
+    public static class RequiredItem extends NbtSpec {
         public String item = "minecraft:air";
         public int count = 1;
-        public String nbt = "";
-        public com.deltanexus.system.common.NbtMatcher.MatchType matchType = com.deltanexus.system.common.NbtMatcher.MatchType.IGNORE;
 
         public JsonObject toJson() {
             JsonObject o = new JsonObject();
             o.addProperty("item", item);
             o.addProperty("count", count);
-            if (!nbt.isBlank()) {
-                o.addProperty("nbt", nbt);
-            }
-            if (matchType != com.deltanexus.system.common.NbtMatcher.MatchType.IGNORE) {
-                o.addProperty("match_type", matchType.key());
-            }
+            writeNbtJson(o);
             return o;
         }
 
@@ -59,9 +53,7 @@ public class UpgradeConfig {
             RequiredItem r = new RequiredItem();
             r.item = o.has("item") ? o.get("item").getAsString() : "minecraft:air";
             r.count = o.has("count") ? Math.max(1, o.get("count").getAsInt()) : 1;
-            r.nbt = o.has("nbt") ? o.get("nbt").getAsString() : "";
-            r.matchType = com.deltanexus.system.common.NbtMatcher.MatchType.parse(
-                    o.has("match_type") ? o.get("match_type").getAsString() : "ignore");
+            r.readNbtJson(o);
             return r;
         }
     }
@@ -311,17 +303,23 @@ public class UpgradeConfig {
         JsonConfigWriter.saveJsonDebounced(path, toJson(), ModConfig.saveDebounceMs());
     }
 
-    /** 添加升级所需材料（含 NBT 匹配模式）。 */
-    public synchronized void addRequiredItem(int level, String itemId, int count,
-                                              String nbt, com.deltanexus.system.common.NbtMatcher.MatchType matchType) {
+    /** 添加升级所需材料（直接给定完整 NBT 规格）。 */
+    public synchronized void addRequiredItem(int level, RequiredItem item) {
         UpgradeLevel u = getOrCreate(level);
+        u.requiredItems.add(item);
+        saveNow();
+    }
+
+    /** 添加升级所需材料（便利重载：按 item/count/nbt/matchMode 构造）。 */
+    public synchronized void addRequiredItem(int level, String itemId, int count,
+                                              String nbt, NbtSpec.MatchMode matchMode) {
         RequiredItem r = new RequiredItem();
         r.item = itemId;
         r.count = count;
-        r.nbt = nbt;
-        r.matchType = matchType;
-        u.requiredItems.add(r);
-        saveNow();
+        r.nbt = nbt == null ? "" : nbt;
+        r.matchMode = matchMode == null ? NbtSpec.MatchMode.ID : matchMode;
+        r.normalizeMatch();
+        addRequiredItem(level, r);
     }
 
     /** 删除升级所需材料（按索引）。 */
@@ -456,17 +454,23 @@ public class UpgradeConfig {
         return removed;
     }
 
-    /** 添加安全箱升级所需材料（含 NBT 匹配模式）。 */
-    public synchronized void safeAddRequiredItem(int level, String itemId, int count,
-                                                  String nbt, com.deltanexus.system.common.NbtMatcher.MatchType matchType) {
+    /** 添加安全箱升级所需材料（直接给定完整 NBT 规格）。 */
+    public synchronized void safeAddRequiredItem(int level, RequiredItem item) {
         UpgradeLevel u = safeGetOrCreate(level);
+        u.requiredItems.add(item);
+        saveNow();
+    }
+
+    /** 添加安全箱升级所需材料（便利重载：按 item/count/nbt/matchMode 构造）。 */
+    public synchronized void safeAddRequiredItem(int level, String itemId, int count,
+                                                  String nbt, NbtSpec.MatchMode matchMode) {
         RequiredItem r = new RequiredItem();
         r.item = itemId;
         r.count = count;
-        r.nbt = nbt;
-        r.matchType = matchType;
-        u.requiredItems.add(r);
-        saveNow();
+        r.nbt = nbt == null ? "" : nbt;
+        r.matchMode = matchMode == null ? NbtSpec.MatchMode.ID : matchMode;
+        r.normalizeMatch();
+        safeAddRequiredItem(level, r);
     }
 
     /** 删除安全箱升级所需材料（按索引）。 */

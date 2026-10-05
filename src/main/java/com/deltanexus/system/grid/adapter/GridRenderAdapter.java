@@ -2,6 +2,7 @@ package com.deltanexus.system.grid.adapter;
 
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.deltanexus.system.client.gui.DnUiLayout;
 import com.deltanexus.system.grid.GridClassConfig;
 import com.deltanexus.system.grid.GridSizes;
 import com.deltanexus.system.grid.InventoryGridHandler;
@@ -39,25 +40,33 @@ public final class GridRenderAdapter {
         renderGridStack(gui, stack, x, y, dim, rotated, GridClassConfig.bgOf(stack));
     }
 
-    /** 渲染一件跨格物品（自定义背景色）。 */
+    /**
+     * 渲染一件跨格物品（自定义背景色）。
+     *
+     * <p>坐标约定与 {@code DnUiTheme.drawRaritySlot} / 槽位命中测试一致：
+     * {@code (x, y)} 是 16×16 物品内容原点，18×18 格框为 {@code [x-1, x+17]}。
+     * 因此墙体从 {@code (x-1, y-1)} 起画，图标中心落在格框正中心。</p>
+     */
     public static void renderGridStack(GuiGraphics gui, ItemStack stack, int x, int y,
                                        InventoryGridHandler.ItemDim dim, boolean rotated, int[] bg) {
-        int cw = dim.w() * 18;
-        int ch = dim.h() * 18;
+        int cw = (dim.w() - 1) * DnUiLayout.SLOT_PITCH + DnUiLayout.SLOT_SIZE;
+        int ch = (dim.h() - 1) * DnUiLayout.SLOT_PITCH + DnUiLayout.SLOT_SIZE;
+        int gx = x - 1;
+        int gy = y - 1;
 
         gui.pose().pushPose();
         gui.pose().translate(0, 0, 360);
-        gui.fill(x, y, x + cw, y + ch, bg[1]);                       // 外衬
-        gui.fill(x + 1, y + 1, x + cw - 1, y + ch - 1, bg[0]);       // 主墙
+        gui.fill(gx, gy, gx + cw, gy + ch, bg[1]);                       // 外衬
+        gui.fill(gx + 1, gy + 1, gx + cw - 1, gy + ch - 1, bg[0]);       // 主墙
         int b = bg[2];
-        gui.fill(x, y, x + cw, y + 1, b);                            // 上边框
-        gui.fill(x, y + ch - 1, x + cw, y + ch, b);                  // 下边框
-        gui.fill(x, y + 1, x + 1, y + ch - 1, b);                    // 左边框
-        gui.fill(x + cw - 1, y + 1, x + cw, y + ch - 1, b);          // 右边框
+        gui.fill(gx, gy, gx + cw, gy + 1, b);                            // 上边框
+        gui.fill(gx, gy + ch - 1, gx + cw, gy + ch, b);                  // 下边框
+        gui.fill(gx, gy + 1, gx + 1, gy + ch - 1, b);                    // 左边框
+        gui.fill(gx + cw - 1, gy + 1, gx + cw, gy + ch - 1, b);          // 右边框
         gui.pose().popPose();
 
         gui.pose().pushPose();
-        gui.pose().translate(x + cw / 2.0f, y + ch / 2.0f, 400);
+        gui.pose().translate(gx + cw / 2.0f, gy + ch / 2.0f, 400);
         float s = dim.is1x1() ? 1.0f : Math.min(cw / 16.0f, ch / 16.0f) * 0.85f;
         gui.pose().scale(s, s, 1.0f);
         if (rotated) {
@@ -75,7 +84,7 @@ public final class GridRenderAdapter {
             gui.pose().pushPose();
             gui.pose().translate(0, 0, 700);
             gui.drawString(Minecraft.getInstance().font, txt,
-                    x + cw - Minecraft.getInstance().font.width(txt) - 1, y + ch - 9, 0xFFFFFFFF, true);
+                    gx + cw - Minecraft.getInstance().font.width(txt) - 1, gy + ch - 9, 0xFFFFFFFF, true);
             gui.pose().popPose();
         }
     }
@@ -138,8 +147,8 @@ public final class GridRenderAdapter {
             int x = screen.getGuiLeft() + slot.x;
             int y = screen.getGuiTop() + slot.y;
             if (GridTags.isSlave(stack)) {
-                // 占位物：画白色半透明墙（主格会覆盖绘制完整大图标）
-                gui.fill(x, y, x + 16, y + 16, 0xAAFFFFFF);
+                // 占位物：画白色半透明墙（铺满 18px 格框，主格会覆盖绘制完整大图标）
+                gui.fill(x - 1, y - 1, x + 17, y + 17, 0xAAFFFFFF);
                 continue;
             }
             InventoryGridHandler.ItemDim dim = InventoryGridHandler.getActualDim(stack, slot, false, player);

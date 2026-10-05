@@ -1,7 +1,7 @@
 package com.deltanexus.system.config;
 
 import com.deltanexus.system.DeltaNexus;
-import com.deltanexus.system.common.NbtMatcher;
+import com.deltanexus.system.common.NbtSpec;
 import com.deltanexus.system.common.WorkbenchRegistry;
 import com.google.gson.JsonObject;
 import net.minecraftforge.fml.loading.FMLPaths;
@@ -197,7 +197,7 @@ public class RecipeCache {
             Recipe.Ingredient ing = new Recipe.Ingredient();
             ing.item = in[0];
             ing.count = Integer.parseInt(in[1]);
-            ing.matchType = NbtMatcher.MatchType.IGNORE;
+            ing.matchMode = NbtSpec.MatchMode.ID;
             r.input.add(ing);
         }
         for (String[] out : outputs) {

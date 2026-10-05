@@ -11,7 +11,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.api.distmarker.Dist;
@@ -39,9 +38,6 @@ import net.minecraftforge.items.SlotItemHandler;
 @Mod.EventBusSubscriber(modid = DeltaNexus.MODID, value = Dist.CLIENT)
 public final class SafeBoxOverlay {
 
-    private static final ResourceLocation SLOT =
-            ResourceLocation.fromNamespaceAndPath(DeltaNexus.MODID, "textures/gui/slot.png");
-
     /** 服务端同步状态（allowed=false 或 null 时不渲染）。 */
     private static volatile SyncSafeBoxPacket state;
 
@@ -66,11 +62,14 @@ public final class SafeBoxOverlay {
         // 2.0.4Alpha：同步客户端安全箱宽度（修复 2x3 物品在覆盖层渲染异常：宽度残留旧值导致回退 1x1）
         InventoryGridHandler.CLIENT_SAFE_WIDTH = safeWidth(packet);
         Minecraft mc = Minecraft.getInstance();
-        // 光标栈同步：原版背包与 dn 背包/容器界面均适用（NPE 预防：界面切换时序下判空）。
-        // 精确匹配 InventoryScreen——CreativeModeInventoryScreen 是其子类，须排除（需求 1）。
+        // 光标栈同步：只在「包里的光标栈确实属于当前这个菜单」时套用（0.5.0Beta）。
+        // 旧实现无条件套用，而服务端在容器/仓库界面下打包的是空栈，于是客户端光标上
+        // 正在拿着的物品会被抹掉——看起来就像物品凭空消失。
         if (mc.player != null && mc.player.containerMenu != null
+                && packet.carriedMenuId >= 0
+                && mc.player.containerMenu.containerId == packet.carriedMenuId
                 && (isVanillaInventory(mc.screen) || mc.screen instanceof BackpackScreen
-                        || mc.screen instanceof DnContainerScreen)) {
+                        || mc.screen instanceof DnContainerScreen || mc.screen instanceof WarehouseScreen)) {
             mc.player.containerMenu.setCarried(packet.carried == null ? ItemStack.EMPTY : packet.carried);
         }
     }
@@ -128,12 +127,7 @@ public final class SafeBoxOverlay {
         return Component.translatable("gui.dn.safe_box").getString() + " Lv" + st.safeLevel;
     }
 
-    /** 安全箱标题颜色（2.1Alpha：禁用时红色警示，正常金色）。 */
-    public static int safeTitleColor(SyncSafeBoxPacket st) {
-        return st != null && !st.allowed ? 0xFFFF5555 : DnTheme.GOLD;
-    }
-
-    /** 安全箱是否可用（状态已同步且未被禁用；2.1Alpha：禁用时不渲染任何格子）。 */
+    /** 安全箱是否可用（状态已同步且未被禁用；被禁用时不渲染任何格子）。 */
     public static boolean safeAllowed(SyncSafeBoxPacket st) {
         return st != null && st.allowed;
     }
@@ -160,7 +154,8 @@ public final class SafeBoxOverlay {
     // ==================================================================
 
     /**
-     * 渲染安全箱网格物品与悬停 tooltip（调用方自画面板底图）。
+     * 渲染安全箱网格物品（调用方自画面板底图）。<b>不再画悬停提示</b>——
+     * 提示必须画在裁剪区之外、且在所有网格物品之后，见 {@link #renderSafeBoxTooltip}。
      * NPE 预防：状态未同步/字段缺失时静默跳过。
      */
     public static void renderSafeBoxGrid(GuiGraphics gg, int x, int y, int w, int h, double mx, double my) {
@@ -173,17 +168,17 @@ public final class SafeBoxOverlay {
             return;
         }
         for (int i = 0; i < w * h && i < FAKE_SLOTS.length; i++) {
-            int sx = x + (i % w) * 18;
-            int sy = y + (i / w) * 18;
+            int sx = x + (i % w) * DnUiLayout.SLOT_PITCH;
+            int sy = y + (i / w) * DnUiLayout.SLOT_PITCH;
             ItemStack stack = i < s.items.length ? s.items[i] : ItemStack.EMPTY;
             if (stack.isEmpty()) {
                 continue;
             }
             if (InventoryGridHandler.isSlave(stack)) {
-                // 占位物：白色半透明墙（与容器界面一致）
+                // 占位物：白色半透明墙（铺满 18px 格框，与容器界面一致）
                 gg.pose().pushPose();
                 gg.pose().translate(0, 0, 350);
-                gg.fill(sx, sy, sx + 16, sy + 16, 0xAAFFFFFF);
+                gg.fill(sx - 1, sy - 1, sx + 17, sy + 17, 0xAAFFFFFF);
                 gg.pose().popPose();
             } else {
                 InventoryGridHandler.ItemDim dim = InventoryGridHandler.getActualDim(
@@ -206,19 +201,44 @@ public final class SafeBoxOverlay {
                     com.deltanexus.system.grid.GridClientRendering.renderGridStack(gg, stack, sx, sy, dim, rotated);
                 }
             }
-            if (!InventoryGridHandler.isSlave(stack)
-                    && mx >= sx && mx < sx + 18 && my >= sy && my < sy + 18) {
-                gg.renderTooltip(mc.font, stack, sx, sy);
-            }
         }
+    }
+
+    /**
+     * 安全箱悬停提示（0.5.0Beta 修复「安全箱里的提示框下面和右边被裁掉」）。
+     *
+     * <p>旧实现在 {@link #renderSafeBoxGrid} 内部就地画提示，而该调用点在背包/容器界面的
+     * <b>裁剪区（scissor）之内</b>，且提示以格子左上角为锚点——于是提示框右半边与下半边
+     * 被裁掉，看起来「显示不全」。现在：提示由调用方在关闭裁剪之后、所有网格物品之后调用，
+     * 并以鼠标位置为锚点。</p>
+     */
+    public static void renderSafeBoxTooltip(GuiGraphics gg, int x, int y, int w, int h,
+                                           double mouseX, double mouseY) {
+        SyncSafeBoxPacket s = state;
+        if (s == null || !s.allowed || s.items == null) {
+            return;
+        }
+        int idx = safeSlotAt(mouseX, mouseY, x, y, w, h);
+        if (idx < 0 || idx >= s.items.length) {
+            return;
+        }
+        ItemStack stack = s.items[idx];
+        if (stack.isEmpty() || InventoryGridHandler.isSlave(stack)) {
+            return;
+        }
+        // 再抬一层 z：安全箱覆盖层可能压在网格大图标（z≈550）附近，而提示自身只有 z≈400
+        gg.pose().pushPose();
+        gg.pose().translate(0, 0, 1000);
+        gg.renderTooltip(Minecraft.getInstance().font, stack, (int) mouseX, (int) mouseY);
+        gg.pose().popPose();
     }
 
     /** 安全箱网格命中判定：返回槽位序号（0~8），未命中返回 -1。 */
     public static int safeSlotAt(double mx, double my, int x, int y, int w, int h) {
         for (int i = 0; i < w * h; i++) {
-            int sx = x + (i % w) * 18;
-            int sy = y + (i / w) * 18;
-            if (mx >= sx && mx < sx + 18 && my >= sy && my < sy + 18) {
+            int sx = x + (i % w) * DnUiLayout.SLOT_PITCH;
+            int sy = y + (i / w) * DnUiLayout.SLOT_PITCH;
+            if (mx >= sx && mx < sx + DnUiLayout.SLOT_PITCH && my >= sy && my < sy + DnUiLayout.SLOT_PITCH) {
                 return i;
             }
         }
@@ -239,8 +259,8 @@ public final class SafeBoxOverlay {
         Minecraft mc = Minecraft.getInstance();
         int w = safeWidth(s);
         int h = safeHeight(s);
-        int x = mc.getWindow().getGuiScaledWidth() - w * 18 - 14 - 72;
-        int y = mc.getWindow().getGuiScaledHeight() / 2 - h * 18 / 2 - 6 + 27;
+        int x = mc.getWindow().getGuiScaledWidth() - w * DnUiLayout.SLOT_PITCH - 14 - 72;
+        int y = mc.getWindow().getGuiScaledHeight() / 2 - h * DnUiLayout.SLOT_PITCH / 2 - 6 + 27;
         return new int[]{x, y, w, h};
     }
 
@@ -261,26 +281,26 @@ public final class SafeBoxOverlay {
         int y = r[1];
         int w = r[2];
         int h = r[3];
-        int pw = w * 18 + 16;
-        int ph = h * 18 + 26 + 8;
-        // 面板 + 标题（2.1Alpha：禁用时红色「安全箱被禁用」提示，位于安全箱文字处）
-        DnTheme.drawPanel(gg, x - 8, y - 26, pw, ph);
-        DnTheme.drawTitle(gg, Minecraft.getInstance().font, x - 8, y - 26, pw, safeTitle(s), safeTitleColor(s));
+        int pw = w * DnUiLayout.SLOT_PITCH + 16;
+        int ph = h * DnUiLayout.SLOT_PITCH + 26 + 8;
+        // 面板 + 标题（禁用时红色「安全箱被禁用」提示；照抄 sakura 面板样式）
+        DnUiTheme.drawPanel(gg, Minecraft.getInstance().font, x - 8, y - 26, pw, ph,
+                Component.literal(safeTitle(s)),
+                s != null && !s.allowed ? DnUiTheme.TEXT_WARNING : DnUiTheme.SECTION_TEXT);
         if (s == null || !s.allowed) {
-            // 2.1Alpha：被禁用 → 不渲染任何安全箱格子
+            // 被禁用 → 不渲染任何安全箱格子
             return;
         }
         // 槽位（仅已解锁行列）
         for (int i = 0; i < w * h; i++) {
-            int sx = x + (i % w) * 18;
-            int sy = y + (i / w) * 18;
-            gg.blit(SLOT, sx, sy, 0, 0, 18, 18, 18, 18);
+            DnUiTheme.drawSlotFrame(gg, x + (i % w) * DnUiLayout.SLOT_PITCH, y + (i / w) * DnUiLayout.SLOT_PITCH);
         }
-        // 物品 + 悬停 tooltip（与 dn 背包共用）
+        // 物品 + 悬停提示（与 dn 背包共用）：提示在物品之后、无裁剪区，锚点为鼠标
         Minecraft mc = Minecraft.getInstance();
         double mx = mc.mouseHandler.xpos() * mc.getWindow().getGuiScaledWidth() / mc.getWindow().getScreenWidth();
         double my = mc.mouseHandler.ypos() * mc.getWindow().getGuiScaledHeight() / mc.getWindow().getScreenHeight();
         renderSafeBoxGrid(gg, x, y, w, h, mx, my);
+        renderSafeBoxTooltip(gg, x, y, w, h, mx, my);
     }
 
     /** 点击交互：仅拦截安全箱网格区域内的左键点击（禁用时不拦截），其余交给原版界面。 */

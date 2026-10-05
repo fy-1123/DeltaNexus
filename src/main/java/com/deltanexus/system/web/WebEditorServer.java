@@ -2,7 +2,6 @@ package com.deltanexus.system.web;
 
 import com.deltanexus.system.DeltaNexus;
 import com.deltanexus.system.api.IPlayerData;
-import com.deltanexus.system.common.NbtMatcher;
 import com.deltanexus.system.common.WorkbenchRegistry;
 import com.deltanexus.system.config.JsonConfigWriter;
 import com.deltanexus.system.config.ModConfig;
@@ -10,9 +9,19 @@ import com.deltanexus.system.config.Recipe;
 import com.deltanexus.system.config.RecipeCache;
 import com.deltanexus.system.config.UpgradeConfig;
 import com.deltanexus.system.server.CurrencyManager;
+import com.deltanexus.system.server.GearService;
 import com.deltanexus.system.server.ManufacturingService;
 import com.deltanexus.system.server.PermissionManager;
 import com.deltanexus.system.config.SafeBoxRestrictions;
+import com.deltanexus.system.grid.GearKind;
+import com.deltanexus.system.grid.GridEntry;
+import com.deltanexus.system.grid.GridStore;
+import com.deltanexus.system.spawner.GlobalConfig;
+import com.deltanexus.system.spawner.LogConfig;
+import com.deltanexus.system.spawner.Spawner;
+import com.deltanexus.system.spawner.SpawnerManager;
+import com.deltanexus.system.spawner.SpawnerService;
+import com.deltanexus.system.spawner.SpawnerWorldStore;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -20,18 +29,27 @@ import com.google.gson.JsonParser;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.items.ItemStackHandler;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -68,6 +86,17 @@ public final class WebEditorServer {
     /** 访问令牌（仅内存，不落盘；每次启动 Web 服务重新生成，停止/重启后失效）。 */
     private static volatile String currentToken = "";
 
+    // ---- SSE（0.6.0Beta）：在线玩家实时数据推送（服务端推送，免整页刷新） ----
+    /** 刷新间隔（毫秒）。 */
+    private static final long SSE_TICK_MS = 3000L;
+    /** 已连接订阅者。 */
+    private static final java.util.Set<SseClient> SSE_CLIENTS =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+    /** 最近一次玩家实时负载（无订阅者时为 ""）。 */
+    private static volatile String ssePlayersPayload = "";
+    private static volatile boolean sseRunning;
+    private static Thread sseRefresher;
+
     private WebEditorServer() {
     }
 
@@ -99,7 +128,10 @@ public final class WebEditorServer {
             server.setExecutor(executor);
             server.createContext("/", new PageHandler());
             server.createContext("/api", new ApiHandler());
+            server.createContext("/api/events", new SseHandler());
             server.start();
+            sseRunning = true;
+            startSseRefresher();
             DeltaNexus.LOGGER.info("[DN] Web 网页编辑器已启动: {}，token 鉴权 {}",
                     urlWithToken(), cfg.tokenAuth() ? "开启，令牌仅存内存" : "关闭");
             return true;
@@ -120,6 +152,13 @@ public final class WebEditorServer {
     }
 
     public static synchronized void stop() {
+        sseRunning = false;
+        if (sseRefresher != null) {
+            sseRefresher.interrupt();
+            sseRefresher = null;
+        }
+        SSE_CLIENTS.clear();
+        ssePlayersPayload = "";
         if (server != null) {
             server.stop(0);
             server = null;
@@ -214,6 +253,130 @@ public final class WebEditorServer {
         }
     }
 
+    // ------------------------------------------------------------------
+    // SSE：在线玩家实时数据推送
+    // ------------------------------------------------------------------
+
+    /** 单个 SSE 订阅者：底层为一个长连接输出流。 */
+    private static final class SseClient {
+        private final HttpExchange exchange;
+        private final java.io.OutputStream out;
+
+        SseClient(HttpExchange exchange) throws IOException {
+            this.exchange = exchange;
+            this.out = exchange.getResponseBody();
+        }
+
+        void send(String event, String data) throws IOException {
+            out.write(("event: " + event + "\ndata: " + data + "\n\n").getBytes(StandardCharsets.UTF_8));
+            out.flush();
+        }
+
+        void comment(String text) throws IOException {
+            out.write((": " + text + "\n\n").getBytes(StandardCharsets.UTF_8));
+            out.flush();
+        }
+
+        void close() {
+            exchange.close();
+        }
+    }
+
+    /**
+     * SSE 处理器：{@code GET /api/events}。连接建立后由各自的处理线程按刷新间隔
+     * 推送最新玩家数据（内容未变时改发心跳注释），断开即回收。
+     */
+    private static final class SseHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!authorized(exchange)) {
+                send(exchange, 401, err("未授权：token 无效或缺失"));
+                return;
+            }
+            exchange.getResponseHeaders().set("Content-Type", "text/event-stream; charset=utf-8");
+            exchange.getResponseHeaders().set("Cache-Control", "no-cache");
+            exchange.getResponseHeaders().set("Connection", "keep-alive");
+            exchange.getResponseHeaders().set("X-Accel-Buffering", "no");
+            exchange.sendResponseHeaders(200, 0);
+            SseClient client = new SseClient(exchange);
+            SSE_CLIENTS.add(client);
+            try {
+                client.send("hello", "{\"ok\":true}");
+                String last = null;
+                int idle = 0;
+                while (sseRunning && server != null) {
+                    try {
+                        Thread.sleep(1000L);
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+                    String payload = ssePlayersPayload;
+                    if (payload != null && !payload.isEmpty() && !payload.equals(last)) {
+                        client.send("players", payload);
+                        last = payload;
+                        idle = 0;
+                    } else if (++idle >= 15) {
+                        client.comment("ping");
+                        idle = 0;
+                    }
+                }
+            } catch (IOException ignored) {
+                // 客户端断开
+            } finally {
+                SSE_CLIENTS.remove(client);
+                client.close();
+            }
+        }
+    }
+
+    /** 启动玩家数据刷新线程（无订阅者时不产生任何开销）。 */
+    private static synchronized void startSseRefresher() {
+        if (sseRefresher != null && sseRefresher.isAlive()) {
+            return;
+        }
+        sseRefresher = new Thread(() -> {
+            while (sseRunning) {
+                try {
+                    Thread.sleep(SSE_TICK_MS);
+                } catch (InterruptedException e) {
+                    return;
+                }
+                if (SSE_CLIENTS.isEmpty()) {
+                    continue;
+                }
+                try {
+                    JsonObject o = onServer(WebEditorServer::livePlayers);
+                    if (o != null && o.has("ok") && o.get("ok").getAsBoolean()) {
+                        ssePlayersPayload = o.toString();
+                    }
+                } catch (Exception ignored) {
+                    // 单次失败不中断推送
+                }
+            }
+        }, "dn-WebSSE");
+        sseRefresher.setDaemon(true);
+        sseRefresher.start();
+    }
+
+    /** SSE 实时负载：在线玩家「等级/安全箱 + 持有物品」合并快照（前端据此局部刷新，免整页刷新）。 */
+    private static JsonObject livePlayers() {
+        JsonObject root = new JsonObject();
+        root.addProperty("ok", true);
+        JsonArray players = new JsonArray();
+        net.minecraft.server.MinecraftServer mc = currentServer;
+        if (mc != null) {
+            for (ServerPlayer p : mc.getPlayerList().getPlayers()) {
+                JsonObject o = new JsonObject();
+                o.addProperty("name", p.getGameProfile().getName());
+                playerStatsInto(o, p);
+                o.add("items", heldItems(p));
+                players.add(o);
+            }
+        }
+        root.add("players", players);
+        return root;
+    }
+
     private static boolean authorized(HttpExchange exchange) {
         WebConfig cfg = WebConfig.get();
         if (!cfg.tokenAuth()) {
@@ -306,6 +469,17 @@ public final class WebEditorServer {
         if ("GET".equals(method) && path.equals("/api/overview")) {
             return onServer(WebEditorServer::overview);
         }
+        if ("GET".equals(method) && path.equals("/api/items")) {
+            return onServer(WebEditorServer::itemsCatalog);
+        }
+        // 在线玩家实时位置（刷兵点位「取玩家坐标」用；不复用概览快照，保证是当前坐标）
+        if ("GET".equals(method) && path.equals("/api/players/positions")) {
+            return onServer(WebEditorServer::playersPositions);
+        }
+        // 刷兵可选项：注册表 id（实体 / 粒子 / 音效），页面首次进入时懒加载
+        if ("GET".equals(method) && path.equals("/api/spawner/registry")) {
+            return onServer(WebEditorServer::spawnerRegistry);
+        }
         if (!"POST".equals(method)) {
             return err("仅支持 GET /api/overview 与 POST 操作");
         }
@@ -359,6 +533,9 @@ public final class WebEditorServer {
             case "/api/grid/class/remove" -> onServer(() -> gridClassRemove(body));
             case "/api/grid/class/setclass" -> onServer(() -> gridClassSetItem(body));
             case "/api/grid/class/unsetclass" -> onServer(() -> gridClassUnsetItem(body));
+            // 装备登记表（0.5.0Beta）
+            case "/api/gear/set" -> onServer(() -> gearSet(body));
+            case "/api/gear/remove" -> onServer(() -> gearRemove(body));
             case "/api/player/level" -> onServer(() -> playerLevel(body));
             case "/api/player/safe/level" -> onServer(() -> playerSafeLevel(body));
             case "/api/player/reset" -> onServer(() -> playerReset(body));
@@ -376,6 +553,12 @@ public final class WebEditorServer {
             case "/api/trade/good/remove" -> onServer(() -> tradeGoodRemove(body));
             case "/api/trade/stock" -> onServer(() -> tradeStock(body));
             case "/api/trade/feed/refresh" -> onServer(() -> tradeFeedRefresh());
+            // 刷兵系统（0.4.0Beta；Web 配置见 0.5.0Beta）
+            case "/api/spawner/global" -> onServer(() -> spawnerGlobal(body));
+            case "/api/spawner/logging" -> onServer(() -> spawnerLogging(body));
+            case "/api/spawner/world/save" -> onServer(() -> spawnerWorldSave(body));
+            case "/api/spawner/action" -> onServer(() -> spawnerAction(body));
+            case "/api/spawner/reload" -> onServer(() -> spawnerReload());
             default -> err("未知接口: " + path);
         };
     }
@@ -432,6 +615,18 @@ public final class WebEditorServer {
             gridItemClass.addProperty(e.getKey(), e.getValue());
         }
         settings.add("grid_item_class", gridItemClass);
+        // 装备登记表（0.5.0Beta）：物品 id -> 种类 + 尺寸
+        JsonArray gearList = new JsonArray();
+        for (Map.Entry<String, com.deltanexus.system.grid.GearConfig.GearSpec> e
+                : com.deltanexus.system.grid.GearConfig.all().entrySet()) {
+            JsonObject o = new JsonObject();
+            o.addProperty("item", e.getKey());
+            o.addProperty("kind", e.getValue().kind().id());
+            o.addProperty("w", e.getValue().size().w());
+            o.addProperty("h", e.getValue().size().h());
+            gearList.add(o);
+        }
+        settings.add("gear", gearList);
         root.add("settings", settings);
 
         JsonArray wbs = new JsonArray();
@@ -461,8 +656,7 @@ public final class WebEditorServer {
                 JsonObject it = new JsonObject();
                 it.addProperty("item", ri.item);
                 it.addProperty("count", ri.count);
-                it.addProperty("nbt", ri.nbt == null ? "" : ri.nbt);
-                it.addProperty("match_type", ri.matchType.key());
+                ri.writeNbtJson(it);
                 items.add(it);
             }
             o.add("required_items", items);
@@ -485,8 +679,7 @@ public final class WebEditorServer {
                 JsonObject it = new JsonObject();
                 it.addProperty("item", ri.item);
                 it.addProperty("count", ri.count);
-                it.addProperty("nbt", ri.nbt == null ? "" : ri.nbt);
-                it.addProperty("match_type", ri.matchType.key());
+                ri.writeNbtJson(it);
                 items.add(it);
             }
             o.add("required_items", items);
@@ -500,8 +693,7 @@ public final class WebEditorServer {
         for (SafeBoxRestrictions.Rule r : SafeBoxRestrictions.all()) {
             JsonObject o = new JsonObject();
             o.addProperty("item", r.item);
-            o.addProperty("nbt", r.nbt);
-            o.addProperty("match_type", r.matchType.key());
+            r.writeNbtJson(o);
             safeRestrictions.add(o);
         }
         root.add("safe_restrictions", safeRestrictions);
@@ -510,17 +702,9 @@ public final class WebEditorServer {
         net.minecraft.server.MinecraftServer mc = currentServer;
         if (mc != null) {
             for (ServerPlayer p : mc.getPlayerList().getPlayers()) {
-                IPlayerData data = ManufacturingService.data(p);
                 JsonObject o = new JsonObject();
                 o.addProperty("name", p.getGameProfile().getName());
-                o.addProperty("level", data == null ? 0 : data.getWarehouseLevel());
-                o.addProperty("unlocked", data == null ? 0 : data.getUnlockedSlots().cardinality());
-                o.addProperty("capacity", data == null ? 0 : data.getCapacity());
-                o.addProperty("rows", data == null ? 1 : Math.max(1, data.getCapacity() / 9));
-                o.addProperty("safe_level", data == null ? 0 : data.getSafeBoxLevel());
-                o.addProperty("safe_unlocked", data == null ? 0 : data.getSafeBoxUnlockedSlots());
-                o.addProperty("safe_width", data == null ? 1 : data.getSafeBoxWidth());
-                o.addProperty("safe_height", data == null ? 1 : data.getSafeBoxHeight());
+                playerStatsInto(o, p);
                 players.add(o);
             }
         }
@@ -533,6 +717,8 @@ public final class WebEditorServer {
         perms.addProperty("default_workbench", PermissionManager.defaultWorkbench());
         perms.addProperty("default_special", PermissionManager.defaultSpecial());
         perms.addProperty("default_safe_box", PermissionManager.defaultSafeBox());
+        perms.addProperty("default_trade", PermissionManager.defaultTrade());
+        perms.addProperty("default_gear", PermissionManager.defaultGear());
         JsonObject permPlayers = new JsonObject();
         for (Map.Entry<String, Boolean[]> e : PermissionManager.overrides().entrySet()) {
             Boolean[] v = e.getValue();
@@ -548,6 +734,12 @@ public final class WebEditorServer {
             }
             if (v.length > PermissionManager.TYPE_SAFE_BOX && v[PermissionManager.TYPE_SAFE_BOX] != null) {
                 o.addProperty("safe_box", v[PermissionManager.TYPE_SAFE_BOX]);
+            }
+            if (v.length > PermissionManager.TYPE_TRADE && v[PermissionManager.TYPE_TRADE] != null) {
+                o.addProperty("trade", v[PermissionManager.TYPE_TRADE]);
+            }
+            if (v.length > PermissionManager.TYPE_GEAR && v[PermissionManager.TYPE_GEAR] != null) {
+                o.addProperty("gear", v[PermissionManager.TYPE_GEAR]);
             }
             // 2.1Alpha：功能开关（仅禁用玩家写出 features=false）
             if (PermissionManager.featuresDisabled(e.getKey())) {
@@ -567,7 +759,161 @@ public final class WebEditorServer {
         root.add("permissions", perms);
         // 交易行（0.2.0Beta）
         root.add("trade", tradeJson());
+        // 刷兵系统（0.4.0Beta；Web 配置页数据源）
+        root.add("spawner", spawnerJson());
         return root;
+    }
+
+    /**
+     * 物品选择器目录（0.5.0Beta）：创造全集 + 在线玩家持有的物品。
+     *
+     * <p>前端「统一物品选择器」一次请求拿齐两个来源，避免逐物品查询：
+     * 创造全集用于凭空构造任意物品；在线玩家物品用于「照抄」一件已存在的物品
+     * （附带真实 NBT 与数量，省去手写 SNBT）。</p>
+     */
+    private static JsonObject itemsCatalog() {
+        JsonObject root = new JsonObject();
+        root.addProperty("ok", true);
+
+        // 创造全集（按注册顺序；前端按命名空间分组、按 id/显示名搜索）
+        JsonArray items = new JsonArray();
+        for (Item item : ForgeRegistries.ITEMS) {
+            ResourceLocation id = ForgeRegistries.ITEMS.getKey(item);
+            if (id == null) {
+                continue;
+            }
+            JsonObject o = new JsonObject();
+            o.addProperty("id", id.toString());
+            o.addProperty("name", new ItemStack(item).getHoverName().getString());
+            o.addProperty("ns", id.getNamespace());
+            // NBT 驱动物品（如 TACZ 枪械）自带默认 NBT：一并带出，否则凭空构造会丢失关键数据
+            CompoundTag defTag = item.getDefaultInstance().getTag();
+            if (defTag != null && !defTag.isEmpty()) {
+                o.addProperty("nbt", defTag.toString());
+                o.addProperty("match_mode", com.deltanexus.system.common.NbtSpec.MatchMode.FULL_NBT.key);
+            } else {
+                o.addProperty("match_mode", com.deltanexus.system.common.NbtSpec.MatchMode.ID.key);
+            }
+            items.add(o);
+        }
+        root.add("items", items);
+        root.add("players", playersSection());
+        return root;
+    }
+
+    /** 玩家仓库/安全箱进度字段（概览与 SSE 实时负载共用）。 */
+    private static void playerStatsInto(JsonObject o, ServerPlayer p) {
+        IPlayerData data = ManufacturingService.data(p);
+        o.addProperty("level", data == null ? 0 : data.getWarehouseLevel());
+        o.addProperty("unlocked", data == null ? 0 : data.getUnlockedSlots().cardinality());
+        o.addProperty("capacity", data == null ? 0 : data.getCapacity());
+        o.addProperty("rows", data == null ? 1 : Math.max(1, data.getCapacity() / 9));
+        o.addProperty("safe_level", data == null ? 0 : data.getSafeBoxLevel());
+        o.addProperty("safe_unlocked", data == null ? 0 : data.getSafeBoxUnlockedSlots());
+        o.addProperty("safe_width", data == null ? 1 : data.getSafeBoxWidth());
+        o.addProperty("safe_height", data == null ? 1 : data.getSafeBoxHeight());
+        // 位置信息（刷兵点位「从在线玩家取坐标」；概览与 SSE 都带，页面随时可用最新的那一份）
+        positionInto(o, p);
+    }
+
+    /** 玩家当前位置字段（维度 id + 坐标 + 朝向）。包内可见：供回归测试直接断言字段。 */
+    static void positionInto(JsonObject o, ServerPlayer p) {
+        o.addProperty("dimension", p.level().dimension().location().toString());
+        o.addProperty("x", round2(p.getX()));
+        o.addProperty("y", round2(p.getY()));
+        o.addProperty("z", round2(p.getZ()));
+        o.addProperty("yaw", round2(p.getYRot()));
+        o.addProperty("pitch", round2(p.getXRot()));
+    }
+
+    private static double round2(double v) {
+        return Math.round(v * 100.0) / 100.0;
+    }
+
+    /**
+     * 在线玩家位置（GET {@code /api/players/positions}）——刷兵点位编辑器「取在线玩家坐标」用。
+     *
+     * <p>与概览里的 players 同构，但不携带物品等重字段，可随时点按钮刷新。</p>
+     */
+    private static JsonObject playersPositions() {
+        JsonObject root = new JsonObject();
+        root.addProperty("ok", true);
+        JsonArray players = new JsonArray();
+        net.minecraft.server.MinecraftServer mc = currentServer;
+        if (mc != null) {
+            for (ServerPlayer p : mc.getPlayerList().getPlayers()) {
+                JsonObject o = new JsonObject();
+                o.addProperty("name", p.getGameProfile().getName());
+                positionInto(o, p);
+                players.add(o);
+            }
+        }
+        root.add("players", players);
+        return root;
+    }
+
+    /** 在线玩家持有物品段（物品选择器「在线玩家」页签用）。 */
+    private static JsonArray playersSection() {
+        JsonArray players = new JsonArray();
+        net.minecraft.server.MinecraftServer mc = currentServer;
+        if (mc == null) {
+            return players;
+        }
+        for (ServerPlayer p : mc.getPlayerList().getPlayers()) {
+            JsonObject po = new JsonObject();
+            po.addProperty("name", p.getGameProfile().getName());
+            po.add("items", heldItems(p));
+            players.add(po);
+        }
+        return players;
+    }
+
+    /** 单个玩家持有物品：原版背包/盔甲/副手 + 胸挂/背包网格 + 安全箱。 */
+    private static JsonArray heldItems(ServerPlayer p) {
+        JsonArray stacks = new JsonArray();
+        Inventory inv = p.getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            addCatalogStack(stacks, inv.getItem(i), "inventory");
+        }
+        for (GearKind kind : GearKind.values()) {
+            GridStore store = GearService.store(GearService.equipped(p, kind));
+            if (store == null) {
+                continue;
+            }
+            for (GridEntry entry : store.entries().values()) {
+                addCatalogStack(stacks, entry.stack(), kind.id());
+            }
+        }
+        IPlayerData data = ManufacturingService.data(p);
+        if (data != null && data.getSafeBoxHandler() != null) {
+            ItemStackHandler safe = data.getSafeBoxHandler();
+            for (int i = 0; i < safe.getSlots(); i++) {
+                addCatalogStack(stacks, safe.getStackInSlot(i), "safe_box");
+            }
+        }
+        return stacks;
+    }
+
+    /** 物品选择器条目：id + 显示名 + 数量 + SNBT（空串 = 无 NBT）+ 建议匹配模式 + 来源。 */
+    private static void addCatalogStack(JsonArray out, ItemStack stack, String source) {
+        if (stack == null || stack.isEmpty()) {
+            return;
+        }
+        ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        if (id == null) {
+            return;
+        }
+        JsonObject o = new JsonObject();
+        o.addProperty("id", id.toString());
+        o.addProperty("name", stack.getHoverName().getString());
+        o.addProperty("count", stack.getCount());
+        String snbt = stack.getTag() == null ? "" : stack.getTag().toString();
+        o.addProperty("nbt", snbt);
+        o.addProperty("match_mode", snbt.isEmpty()
+                ? com.deltanexus.system.common.NbtSpec.MatchMode.ID.key
+                : com.deltanexus.system.common.NbtSpec.MatchMode.FULL_NBT.key);
+        o.addProperty("source", source);
+        out.add(o);
     }
 
     /** 交易行概览段：定义 + 运行时库存 + 已解析价格（目录同源）+ 外部源。 */
@@ -650,8 +996,7 @@ public final class WebEditorServer {
             JsonObject io = new JsonObject();
             io.addProperty("item", ing.item);
             io.addProperty("count", ing.count);
-            io.addProperty("nbt", ing.nbt == null ? "" : ing.nbt);
-            io.addProperty("match_type", ing.matchType.key());
+            ing.writeNbtJson(io);
             in.add(io);
         }
         o.add("input", in);
@@ -679,6 +1024,8 @@ public final class WebEditorServer {
         SafeBoxRestrictions.reload();
         com.deltanexus.system.trade.TradeConfig.get().reload();
         com.deltanexus.system.trade.TradeStockStore.load();
+        // 刷兵配置（0.4.0Beta：全局 + 日志 + 各世界文件；与 /dn reload 同一入口）
+        SpawnerManager.reloadAll(currentServer);
         boolean expanded = ManufacturingService.autoExpandRows();
         if (expanded) {
             ManufacturingService.applyRowsToOnline(currentServer);
@@ -778,8 +1125,7 @@ public final class WebEditorServer {
         Recipe.Ingredient ing = new Recipe.Ingredient();
         ing.item = item;
         ing.count = Math.max(1, body.has("count") ? body.get("count").getAsInt() : 1);
-        ing.nbt = body.has("nbt") ? body.get("nbt").getAsString() : "";
-        ing.matchType = NbtMatcher.MatchType.parse(body.has("match_type") ? body.get("match_type").getAsString() : null);
+        ing.readNbtJson(body);
         r.input.add(ing);
         RecipeCache.get().saveSingleRecipe(r);
         return ok(msg("msg.dn.recipe.add_input_ok", r.recipeId));
@@ -906,8 +1252,9 @@ public final class WebEditorServer {
             Recipe.Ingredient c = new Recipe.Ingredient();
             c.item = ing.item;
             c.count = ing.count;
-            c.matchType = ing.matchType;
             c.nbt = ing.nbt;
+            c.matchMode = ing.matchMode;
+            c.matchKeys.putAll(ing.matchKeys);
             copy.input.add(c);
         }
         for (Recipe.Output o : src.output) {
@@ -1019,9 +1366,11 @@ public final class WebEditorServer {
             return err("参数不合法或物品不存在: " + item);
         }
         int count = Math.max(1, body.has("count") ? body.get("count").getAsInt() : 1);
-        String nbt = body.has("nbt") ? body.get("nbt").getAsString() : "";
-        NbtMatcher.MatchType mt = NbtMatcher.MatchType.parse(body.has("match_type") ? body.get("match_type").getAsString() : null);
-        UpgradeConfig.get().addRequiredItem(level, item, count, nbt, mt);
+        UpgradeConfig.RequiredItem req = new UpgradeConfig.RequiredItem();
+        req.item = item;
+        req.count = count;
+        req.readNbtJson(body);
+        UpgradeConfig.get().addRequiredItem(level, req);
         return ok(msg("msg.dn.tree.add_item_ok", level));
     }
 
@@ -1188,6 +1537,37 @@ public final class WebEditorServer {
     }
 
     // ------------------------------------------------------------------
+    // 装备登记表（0.5.0Beta）
+    // ------------------------------------------------------------------
+
+    private static JsonObject gearSet(JsonObject body) {
+        String item = str(body, "item");
+        String kind = str(body, "kind");
+        int w = body.has("w") ? body.get("w").getAsInt() : -1;
+        int h = body.has("h") ? body.get("h").getAsInt() : -1;
+        if (item.isEmpty() || kind.isEmpty() || w < 1 || w > 9 || h < 1 || h > 9) {
+            return err("参数不合法: " + item);
+        }
+        if (!com.deltanexus.system.grid.GearConfig.set(item, kind, w, h)) {
+            return err("登记失败，物品或种类不存在: " + item + " / " + kind);
+        }
+        com.deltanexus.system.grid.GearConfig.GearSpec spec =
+                com.deltanexus.system.grid.GearConfig.all().get(item);
+        int cw = spec == null ? w : spec.size().w();
+        int ch = spec == null ? h : spec.size().h();
+        return ok("已登记 " + item + " 为 " + kind + " " + cw + "×" + ch
+                + (cw != w || ch != h ? "（超出上限已夹取）" : ""));
+    }
+
+    private static JsonObject gearRemove(JsonObject body) {
+        String item = str(body, "item");
+        if (!com.deltanexus.system.grid.GearConfig.remove(item)) {
+            return err("该物品未被登记为装备: " + item);
+        }
+        return ok("已取消登记 " + item);
+    }
+
+    // ------------------------------------------------------------------
     // 格式背包类配置（2.0.3Alpha）
     // ------------------------------------------------------------------
 
@@ -1284,9 +1664,11 @@ public final class WebEditorServer {
             return err("参数不合法或物品不存在: " + item);
         }
         int count = Math.max(1, body.has("count") ? body.get("count").getAsInt() : 1);
-        String nbt = body.has("nbt") ? body.get("nbt").getAsString() : "";
-        NbtMatcher.MatchType mt = NbtMatcher.MatchType.parse(body.has("match_type") ? body.get("match_type").getAsString() : null);
-        UpgradeConfig.get().safeAddRequiredItem(level, item, count, nbt, mt);
+        UpgradeConfig.RequiredItem req = new UpgradeConfig.RequiredItem();
+        req.item = item;
+        req.count = count;
+        req.readNbtJson(body);
+        UpgradeConfig.get().safeAddRequiredItem(level, req);
         return ok(msg("msg.dn.safe.tree.add_item_ok", level));
     }
 
@@ -1313,23 +1695,24 @@ public final class WebEditorServer {
     // 安全箱 NBT 限制（1.1.0Alpha）
     // ------------------------------------------------------------------
 
-    /** 添加安全箱 NBT 限制规则：{item?(空=任意), nbt, match_type?(exact/contains)}。 */
+    /** 添加安全箱 NBT 限制规则：{item?(空=任意), nbt?, match_mode?, match_keys?}。 */
     private static JsonObject safeRestrictAdd(JsonObject body) {
-        String nbt = str(body, "nbt");
-        if (nbt.isEmpty()) {
-            return err("缺少 NBT 字符串");
-        }
         String item = str(body, "item");
         if (!item.isEmpty() && !"any".equalsIgnoreCase(item)
                 && ForgeRegistries.ITEMS.getValue(ResourceLocation.tryParse(item)) == null) {
             return err("物品不存在: " + item);
         }
-        String mt = str(body, "match_type");
-        NbtMatcher.MatchType matchType = "exact".equalsIgnoreCase(mt)
-                ? NbtMatcher.MatchType.EXACT : NbtMatcher.MatchType.CONTAINS;
-        String itemId = item.isEmpty() || "any".equalsIgnoreCase(item) ? "" : item;
-        int index = SafeBoxRestrictions.add(itemId, nbt, matchType);
-        return ok(msg("msg.dn.safe.restrict.added", index, itemId.isEmpty() ? "any" : itemId, matchType.key()));
+        SafeBoxRestrictions.Rule rule = new SafeBoxRestrictions.Rule();
+        rule.item = item.isEmpty() || "any".equalsIgnoreCase(item) ? "" : item;
+        rule.readNbtJson(body);
+        if ((rule.nbt == null || rule.nbt.isBlank()) && rule.matchKeys.isEmpty()) {
+            return err("缺少 NBT 字符串");
+        }
+        if (rule.matchMode == com.deltanexus.system.common.NbtSpec.MatchMode.ID) {
+            rule.matchMode = com.deltanexus.system.common.NbtSpec.MatchMode.PARTIAL_NBT;
+        }
+        int index = SafeBoxRestrictions.add(rule);
+        return ok(msg("msg.dn.safe.restrict.added", index, rule.item.isEmpty() ? "any" : rule.item, rule.matchMode.key));
     }
 
     private static JsonObject safeRestrictRemove(JsonObject body) {
@@ -1354,7 +1737,7 @@ public final class WebEditorServer {
         boolean allow = body.get("allow").getAsBoolean();
         int t = permTypeOf(type);
         if (t < -1) {
-            return err("type 仅支持 warehouse/workbench/special/safe_box/all");
+            return err("type 仅支持 warehouse/workbench/special/safe_box/trade/gear/all");
         }
         PermissionManager.setOverride(name, t, allow);
         return ok(msg("msg.dn.perm.set", name, type, allow ? "允许" : "拒绝"));
@@ -1377,7 +1760,7 @@ public final class WebEditorServer {
         boolean allow = body.get("allow").getAsBoolean();
         int t = permTypeOf(type);
         if (t < -1) {
-            return err("type 仅支持 warehouse/workbench/special/safe_box/all");
+            return err("type 仅支持 warehouse/workbench/special/safe_box/trade/gear/all");
         }
         PermissionManager.setDefault(t, allow);
         return ok(msg("msg.dn.perm.default_set", type, allow ? "允许" : "拒绝"));
@@ -1389,6 +1772,8 @@ public final class WebEditorServer {
             case "workbench" -> PermissionManager.TYPE_WORKBENCH;
             case "special" -> PermissionManager.TYPE_SPECIAL;
             case "safe_box", "safebox" -> PermissionManager.TYPE_SAFE_BOX;
+            case "trade" -> PermissionManager.TYPE_TRADE;
+            case "gear" -> PermissionManager.TYPE_GEAR;
             case "all" -> -1;
             default -> -2;
         };
@@ -1645,5 +2030,391 @@ public final class WebEditorServer {
 
     private static String str(JsonObject body, String key) {
         return body.has(key) && body.get(key).isJsonPrimitive() ? body.get(key).getAsString().trim() : "";
+    }
+
+    private static boolean boolOf(JsonObject body, String key, boolean dflt) {
+        return body.has(key) && body.get(key).isJsonPrimitive() ? body.get(key).getAsBoolean() : dflt;
+    }
+
+    private static int intOf(JsonObject body, String key, int dflt, int min, int max) {
+        if (!body.has(key) || !body.get(key).isJsonPrimitive()) {
+            return dflt;
+        }
+        try {
+            return Math.max(min, Math.min(max, body.get(key).getAsInt()));
+        } catch (Exception e) {
+            return dflt;
+        }
+    }
+
+    private static double doubleOf(JsonObject body, String key, double dflt, double min, double max) {
+        if (!body.has(key) || !body.get(key).isJsonPrimitive()) {
+            return dflt;
+        }
+        try {
+            return Math.max(min, Math.min(max, body.get(key).getAsDouble()));
+        } catch (Exception e) {
+            return dflt;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 刷兵系统（0.4.0Beta；Web 配置页，0.5.0Beta 加入）
+    // ------------------------------------------------------------------
+
+    /**
+     * 刷兵配置快照（概览载荷的 {@code spawner} 段）。
+     *
+     * <p>结构：{@code global}（全局保护）/ {@code logging}（日志）/
+     * {@code world}（本存档的刷兵器 + 点位组 + 当前维度列表）/ {@code point_names}（全存档点名，
+     * 供点位组下拉使用）。刷兵器条目里附带 {@code _effective_points}
+     * （按 {@code point} 引用解析出的实际点位名，含 {@code group:} 展开）与 {@code _point_count}，
+     * 前端不必重复实现解析逻辑。</p>
+     *
+     * <p>包内可见：回归测试直接断言字段结构。</p>
+     */
+    static JsonObject spawnerJson() {
+        JsonObject root = new JsonObject();
+
+        // 全局保护
+        GlobalConfig g = GlobalConfig.get();
+        JsonObject global = new JsonObject();
+        global.addProperty("enabled", g.enabled);
+        JsonArray blacklist = new JsonArray();
+        for (String p : g.blacklistedWorldPatterns) {
+            blacklist.add(p);
+        }
+        global.add("blacklisted_world_patterns", blacklist);
+        global.add("limits", g.limits.toJson());
+        root.add("global", global);
+
+        // 日志
+        LogConfig l = LogConfig.get();
+        JsonObject logging = new JsonObject();
+        logging.addProperty("log_level", l.level);
+        logging.addProperty("log_successful_spawns", l.logSuccessfulSpawns);
+        logging.addProperty("log_failed_spawns", l.logFailedSpawns);
+        logging.addProperty("log_condition_rejections", l.logConditionRejections);
+        logging.addProperty("log_to_console", l.logToConsole);
+        logging.addProperty("log_to_file", l.logToFile);
+        logging.addProperty("log_file_path", l.logFilePath);
+        logging.add("levels", levelsArray());
+        root.add("logging", logging);
+
+        // 世界层（本存档一份：saves/<世界>/deltanexus/spawners.json + pointgroups.json）
+        JsonObject world = new JsonObject();
+        JsonArray dimensions = new JsonArray();
+        JsonObject spawners = new JsonObject();
+        JsonObject groups = new JsonObject();
+        JsonArray pointNames = new JsonArray();
+        net.minecraft.server.MinecraftServer mc = currentServer;
+        if (mc != null) {
+            for (ServerLevel level : mc.getAllLevels()) {
+                JsonObject d = new JsonObject();
+                ResourceLocation key = level.dimension().location();
+                d.addProperty("id", key.toString());
+                d.addProperty("name", key.getPath());
+                dimensions.add(d);
+            }
+            SpawnerWorldStore store = SpawnerManager.world(mc);
+            for (Map.Entry<String, Spawner> e : store.spawnersMutable().entrySet()) {
+                Spawner s = e.getValue();
+                JsonObject o = s.toJson();
+                List<String> effective = store.resolvePointTargets(s);
+                JsonArray ep = new JsonArray();
+                for (String p : effective) {
+                    ep.add(p);
+                }
+                o.add("_effective_points", ep);
+                o.addProperty("_point_count", effective.size());
+                o.addProperty("_has_entity", (s.entity != null && !s.entity.isBlank())
+                        || (s.entityPool != null && !s.entityPool.isEmpty()));
+                spawners.add(e.getKey(), o);
+            }
+            for (Map.Entry<String, List<String>> e : store.groups().entrySet()) {
+                JsonArray arr = new JsonArray();
+                for (String p : e.getValue()) {
+                    arr.add(p);
+                }
+                groups.add(e.getKey(), arr);
+            }
+            for (String p : store.collectPointNames("*")) {
+                pointNames.add(p);
+            }
+            world.addProperty("folder", store.dir().toString());
+        }
+        world.add("dimensions", dimensions);
+        world.add("spawners", spawners);
+        world.add("groups", groups);
+        root.add("world", world);
+        root.add("point_names", pointNames);
+        return root;
+    }
+
+    private static JsonArray levelsArray() {
+        JsonArray arr = new JsonArray();
+        for (String lvl : new String[]{LogConfig.LOG_OFF, LogConfig.LOG_ERROR, LogConfig.LOG_WARN,
+                LogConfig.LOG_INFO, LogConfig.LOG_DEBUG}) {
+            arr.add(lvl);
+        }
+        return arr;
+    }
+
+    /** 保存刷兵全局保护配置（enabled / 黑名单世界 / 全局上限）。 */
+    private static JsonObject spawnerGlobal(JsonObject body) {
+        GlobalConfig g = GlobalConfig.get();
+        g.enabled = boolOf(body, "enabled", g.enabled);
+        if (body.has("blacklisted_world_patterns") && body.get("blacklisted_world_patterns").isJsonArray()) {
+            g.blacklistedWorldPatterns.clear();
+            for (JsonElement el : body.getAsJsonArray("blacklisted_world_patterns")) {
+                if (el.isJsonPrimitive()) {
+                    String s = el.getAsString().trim();
+                    if (!s.isEmpty() && !g.blacklistedWorldPatterns.contains(s)) {
+                        g.blacklistedWorldPatterns.add(s);
+                    }
+                }
+            }
+        }
+        if (body.has("limits") && body.get("limits").isJsonObject()) {
+            JsonObject lim = body.getAsJsonObject("limits");
+            g.limits.maxTotalEntitiesPerWorld = intOf(lim, "max_total_entities_per_world",
+                    g.limits.maxTotalEntitiesPerWorld, 0, 1_000_000);
+            g.limits.maxEntitiesPerChunk = intOf(lim, "max_entities_per_chunk",
+                    g.limits.maxEntitiesPerChunk, 0, 100_000);
+            g.limits.minTpsToAllowSpawn = doubleOf(lim, "min_tps_to_allow_spawn",
+                    g.limits.minTpsToAllowSpawn, 0, 20);
+            g.limits.minFreeMemoryPercent = intOf(lim, "min_free_memory_percent",
+                    g.limits.minFreeMemoryPercent, 0, 100);
+        }
+        g.saveNow();
+        return ok("刷兵全局保护配置已保存（enabled=" + g.enabled + "，黑名单 "
+                + g.blacklistedWorldPatterns.size() + " 条）");
+    }
+
+    /** 保存刷兵日志配置（级别 / 各类开关 / 文件路径）。 */
+    private static JsonObject spawnerLogging(JsonObject body) {
+        LogConfig l = LogConfig.get();
+        String level = str(body, "log_level").toLowerCase(java.util.Locale.ROOT);
+        if (!level.isEmpty()) {
+            boolean valid = false;
+            for (JsonElement el : levelsArray()) {
+                if (el.getAsString().equals(level)) {
+                    valid = true;
+                    break;
+                }
+            }
+            if (!valid) {
+                return err("日志级别应为 " + String.join(" / ", LogConfig.LOG_OFF, LogConfig.LOG_ERROR,
+                        LogConfig.LOG_WARN, LogConfig.LOG_INFO, LogConfig.LOG_DEBUG));
+            }
+            l.level = level;
+        }
+        l.logSuccessfulSpawns = boolOf(body, "log_successful_spawns", l.logSuccessfulSpawns);
+        l.logFailedSpawns = boolOf(body, "log_failed_spawns", l.logFailedSpawns);
+        l.logConditionRejections = boolOf(body, "log_condition_rejections", l.logConditionRejections);
+        l.logToConsole = boolOf(body, "log_to_console", l.logToConsole);
+        l.logToFile = boolOf(body, "log_to_file", l.logToFile);
+        String path = str(body, "log_file_path");
+        if (!path.isEmpty()) {
+            l.logFilePath = path;
+        }
+        l.saveNow();
+        return ok("刷兵日志配置已保存（level=" + l.level + "，控制台=" + l.logToConsole
+                + "，文件=" + l.logToFile + "）");
+    }
+
+    /**
+     * 世界层保存（按名字<b>合并</b>，不整份覆盖）。
+     *
+     * <p>请求体：{@code spawners}（名字 → 刷兵器 JSON）、{@code groups}（组名 → 点名数组）、
+     * {@code removed_spawners} / {@code removed_groups}（显式删除列表）。
+     * 采用合并语义是为了安全：两个管理员（或指令 + 网页）交替编辑时，不会因为一方持有旧快照
+     * 就把另一方新建的刷兵器抹掉；删除只能通过显式的删除列表发生。</p>
+     */
+    private static JsonObject spawnerWorldSave(JsonObject body) {
+        net.minecraft.server.MinecraftServer mc = currentServer;
+        if (mc == null || !mc.isRunning()) {
+            return err("服务器未运行");
+        }
+        SpawnerWorldStore store = SpawnerManager.world(mc);
+        JsonObject result = applyWorldConfig(store, body);
+        if (!result.get("ok").getAsBoolean()) {
+            return result;
+        }
+        store.saveNow();
+        result.addProperty("msg", result.get("msg").getAsString() + "（" + store.dir() + "）");
+        return result;
+    }
+
+    /**
+     * 世界层合并（<b>与运行中的服务器无关</b>，便于回归测试）：按名字合并/更新刷兵器与点位组，
+     * 只删除 {@code removed_spawners} / {@code removed_groups} 里显式列出的条目。
+     *
+     * <p>合并语义是为了安全：两个管理员（或指令 + 网页）交替编辑时，不会因为一方持有旧快照
+     * 就把另一方新建的刷兵器抹掉。写盘由调用方负责（{@link #spawnerWorldSave} 会调
+     * {@link SpawnerWorldStore#saveNow()}）。</p>
+     */
+    static JsonObject applyWorldConfig(SpawnerWorldStore store, JsonObject body) {
+        int added = 0;
+        int updated = 0;
+        int removed = 0;
+
+        if (body.has("removed_spawners") && body.get("removed_spawners").isJsonArray()) {
+            for (JsonElement el : body.getAsJsonArray("removed_spawners")) {
+                if (el.isJsonPrimitive() && store.spawnersMutable().remove(el.getAsString().trim()) != null) {
+                    removed++;
+                }
+            }
+        }
+        if (body.has("removed_groups") && body.get("removed_groups").isJsonArray()) {
+            for (JsonElement el : body.getAsJsonArray("removed_groups")) {
+                if (el.isJsonPrimitive() && store.groups().remove(el.getAsString().trim()) != null) {
+                    removed++;
+                }
+            }
+        }
+
+        if (body.has("spawners") && body.get("spawners").isJsonObject()) {
+            for (Map.Entry<String, JsonElement> e : body.getAsJsonObject("spawners").entrySet()) {
+                String name = e.getKey() == null ? "" : e.getKey().trim();
+                if (!validSpawnerName(name)) {
+                    return err("非法刷兵器名：" + name + "（允许字母/数字/下划线/连字符/点/冒号，1~64 字）");
+                }
+                if (!e.getValue().isJsonObject()) {
+                    continue;
+                }
+                Spawner parsed = Spawner.fromJson(stripInternal(e.getValue().getAsJsonObject()));
+                if (store.has(name)) {
+                    updated++;
+                } else {
+                    added++;
+                }
+                store.spawnersMutable().put(name, parsed);
+            }
+        }
+
+        if (body.has("groups") && body.get("groups").isJsonObject()) {
+            for (Map.Entry<String, JsonElement> e : body.getAsJsonObject("groups").entrySet()) {
+                String gname = e.getKey() == null ? "" : e.getKey().trim();
+                if (gname.isEmpty() || !e.getValue().isJsonArray()) {
+                    continue;
+                }
+                List<String> list = new ArrayList<>();
+                for (JsonElement el : e.getValue().getAsJsonArray()) {
+                    if (el.isJsonPrimitive()) {
+                        String p = el.getAsString().trim();
+                        if (!p.isEmpty() && !list.contains(p)) {
+                            list.add(p);
+                        }
+                    }
+                }
+                store.groups().put(gname, list);
+            }
+        }
+
+        return ok("刷兵配置已保存：新增 " + added + " / 更新 " + updated + " / 删除 " + removed);
+    }
+
+    /** 刷兵器名合法性（与指令口径一致：非空、无空格、长度受限）。 */
+    private static boolean validSpawnerName(String name) {
+        return name != null && !name.isEmpty() && name.length() <= 64
+                && name.matches("[A-Za-z0-9_\\-.:]+");
+    }
+
+    /** 去掉编辑器附带的展示字段（以 {@code _} 开头），避免写进配置文件。 */
+    private static JsonObject stripInternal(JsonObject src) {
+        JsonObject out = new JsonObject();
+        for (Map.Entry<String, JsonElement> e : src.entrySet()) {
+            if (e.getKey() != null && !e.getKey().startsWith("_")) {
+                out.add(e.getKey(), e.getValue());
+            }
+        }
+        return out;
+    }
+
+    /** 全量重载刷兵配置（等同于 {@code /dn reload} 里的那一步）。 */
+    private static JsonObject spawnerReload() {
+        SpawnerManager.reloadAll(currentServer);
+        return ok("刷兵配置已重载（全局 + 日志 + 各世界文件）");
+    }
+
+    /**
+     * 预览 / 干跑 / 执行（{@code action = preview | dry-run | run}）。
+     *
+     * <p>遵守「零活动」设计：只有这次显式请求会刷一次，不注册任何定时/冷却。
+     * {@code dimension} 缺省用主世界；返回刷兵服务产出的文本（成功/拒绝原因）。</p>
+     */
+    private static JsonObject spawnerAction(JsonObject body) {
+        net.minecraft.server.MinecraftServer mc = currentServer;
+        if (mc == null || !mc.isRunning()) {
+            return err("服务器未运行");
+        }
+        String name = str(body, "name");
+        if (name.isEmpty()) {
+            return err("缺少刷兵器名");
+        }
+        SpawnerWorldStore store = SpawnerManager.world(mc);
+        if (!store.has(name)) {
+            return err("刷兵器不存在：" + name);
+        }
+        String action = str(body, "action").toLowerCase(java.util.Locale.ROOT);
+        ServerLevel level = resolveLevel(mc, str(body, "dimension"));
+        if (level == null) {
+            return err("未知维度：" + str(body, "dimension"));
+        }
+        CommandSourceStack source = mc.createCommandSourceStack().withLevel(level);
+        try {
+            String out = switch (action) {
+                case "preview" -> SpawnerService.preview(source, name, level).getString();
+                case "dry-run" -> SpawnerService.run(source, name, level, true).getString();
+                case "run" -> SpawnerService.run(source, name, level, false).getString();
+                default -> null;
+            };
+            if (out == null) {
+                return err("未知动作：" + action + "（可用 preview / dry-run / run）");
+            }
+            // 指令文本带 § 颜色码：网页是纯文本，去掉后再回传
+            String clean = out.replaceAll("\u00A7.", "").trim();
+            return ok(clean.isEmpty() ? (action + " " + name + " 已完成") : clean);
+        } catch (Throwable t) {
+            return err("执行失败：" + t);
+        }
+    }
+
+    /** 维度 id → ServerLevel（空/未知返回主世界；确实未知时返回 null）。 */
+    private static ServerLevel resolveLevel(net.minecraft.server.MinecraftServer mc, String dimensionId) {
+        if (dimensionId == null || dimensionId.isBlank()) {
+            return mc.overworld();
+        }
+        ResourceLocation key = ResourceLocation.tryParse(dimensionId.trim());
+        if (key == null) {
+            return null;
+        }
+        ServerLevel level = mc.getLevel(net.minecraft.resources.ResourceKey.create(
+                net.minecraft.core.registries.Registries.DIMENSION, key));
+        return level;
+    }
+
+    /** 刷兵可选项：注册表 id（实体 / 粒子 / 音效），供前端 datalist 建议。 */
+    private static JsonObject spawnerRegistry() {
+        JsonObject root = new JsonObject();
+        root.addProperty("ok", true);
+        root.add("entity", registryIds(ForgeRegistries.ENTITY_TYPES.getKeys()));
+        root.add("particle", registryIds(ForgeRegistries.PARTICLE_TYPES.getKeys()));
+        root.add("sound", registryIds(ForgeRegistries.SOUND_EVENTS.getKeys()));
+        return root;
+    }
+
+    private static JsonArray registryIds(java.util.Set<ResourceLocation> keys) {
+        List<String> ids = new ArrayList<>();
+        for (ResourceLocation key : keys) {
+            ids.add(key.toString());
+        }
+        java.util.Collections.sort(ids);
+        JsonArray arr = new JsonArray();
+        for (String id : ids) {
+            arr.add(id);
+        }
+        return arr;
     }
 }

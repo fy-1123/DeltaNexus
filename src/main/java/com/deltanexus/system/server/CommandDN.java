@@ -74,13 +74,14 @@ public final class CommandDN {
         return builder.buildFuture();
     };
 
-    /** 权限类型补全（warehouse/workbench/special/safe_box/trade/all，1.1.0Alpha / 2.0.3 Alpha/ 2.1Alpha / 0.2.0Beta）。 */
+    /** 权限类型补全（warehouse/workbench/special/safe_box/trade/gear/all，1.1.0Alpha / 2.0.3 Alpha/ 2.1Alpha / 0.2.0Beta / 0.5.0Beta）。 */
     private static final SuggestionProvider<CommandSourceStack> PERM_TYPES = (ctx, builder) -> {
         builder.suggest("warehouse", Component.literal("仓库"));
         builder.suggest("workbench", Component.literal("配方工作台"));
         builder.suggest("special", Component.literal("特勤处"));
         builder.suggest("safe_box", Component.literal("安全箱"));
         builder.suggest("trade", Component.literal("交易行"));
+        builder.suggest("gear", Component.literal("胸挂/背包装备"));
         builder.suggest("all", Component.literal("全部"));
         return builder.buildFuture();
     };
@@ -93,9 +94,9 @@ public final class CommandDN {
     };
 
     /** NBT 匹配模式补全（安全箱限制，1.1.0Alpha）。 */
-    private static final SuggestionProvider<CommandSourceStack> NBT_MATCH_TYPES = (ctx, builder) -> {
-        builder.suggest("contains", Component.literal("包含匹配，默认"));
-        builder.suggest("exact", Component.literal("完全匹配"));
+    private static final SuggestionProvider<CommandSourceStack> NBT_MATCH_MODES = (ctx, builder) -> {
+        builder.suggest("partial_nbt", Component.literal("部分匹配（包含键值），默认"));
+        builder.suggest("full_nbt", Component.literal("完全匹配"));
         return builder.buildFuture();
     };
 
@@ -476,12 +477,12 @@ public final class CommandDN {
                                                 com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "level")))))
                         .then(Commands.literal("restrict")
                                 .then(Commands.argument("item", StringArgumentType.word()).suggests(RESTRICT_ITEM)
-                                        .then(Commands.argument("match_type", StringArgumentType.word())
-                                                .suggests(NBT_MATCH_TYPES)
+                                        .then(Commands.argument("match_mode", StringArgumentType.word())
+                                                .suggests(NBT_MATCH_MODES)
                                                 .then(Commands.argument("nbt", StringArgumentType.greedyString())
                                                         .executes(ctx -> safeRestrict(ctx.getSource(),
                                                                 StringArgumentType.getString(ctx, "item"),
-                                                                StringArgumentType.getString(ctx, "match_type"),
+                                                                StringArgumentType.getString(ctx, "match_mode"),
                                                                 StringArgumentType.getString(ctx, "nbt")))))))
                         .then(Commands.literal("restrictions")
                                 .executes(ctx -> safeRestrictions(ctx.getSource())))
@@ -655,6 +656,8 @@ public final class CommandDN {
                 // spawner（0.4.0Beta：刷兵系统：实体+点位+规则，仅这一级子指令）
                 .then(com.deltanexus.system.spawner.SpawnerCommand.spawnerNode()
                         .requires(s -> s.hasPermission(2)))
+                // gear（0.5.0Beta：格子背包装备登记/穿戴/打开）
+                .then(GearCommand.gearNode().requires(s -> s.hasPermission(2)))
                 // help（仅总览，各指令详细帮助用 /dn <指令> help）
                 .then(Commands.literal("help")
                         .executes(ctx -> help(ctx.getSource()))));
@@ -695,6 +698,8 @@ public final class CommandDN {
         com.deltanexus.system.config.SafeBoxRestrictions.reload();
         com.deltanexus.system.trade.TradeConfig.get().reload();
         com.deltanexus.system.trade.TradeStockStore.load();
+        // 0.5.0Beta：格子背包装备登记表（哪些物品是背包/胸挂、各自多大）
+        com.deltanexus.system.grid.GearConfig.load();
         // 0.4.0Beta：刷兵系统配置热加载（全球层 + 已加载世界层）
         com.deltanexus.system.spawner.SpawnerManager.reloadAll(source.getServer());
         source.sendSuccess(() -> Component.translatable("msg.dn.reload.done",
@@ -1007,7 +1012,7 @@ public final class CommandDN {
                 Recipe.Ingredient ing = r.input.get(i);
                 if (i > 0) sb.append(", ");
                 sb.append("[").append(i).append("] ").append(ing.item).append("x").append(ing.count);
-                if (!ing.nbt.isBlank()) sb.append("(NBT:").append(ing.matchType.key()).append(")");
+                if (!ing.nbt.isBlank()) sb.append("(NBT:").append(ing.matchMode.key).append(")");
             }
         }
         sb.append("\n§a产物§r: ");
@@ -1171,7 +1176,7 @@ public final class CommandDN {
                     if (i > 0) sb.append(", ");
                     UpgradeConfig.RequiredItem req = u.requiredItems.get(i);
                     sb.append("[").append(i).append("] ").append(req.item).append("x").append(req.count);
-                    if (!req.nbt.isBlank()) sb.append("(NBT:").append(req.matchType.key()).append(")");
+                    if (!req.nbt.isBlank()) sb.append("(NBT:").append(req.matchMode.key).append(")");
                 }
             }
             sb.append("\n");
@@ -1407,7 +1412,7 @@ public final class CommandDN {
                         if (i > 0) sb.append(", ");
                         UpgradeConfig.RequiredItem req = u.requiredItems.get(i);
                         sb.append("[").append(i).append("] ").append(req.item).append("x").append(req.count);
-                        if (!req.nbt.isBlank()) sb.append("(NBT:").append(req.matchType.key()).append(")");
+                        if (!req.nbt.isBlank()) sb.append("(NBT:").append(req.matchMode.key).append(")");
                     }
                 }
                 sb.append("\n");
@@ -1496,18 +1501,15 @@ public final class CommandDN {
     // 安全箱 NBT 限制（/dn safe restrict，1.1.0Alpha）
     // ------------------------------------------------------------------
 
-    /** 添加安全箱 NBT 限制规则：/dn safe restrict <item|any> <exact|contains> <nbt>。 */
-    private static int safeRestrict(CommandSourceStack source, String item, String matchType, String nbt) {
+    /** 添加安全箱 NBT 限制规则：/dn safe restrict <item|any> <full_nbt|partial_nbt> <nbt>。 */
+    private static int safeRestrict(CommandSourceStack source, String item, String matchMode, String nbt) {
         if (nbt.isBlank()) {
             source.sendFailure(Component.translatable("msg.dn.safe.restrict.nbt_empty"));
             return 0;
         }
-        com.deltanexus.system.common.NbtMatcher.MatchType mt;
-        if ("exact".equalsIgnoreCase(matchType)) {
-            mt = com.deltanexus.system.common.NbtMatcher.MatchType.EXACT;
-        } else if ("contains".equalsIgnoreCase(matchType)) {
-            mt = com.deltanexus.system.common.NbtMatcher.MatchType.CONTAINS;
-        } else {
+        com.deltanexus.system.common.NbtSpec.MatchMode mt =
+                com.deltanexus.system.common.NbtSpec.MatchMode.parse(matchMode);
+        if (mt == com.deltanexus.system.common.NbtSpec.MatchMode.ID) {
             source.sendFailure(Component.translatable("msg.dn.safe.restrict.type_invalid"));
             return 0;
         }
@@ -1523,7 +1525,7 @@ public final class CommandDN {
         final String displayItem = itemId.isEmpty() ? "any" : itemId;
         int index = com.deltanexus.system.config.SafeBoxRestrictions.add(itemId, nbt, mt);
         source.sendSuccess(() -> Component.translatable("msg.dn.safe.restrict.added",
-                index, displayItem, mt.key()), true);
+                index, displayItem, mt.key), true);
         return 1;
     }
 
@@ -1540,7 +1542,7 @@ public final class CommandDN {
             com.deltanexus.system.config.SafeBoxRestrictions.Rule r = rules.get(i);
             sb.append("§a[").append(i).append("]§r 物品: ")
                     .append(r.item.isBlank() ? "any" : r.item)
-                    .append(" | 匹配: ").append(r.matchType.key())
+                    .append(" | 匹配: ").append(r.matchMode.key)
                     .append(" | NBT: ").append(r.nbt)
                     .append("\n");
         }
@@ -1570,6 +1572,7 @@ public final class CommandDN {
                 .append(" 特勤处=").append(PermissionManager.defaultSpecial() ? "允许" : "拒绝")
                 .append(" 安全箱=").append(PermissionManager.defaultSafeBox() ? "允许" : "拒绝")
                 .append(" 交易行=").append(PermissionManager.defaultTrade() ? "允许" : "拒绝")
+                .append(" 胸挂背包=").append(PermissionManager.defaultGear() ? "允许" : "拒绝")
                 .append("，OP 始终允许\n");
         if (PermissionManager.overrides().isEmpty()) {
             sb.append("§7无玩家覆盖，全部按全局默认§r");
@@ -1586,6 +1589,8 @@ public final class CommandDN {
                         .append(permLabel(safeVal(v, PermissionManager.TYPE_SAFE_BOX), PermissionManager.defaultSafeBox()))
                         .append(" 交易行=")
                         .append(permLabel(safeVal(v, PermissionManager.TYPE_TRADE), PermissionManager.defaultTrade()))
+                        .append(" 胸挂背包=")
+                        .append(permLabel(safeVal(v, PermissionManager.TYPE_GEAR), PermissionManager.defaultGear()))
                         .append("\n");
             }
         }
@@ -1619,6 +1624,7 @@ public final class CommandDN {
             Boolean sp2 = PermissionManager.getOverride(name, PermissionManager.TYPE_SPECIAL);
             Boolean sb2 = PermissionManager.getOverride(name, PermissionManager.TYPE_SAFE_BOX);
             Boolean tr2 = PermissionManager.getOverride(name, PermissionManager.TYPE_TRADE);
+            Boolean gr2 = PermissionManager.getOverride(name, PermissionManager.TYPE_GEAR);
             final String fName = name;
             source.sendSuccess(() -> Component.literal("§e" + fName + "§r: 仓库="
                     + (wh != null ? (wh ? "允许(覆盖)" : "拒绝(覆盖)") : (PermissionManager.defaultWarehouse() ? "允许(默认)" : "拒绝(默认)"))
@@ -1629,7 +1635,9 @@ public final class CommandDN {
                     + " 安全箱="
                     + (sb2 != null ? (sb2 ? "允许(覆盖)" : "拒绝(覆盖)") : (PermissionManager.defaultSafeBox() ? "允许(默认)" : "拒绝(默认)"))
                     + " 交易行="
-                    + (tr2 != null ? (tr2 ? "允许(覆盖)" : "拒绝(覆盖)") : (PermissionManager.defaultTrade() ? "允许(默认)" : "拒绝(默认)"))), false);
+                    + (tr2 != null ? (tr2 ? "允许(覆盖)" : "拒绝(覆盖)") : (PermissionManager.defaultTrade() ? "允许(默认)" : "拒绝(默认)"))
+                    + " 胸挂背包="
+                    + (gr2 != null ? (gr2 ? "允许(覆盖)" : "拒绝(覆盖)") : (PermissionManager.defaultGear() ? "允许(默认)" : "拒绝(默认)"))), false);
             shown++;
         }
         if (skipped > 0) {
@@ -1650,7 +1658,7 @@ public final class CommandDN {
         }
         int t = parsePermType(type);
         if (t < -1) {
-            source.sendFailure(Component.literal("type 仅支持 warehouse/workbench/special/safe_box/trade/all"));
+            source.sendFailure(Component.literal("type 仅支持 warehouse/workbench/special/safe_box/trade/gear/all"));
             return 0;
         }
         int applied = 0, skipped = 0;
@@ -1713,7 +1721,7 @@ public final class CommandDN {
         }
         int t = parsePermType(type);
         if (t < -1) {
-            source.sendFailure(Component.literal("type 仅支持 warehouse/workbench/special/safe_box/trade/all"));
+            source.sendFailure(Component.literal("type 仅支持 warehouse/workbench/special/safe_box/trade/gear/all"));
             return 0;
         }
         PermissionManager.setDefault(t, value);
@@ -1726,7 +1734,7 @@ public final class CommandDN {
         return allow.equalsIgnoreCase("allow");
     }
 
-    /** 解析权限类型：warehouse=0 / workbench=1 / special=2 / safe_box=3 / trade=4 / all=-1；非法返回 -2。 */
+    /** 解析权限类型：warehouse=0 / workbench=1 / special=2 / safe_box=3 / trade=4 / gear=5 / all=-1；非法返回 -2。 */
     private static int parsePermType(String type) {
         return switch (type.toLowerCase(Locale.ROOT)) {
             case "warehouse" -> PermissionManager.TYPE_WAREHOUSE;
@@ -1734,6 +1742,7 @@ public final class CommandDN {
             case "special" -> PermissionManager.TYPE_SPECIAL;
             case "safe_box", "safebox" -> PermissionManager.TYPE_SAFE_BOX;
             case "trade" -> PermissionManager.TYPE_TRADE;
+            case "gear" -> PermissionManager.TYPE_GEAR;
             case "all" -> -1;
             default -> -2;
         };

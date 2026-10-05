@@ -119,6 +119,18 @@ public class ItemSizeConfig {
         return null;
     }
 
+    /**
+     * 物品占用尺寸（0.5.0Beta 新内核入口）：未配置一律 1x1，永不返回 {@code null}。
+     *
+     * <p>与 {@link #getSize(Item)} 的区别：这里把「未配置」与「已配置」都折算成可直接使用的
+     * {@link GridSize}，调用方不再需要空判断——新内核（{@code GridStore}/{@code GridEntry}）
+     * 只走这一条路径。</p>
+     */
+    public static GridSize sizeOf(Item item) {
+        ItemDim cfg = getSize(item);
+        return cfg == null ? GridSize.SINGLE : new GridSize(cfg.w(), cfg.h());
+    }
+
     private static void generateDefaults() {
         add(Items.IRON_INGOT, 1, 1);
     }

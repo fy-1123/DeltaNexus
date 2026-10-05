@@ -1,7 +1,7 @@
 package com.deltanexus.system.config;
 
 import com.deltanexus.system.DeltaNexus;
-import com.deltanexus.system.common.NbtMatcher;
+import com.deltanexus.system.common.NbtSpec;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -22,41 +22,43 @@ import java.util.List;
  * <p>配置文件 {@code config/deltanexus/safe_box_restrictions.json}（热加载，/dn reload 生效）：</p>
  * <pre>{@code
  * { "restrictions": [
- *     { "item": "", "nbt": "{display:{Name:\"\\\"禁入\\\"\"}}", "match_type": "contains" },
- *     { "item": "minecraft:diamond", "nbt": "{Damage:0}", "match_type": "exact" }
+ *     { "item": "", "match_mode": "partial_nbt", "match_keys": { "display": "exact" } },
+ *     { "item": "minecraft:diamond", "nbt": "{Damage:0}", "match_mode": "full_nbt" }
  * ] }
  * }</pre>
  *
- * <p>规则说明：{@code item} 为空 = 任意物品；{@code nbt} 为期望 NBT 字符串；
- * {@code match_type} 支持 {@code exact}（完全相等）/ {@code contains}（包含键值）。
+ * <p>规则说明：{@code item} 为空 = 任意物品；{@code nbt} 为期望 NBT 模板；
+ * {@code match_mode} 支持 {@code full_nbt}（完全相等）/ {@code partial_nbt}（键规则
+ * {@code match_keys}），与交易行口径一致（旧 {@code match_type}/{@code exact}/{@code contains}
+ * 读取时自动迁移）。
  * 物品放入安全箱时（仓库界面/安全箱界面/背包覆盖层）均做服务端校验，命中任意规则即拒绝。</p>
  */
 public final class SafeBoxRestrictions {
 
-    /** 单条限制规则。 */
-    public static class Rule {
+    /** 单条限制规则（NBT 匹配口径继承 {@link NbtSpec}）。 */
+    public static class Rule extends NbtSpec {
         /** 限制的物品注册名；空串 = 任意物品。 */
         public String item = "";
-        /** 期望 NBT 字符串（exact/contains 匹配）。 */
-        public String nbt = "";
-        /** NBT 匹配模式（仅 exact/contains 有意义）。 */
-        public NbtMatcher.MatchType matchType = NbtMatcher.MatchType.CONTAINS;
+
+        public Rule() {
+            matchMode = MatchMode.PARTIAL_NBT;
+        }
 
         public JsonObject toJson() {
             JsonObject o = new JsonObject();
             o.addProperty("item", item);
-            o.addProperty("nbt", nbt);
-            o.addProperty("match_type", matchType.key());
+            writeNbtJson(o);
             return o;
         }
 
         public static Rule fromJson(JsonObject o) {
             Rule r = new Rule();
             r.item = o.has("item") ? o.get("item").getAsString() : "";
-            r.nbt = o.has("nbt") ? o.get("nbt").getAsString() : "";
-            String mt = o.has("match_type") ? o.get("match_type").getAsString() : "contains";
-            r.matchType = "exact".equalsIgnoreCase(mt)
-                    ? NbtMatcher.MatchType.EXACT : NbtMatcher.MatchType.CONTAINS;
+            r.readNbtJson(o);
+            // 安全箱限制只接受 full_nbt / partial_nbt（旧值 exact/contains 自动迁移）
+            if (r.matchMode != MatchMode.FULL_NBT) {
+                r.matchMode = MatchMode.PARTIAL_NBT;
+            }
             return r;
         }
     }
@@ -118,13 +120,25 @@ public final class SafeBoxRestrictions {
     // ------------------------------------------------------------------
 
     /** 添加限制规则（item 空串 = 任意物品）。 */
-    public static synchronized int add(String item, String nbt, NbtMatcher.MatchType matchType) {
+    public static synchronized int add(String item, String nbt, NbtSpec.MatchMode matchMode) {
         Rule r = new Rule();
         r.item = item == null ? "" : item.trim();
         r.nbt = nbt == null ? "" : nbt.trim();
-        r.matchType = matchType == NbtMatcher.MatchType.EXACT
-                ? NbtMatcher.MatchType.EXACT : NbtMatcher.MatchType.CONTAINS;
+        r.matchMode = matchMode == NbtSpec.MatchMode.FULL_NBT
+                ? NbtSpec.MatchMode.FULL_NBT : NbtSpec.MatchMode.PARTIAL_NBT;
+        r.normalizeMatch();
         RULES.add(r);
+        saveNow();
+        return RULES.size() - 1;
+    }
+
+    /** 添加限制规则（携带键规则，供 Web / 指令使用）。 */
+    public static synchronized int add(Rule rule) {
+        if (rule == null) {
+            return -1;
+        }
+        rule.normalizeMatch();
+        RULES.add(rule);
         saveNow();
         return RULES.size() - 1;
     }
@@ -157,7 +171,7 @@ public final class SafeBoxRestrictions {
             return false;
         }
         for (Rule r : RULES) {
-            if (r.nbt == null || r.nbt.isBlank()) {
+            if ((r.nbt == null || r.nbt.isBlank()) && r.matchKeys.isEmpty()) {
                 continue;
             }
             if (r.item != null && !r.item.isBlank()) {
@@ -166,11 +180,7 @@ public final class SafeBoxRestrictions {
                     continue;
                 }
             }
-            net.minecraft.nbt.CompoundTag expected = NbtMatcher.parseTag(r.nbt);
-            if (expected == null) {
-                continue;
-            }
-            if (NbtMatcher.matchesNbt(stack.getTag(), expected, r.matchType)) {
+            if (r.matchesNbt(stack.getTag())) {
                 return true;
             }
         }

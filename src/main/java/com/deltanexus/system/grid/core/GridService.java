@@ -142,10 +142,10 @@ public final class GridService {
         for (MenuGridAdapter group : MenuGridAdapter.groups(sp, menu)) {
             // v2 内核持有的容器：直接按内核条目下发布局（旋转/尺寸的真相在条目上，不在物品 NBT）
             if (isV2Backed(group)) {
-                var grid = ((com.deltanexus.system.grid.v2.GridHandlerBridge) group.container()).grid();
+                var grid = ((com.deltanexus.system.grid.GridHandlerBridge) group.container()).grid();
                 for (var e : grid.entries().entrySet()) {
-                    com.deltanexus.system.grid.v2.GridEntry entry = e.getValue();
-                    if (entry.dim().is1x1()) {
+                    com.deltanexus.system.grid.GridEntry entry = e.getValue();
+                    if (entry.size().single()) {
                         continue;
                     }
                     int local = group.localIndexOfContainerIndex(e.getKey());
@@ -154,9 +154,9 @@ public final class GridService {
                         continue;
                     }
                     entries.add(new com.deltanexus.system.network.packet.SyncGridLayoutPacket.Entry(
-                            menuSlot, entry.dim().w(), entry.dim().h(), entry.rotated(), group.context().width()));
+                            menuSlot, entry.size().w(), entry.size().h(), entry.rotated(), group.context().width()));
                     fingerprint = fingerprint * 31 + menuSlot;
-                    fingerprint = fingerprint * 31 + entry.dim().w() * 7 + entry.dim().h() * 13;
+                    fingerprint = fingerprint * 31 + entry.size().w() * 7 + entry.size().h() * 13;
                     fingerprint = fingerprint * 31 + (entry.rotated() ? 1 : 0);
                 }
                 continue;
@@ -194,7 +194,7 @@ public final class GridService {
         if (isV2Backed(group)) {
             // 仓库 / 安全箱已由 grid.v2 的 GridInventory 直接持有：占用派生、唯一入口事务、
             // 每次提交都校验不变式——因此这里只做一次体检，绝不产生任何写入（消除双几何引擎）。
-            String violation = ((com.deltanexus.system.grid.v2.GridHandlerBridge) group.container())
+            String violation = ((com.deltanexus.system.grid.GridHandlerBridge) group.container())
                     .grid().validate();
             if (violation != null) {
                 reportTickFailure(player, new IllegalStateException("v2 网格不变式被破坏: " + violation));
@@ -218,7 +218,7 @@ public final class GridService {
 
     /** 该组背后的容器是否由 v2 网格内核持有（仓库 / 安全箱）。 */
     private static boolean isV2Backed(MenuGridAdapter group) {
-        return group != null && group.container() instanceof com.deltanexus.system.grid.v2.GridHandlerBridge;
+        return group != null && group.container() instanceof com.deltanexus.system.grid.GridHandlerBridge;
     }
 
     /** 玩家背包组的派生体检（占用现算；不写任何格）。 */
@@ -364,7 +364,7 @@ public final class GridService {
         }
         if (isV2Backed(group)) {
             // 双保险：v2 容器内核自持不变式，这里只体检、不写入
-            String violation = ((com.deltanexus.system.grid.v2.GridHandlerBridge) group.container())
+            String violation = ((com.deltanexus.system.grid.GridHandlerBridge) group.container())
                     .grid().validate();
             if (violation != null) {
                 reportTickFailure(player, new IllegalStateException("v2 网格不变式被破坏: " + violation));
@@ -380,7 +380,7 @@ public final class GridService {
             return false;
         }
         // v2 容器由内核自持：无需“整理”（占用派生、条目自洽），只做体检
-        if (handler instanceof com.deltanexus.system.grid.v2.GridHandlerBridge bridge) {
+        if (handler instanceof com.deltanexus.system.grid.GridHandlerBridge bridge) {
             String violation = bridge.grid().validate();
             if (violation != null) {
                 reportTickFailure(player, new IllegalStateException("v2 网格不变式被破坏: " + violation));
@@ -420,7 +420,7 @@ public final class GridService {
         try (GridLockManager.LockSet ignored = GridLockManager.acquire(GridLockManager.player(player.getUUID()))) {
             // 0.3.0Beta v2：自有容器（仓库/安全箱）交付直接走内核——
             // 旧路径会为足迹写占位物，而 v2 没有占位物，那些标记会被当成普通物品落位、污染仓库
-            if (handler instanceof com.deltanexus.system.grid.v2.GridHandlerBridge bridge) {
+            if (handler instanceof com.deltanexus.system.grid.GridHandlerBridge bridge) {
                 ItemStack left = bridge.insertIntoGrid(incoming, simulate);
                 if (!simulate) {
                     PENDING_BROADCAST.add(player.getUUID());
@@ -549,8 +549,8 @@ public final class GridService {
             }
             // v2 内核持有的容器：锚点由内核条目直接给出（旋转/尺寸的真相在条目上，不在物品 NBT）
             if (isV2Backed(group)) {
-                var grid = ((com.deltanexus.system.grid.v2.GridHandlerBridge) group.container()).grid();
-                int anchorCell = grid.anchorCovering(group.containerIndex(local));
+                var grid = ((com.deltanexus.system.grid.GridHandlerBridge) group.container()).grid();
+                int anchorCell = grid.anchorAt(group.containerIndex(local));
                 if (anchorCell >= 0 && anchorCell != group.containerIndex(local)) {
                     int anchorLocal = group.localIndexOfContainerIndex(anchorCell);
                     int menuSlot = anchorLocal < 0 ? -1 : group.menuSlotIndex(anchorLocal);

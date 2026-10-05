@@ -57,26 +57,51 @@ public final class GridSizes {
         if (creative || !GridRegistry.isGridContainer(player, box)) {
             return GridDim.ONE;
         }
-        GridDim base = baseDim(stack);
-        if (isHotbarSlot(slot)) {
-            // 创造模式：快捷栏 1~9 格一律无视大小（按 1x1），与用户设定一致
-            if (creative) {
-                return GridDim.ONE;
-            }
-            return applyHotbarRules(stack, slot.getContainerSlot(), base);
+        // 口袋（containerSlot 9..13）：UI 的 5 个口袋格，只放 1x1 的普通物品——
+        // 几何上按 1x1 存放，落位许可由 {@link #pocketAccepts} 在菜单/搬运入口统一裁决。
+        if (isPocketSlot(slot)) {
+            return GridDim.ONE;
         }
-        return base;
+        // 快捷栏（containerSlot 0..8）：按 common.toml 的 hotbar_rules 折算。
+        // 默认 0-8:ANY = 无视尺寸（任意大小都能放进快捷栏，按 1x1 处理）。
+        if (isHotbarSlot(slot)) {
+            return applyHotbarRules(stack, slot.getContainerSlot(), baseDim(stack));
+        }
+        return baseDim(stack);
     }
 
-    /** 是否属于玩家快捷栏（含口袋区，containerSlot 0-8）。 */
+    /**
+     * 口袋区准入（0.5.0Beta 修正：口袋只收 1x1 普通物品）。
+     *
+     * <p>此前口径是反的——口袋按 1x1 存放（因此什么都能塞），快捷栏却按真实尺寸判定
+     * （快捷栏只有一行，于是大于 1x1 的物品都放不进去）。现在：</p>
+     * <ul>
+     *   <li><b>口袋</b>：仅 1x1 的普通物品；胸挂/背包（装备）与大于 1x1 的物品一律拒绝；</li>
+     *   <li><b>快捷栏</b>：按 {@code hotbar_rules}（默认 ANY）——任意大小都能放进去。</li>
+     * </ul>
+     *
+     * <p>口袋与快捷栏是同一格子系统里的两段（口袋 = 主背包前 5 格、快捷栏 = 末行 9 格），
+     * 因此这里只判定「物品本身能不能进这种格」，尺寸/分区几何由内核另行推导。</p>
+     */
+    public static boolean pocketAccepts(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return true;
+        }
+        if (com.deltanexus.system.grid.GearConfig.isGear(stack)) {
+            return false; // 胸挂/背包不进任何口袋
+        }
+        return baseDim(stack).is1x1();
+    }
+
+    /** 是否属于玩家快捷栏（containerSlot 0-8）。 */
     public static boolean isHotbarSlot(Slot slot) {
         return slot != null && slot.container instanceof Inventory && slot.getContainerSlot() < 9;
     }
 
-    /** 口袋区（快捷栏 5-9 号格 = containerSlot 4-8）：仅 1x1 留存。 */
+    /** 口袋区（主背包前 5 格 = containerSlot 9..13，即 UI 的 pockets）：仅 1x1 留存。 */
     public static boolean isPocketSlot(Slot slot) {
         return slot != null && slot.container instanceof Inventory
-                && slot.getContainerSlot() >= 4 && slot.getContainerSlot() <= 8;
+                && slot.getContainerSlot() >= 9 && slot.getContainerSlot() <= 13;
     }
 
     /** 快捷栏分级规则：ANY = 1x1；FOOD = 食物或本就 1x1 则 1x1，否则 base；GRID = base。 */

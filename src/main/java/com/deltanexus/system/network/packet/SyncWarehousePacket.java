@@ -27,15 +27,15 @@ public class SyncWarehousePacket {
         public final int needed;
         public final int held;
         public final String nbt;
-        /** NBT 匹配模式 key（ignore/exact/contains）。 */
-        public final String matchType;
+        /** NBT 匹配模式 key（id/full_nbt/partial_nbt）。 */
+        public final String matchMode;
 
-        public Material(String itemId, int needed, String nbt, int held, String matchType) {
+        public Material(String itemId, int needed, String nbt, int held, String matchMode) {
             this.itemId = itemId;
             this.needed = needed;
             this.held = held;
             this.nbt = nbt;
-            this.matchType = matchType;
+            this.matchMode = matchMode;
         }
     }
 
@@ -134,7 +134,7 @@ public class SyncWarehousePacket {
             buf.writeVarInt(m.needed);
             buf.writeUtf(m.nbt);
             buf.writeVarInt(m.held);
-            buf.writeUtf(m.matchType);
+            buf.writeUtf(m.matchMode);
         }
         buf.writeVarInt(msg.scrollRow);
         buf.writeVarInt(msg.totalRows);
@@ -155,7 +155,7 @@ public class SyncWarehousePacket {
             buf.writeVarInt(m.needed);
             buf.writeUtf(m.nbt);
             buf.writeVarInt(m.held);
-            buf.writeUtf(m.matchType);
+            buf.writeUtf(m.matchMode);
         }
     }
 

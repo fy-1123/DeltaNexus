@@ -23,6 +23,7 @@ public final class ClientSetup {
     public static void onClientSetup(FMLClientSetupEvent event) {
         KeyBindings.checkConflicts();
         MenuScreens.register(ModMenus.WAREHOUSE.get(), WarehouseScreen::new);
+        MenuScreens.register(ModMenus.GEAR.get(), com.deltanexus.system.client.gui.GearScreen::new);
     }
 
     @SubscribeEvent

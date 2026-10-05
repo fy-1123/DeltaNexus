@@ -13,21 +13,24 @@ import net.minecraftforge.items.ItemStackHandler;
 import net.minecraftforge.items.SlotItemHandler;
 
 /**
- * 仓库菜单（2.0.Alpha UI 重构：三列布局 + 原位滚动）。
+ * 仓库菜单（0.5.0Beta 格子背包装备化：玩家区两列 + 仓库视口）。
  *
- * <p>布局遵循 UI 设计规范（{@link PlayerLayout}）：
- * 左列 = 盔甲(4)/快捷栏 1-4 号格(竖排)/副手；中列 = 口袋(快捷栏 5-9 号格)/背包(3x9)/安全箱；
- * 右列 = 仓库视口（12 行 x 9 列，滚轮滚动起始行）。
- * 2.0.9Alpha：移除 Curios 兼容（仓库 UI 不再显示饰品槽）。</p>
+ * <p>布局遵循 {@link PlayerLayout}：左列 = 装备/盔甲(4)/副手；中列 = 口袋(inv 9-13)/快捷栏 9/安全箱；
+ * 右列 = 仓库视口（12 行 x 9 列，滚轮滚动起始行）。被胸挂/背包取代的 22 格（inv 14-35）
+ * 移到屏外（索引保持不变）。2.0.9Alpha：移除 Curios 兼容（仓库 UI 不再显示饰品槽）。</p>
  *
  * <p>槽位索引布局（保持稳定，网络同步兼容）：
- * 0-107 仓库视口 / 108-134 背包 / 135-143 快捷栏（135-138 左列 1-4 号格 + 139-143 口袋 5-9 号格）/
+ * 0-107 仓库视口 / 108-134 背包（inv 9-35，其中前 5 格为口袋，其余屏外）/
+ * 135-143 快捷栏（inv 0-8，中列一行）/
  * 144-147 盔甲 / 148 副手 / 149+ 安全箱（按解锁数量，最多 9 格）。</p>
  *
  * <p>2.0.8Alpha 原位滚动：{@link #scrollTo(int)} 直接替换视口槽位的全局索引（不重建菜单），
  * 光标栈、悬停状态与屏幕实例全部保留——修复滚动时光标物品掉落、指针/界面重置问题。</p>
  */
 public class WarehouseMenu extends GridAwareMenu {
+
+    /** 屏外坐标（被装备取代的槽位隐藏用）。 */
+    private static final int OFFSCREEN = -1000;
 
     public static final int WAREHOUSE_COLS = 9;
     /** 视口行数（2.0.4Alpha：12 行 = 108 格；滚轮滚动查看全部行；总行数见配置 warehouse_rows）。 */
@@ -64,7 +67,7 @@ public class WarehouseMenu extends GridAwareMenu {
                 com.deltanexus.system.client.gui.WarehouseScreen.lastSync != null
                         ? com.deltanexus.system.client.gui.WarehouseScreen.lastSync.scrollRow : 0,
                 PlayerLayout.compute(net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScaledWidth(),
-                        net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScaledHeight(), true),
+                        net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScaledHeight()),
                 resolveClientSafeHandler(inv),
                 clientSafeWidth());
         com.deltanexus.system.grid.InventoryGridHandler.CLIENT_WAREHOUSE_HANDLER = this.handler;
@@ -79,7 +82,7 @@ public class WarehouseMenu extends GridAwareMenu {
 
     /** 服务端构造（指定起始行，默认布局；坐标仅占位，客户端以其自身布局为准）。 */
     public WarehouseMenu(int id, Inventory inv, ItemStackHandler handler, int scrollRow) {
-        this(id, inv, handler, scrollRow, PlayerLayout.compute(400, 240, true),
+        this(id, inv, handler, scrollRow, PlayerLayout.compute(400, 240),
                 resolveServerSafeHandler(inv), serverSafeWidth(inv));
     }
 
@@ -97,27 +100,29 @@ public class WarehouseMenu extends GridAwareMenu {
             for (int c = 0; c < WAREHOUSE_COLS; c++) {
                 int local = r * WAREHOUSE_COLS + c;
                 int global = this.scrollRow * WAREHOUSE_COLS + local;
-                addSlot(new LockedAwareSlot(handler, global, layout.whX + c * 18, layout.whY + r * 18, inv.player));
+                addSlot(new LockedAwareSlot(handler, global, layout.whX + c * PlayerLayout.PITCH, layout.whY + r * PlayerLayout.PITCH, inv.player));
             }
         }
-        // 玩家背包 27（inv 9..35）—— 中列
+        // 玩家背包 27（inv 9..35）：仅前 5 格（inv 9..13）作口袋显示在中列，
+        // 其余 22 格被胸挂/背包取代，移到屏外（菜单索引 108-134 保持不变）
         for (int r = 0; r < 3; r++) {
             for (int c = 0; c < 9; c++) {
-                addSlot(new Slot(inv, c + r * 9 + 9, layout.midX + c * 18, layout.invY + r * 18));
+                int ci = c + r * 9 + 9;
+                int x = ci <= 13 ? layout.midX + (ci - 9) * PlayerLayout.PITCH : OFFSCREEN;
+                int y = ci <= 13 ? layout.pocketY : OFFSCREEN;
+                addSlot(new Slot(inv, ci, x, y));
             }
         }
-        // 快捷栏 9（inv 0..8，键位 1-9）：1-4 号格 = 左列竖排，5-9 号格 = 中列口袋（横排）
+        // 快捷栏 9（inv 0..8，键位 1-9）：主面板底部一行（照抄 sakura hotbar）
         for (int c = 0; c < 9; c++) {
-            int x = c < 4 ? layout.leftX : layout.midX + (c - 4) * 18;
-            int y = c < 4 ? layout.hotbarColY + c * 18 : layout.pocketY;
             // 2.0.10Alpha：网格感知槽位——放不下（口袋区塞大件）直接拒绝回光标，不做自动重排
-            addSlot(new GridAwareSlot(inv, c, x, y, inv.player));
+            addSlot(new GridAwareSlot(inv, c, layout.hotbarX + c * PlayerLayout.PITCH, layout.hotbarY, inv.player));
         }
-        // 盔甲栏 4（inv 36..39），左列竖排（顶部=头盔，底部=靴子；槽位与部位映射 + 装备校验）
+        // 盔甲栏 4（inv 36..39）：左面板头盔 / 胸甲两格（照抄 sakura 隐藏护腿 / 靴子）
         addSlot(new ArmorValidSlot(inv, 39, layout.leftX, layout.armorY, net.minecraft.world.entity.EquipmentSlot.HEAD));
-        addSlot(new ArmorValidSlot(inv, 38, layout.leftX, layout.armorY + 18, net.minecraft.world.entity.EquipmentSlot.CHEST));
-        addSlot(new ArmorValidSlot(inv, 37, layout.leftX, layout.armorY + 36, net.minecraft.world.entity.EquipmentSlot.LEGS));
-        addSlot(new ArmorValidSlot(inv, 36, layout.leftX, layout.armorY + 54, net.minecraft.world.entity.EquipmentSlot.FEET));
+        addSlot(new ArmorValidSlot(inv, 38, layout.leftX, layout.armorY + PlayerLayout.GEAR_STEP, net.minecraft.world.entity.EquipmentSlot.CHEST));
+        addSlot(new ArmorValidSlot(inv, 37, OFFSCREEN, OFFSCREEN, net.minecraft.world.entity.EquipmentSlot.LEGS));
+        addSlot(new ArmorValidSlot(inv, 36, OFFSCREEN, OFFSCREEN, net.minecraft.world.entity.EquipmentSlot.FEET));
         // 副手栏（inv 40，原版允许任意物品）—— 左列
         addSlot(new Slot(inv, 40, layout.leftX, layout.offhandY));
         // 2.0.9Alpha：移除 Curios 兼容——仓库 UI 不再显示饰品槽（饰品管理走 Curios 自身界面）
@@ -127,8 +132,8 @@ public class WarehouseMenu extends GridAwareMenu {
         int safeSlots = resolveSafeSlots(inv, this.safeW);
         for (int i = 0; i < safeSlots; i++) {
             addSlot(new SafeBoxSlot(safeHandler, i,
-                    layout.midX + (i % this.safeW) * 18,
-                    layout.safeY + (i / this.safeW) * 18, inv.player));
+                    layout.midX + (i % this.safeW) * PlayerLayout.PITCH,
+                    layout.safeY + (i / this.safeW) * PlayerLayout.PITCH, inv.player));
         }
         this.safeCount = safeSlots;
     }
@@ -357,23 +362,4 @@ public class WarehouseMenu extends GridAwareMenu {
         }
     }
 
-    /**
-     * 盔甲槽：仅允许对应装备部位的物品放入（防具校验，任意物品不可穿戴）。
-     * 等价于原版 InventoryMenu ArmorSlot 行为（LivingEntity.getEquipmentSlotForItem）。
-     */
-    private static class ArmorValidSlot extends Slot {
-        private final net.minecraft.world.entity.EquipmentSlot equipmentSlot;
-
-        ArmorValidSlot(Inventory inv, int index, int x, int y, net.minecraft.world.entity.EquipmentSlot equipmentSlot) {
-            super(inv, index, x, y);
-            this.equipmentSlot = equipmentSlot;
-        }
-
-        @Override
-        public boolean mayPlace(ItemStack stack) {
-            return !stack.isEmpty()
-                    && super.mayPlace(stack)
-                    && net.minecraft.world.entity.LivingEntity.getEquipmentSlotForItem(stack) == equipmentSlot;
-        }
-    }
 }

@@ -43,12 +43,13 @@ public class DeltaNexus {
         com.deltanexus.system.grid.ItemSizeConfig.load();
         // 格式背包（2.0.3Alpha）：物品「类」背景色配置
         com.deltanexus.system.grid.GridClassConfig.load();
+        // 格子背包（0.5.0Beta）：装备登记表（哪些物品是背包/胸挂、各自多大）
+        com.deltanexus.system.grid.GearConfig.load();
 
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         MOD_BUS = modBus;
         ModMenus.MENUS.register(modBus);
         com.deltanexus.system.grid.GridItems.ITEMS.register(modBus);
-        com.deltanexus.system.grid.GridEnchantments.ENCHANTMENTS.register(modBus);
         modBus.addListener(DeltaNexus::commonSetup);
 
         // 网络通道（协议版本见 PacketHandler.PROTOCOL；握手只比这个固定串，没有任何指纹机制）
@@ -60,6 +61,8 @@ public class DeltaNexus {
         com.deltanexus.system.test.TradeRegressionTests.register();
         // 0.3.0Beta：格式背包（格子背包）内核回归测试
         com.deltanexus.system.test.GridRegressionTests.register();
+        // 0.5.0Beta：Web 编辑器刷兵接口回归测试（合并语义 / 玩家位置字段 / 载荷结构）
+        com.deltanexus.system.web.WebEditorSpawnerTests.register();
     }
 
     private static void commonSetup(FMLCommonSetupEvent event) {

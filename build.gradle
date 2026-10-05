@@ -3,6 +3,9 @@ plugins {
     id 'idea'
     id 'maven-publish'
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    // MixinGradle：为 Mixin 注解处理器提供 ForgeGradle 的映射并生成 refmap。
+    // 缺了它，dev 用 official 名写的 @Inject 在生产 jar（SRG 名）里找不到目标 → 启动即崩。
+    id 'org.spongepowered.mixin' version '0.7.38'
     // 仅用于把内嵌 Rhino 重打包到独有包名，避免与 WorldEdit 的 org.mozilla.* 分裂包冲突
     id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
@@ -77,6 +80,11 @@ minecraft {
             // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
             property 'forge.logging.console.level', 'debug'
 
+            // 0.5.0Beta 格子背包：开发环境下 mod 是「目录」而不是 jar，没有清单可读，
+            // Mixin 无法从 MANIFEST 的 MixinConfigs 发现配置（实测确认：dev 下配置不会被加载）。
+            // 因此 dev 用启动参数显式声明；正式 jar 仍由 MANIFEST 的 MixinConfigs 承担，两条路互不影响。
+            args '--mixin.config=deltanexus.mixins.json'
+
             mods {
                 "${mod_id}" {
                     source sourceSets.main
@@ -108,6 +116,27 @@ minecraft {
             // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
             args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
         }
+    }
+}
+
+// Mixin refmap：源码（dev）用 official 名书写 @Inject/@At 目标，生产 jar 经 reobf 后
+// 类/方法名变成 SRG（如 clicked → m_150434_）。必须由注解处理器把 official 名映射成 SRG，
+// 生成 refmap 并随编译产物打进 jar，Mixin 在生产环境才能解析到注入目标；
+// 否则报 "No refMap loaded / could not find any targets" 并在启动阶段崩溃。
+mixin {
+    add sourceSets.main, "deltanexus.refmap.json"
+}
+
+// 环处理：MixinGradle 会给「每个 Jar 任务」都套一个 addMixinsTo<Name> 任务，并令其依赖
+// compileJava（以便把 refmap 塞进该 jar）。而本项目的 relocateRhino（重打包 Rhino 的
+// ShadowJar，同为 Jar 子类）在编译期就必须在 compileJava 的 classpath 上，于是构成
+//   relocateRhino → addMixinsToRelocateRhino → compileJava → relocateRhino
+// 的循环依赖。relocateRhino 是纯 Rhino 类、不含任何 mixin、也从不参与 reobf，
+// 因此断开这条无意义的环：让它的 addMixinsTo 任务不再依赖 compileJava
+// （该任务对 relocateRhino 本就是空操作——没有 reobf 任务消费它）。
+afterEvaluate {
+    tasks.matching { it.name == 'addMixinsToRelocateRhino' }.configureEach {
+        setDependsOn([])
     }
 }
 
@@ -184,6 +213,10 @@ dependencies {
     // then special handling is done to allow a setup of a vanilla dependency without the use of an external repository.
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
+    // Mixin 注解处理器：在编译期把 mixin 注解里的 official 名映射为 SRG，写出 deltanexus.refmap.json。
+    // 版本须与 Forge 内嵌的 Mixin 运行时一致（1.20.1 Forge 为 0.8.5）。
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+
     // 交易行：价格公式/脚本统一 JS 引擎（Rhino，org.mozilla → com.deltanexus.libs.mozilla）
     rhinoRaw 'org.mozilla:rhino:1.7.15'
     implementation files(rhinoRelocated)
@@ -242,7 +275,10 @@ tasks.named('jar', Jar).configure {
                 'Implementation-Vendor'   : mod_authors,
                 'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
                 // 2.0.8Alpha：声明 AT 文件，Forge 运行时据此应用 Slot.x/y 去 final
-                'FMLAT'                   : 'accesstransformer.cfg'
+                'FMLAT'                   : 'accesstransformer.cfg',
+                // 0.5.0Beta：声明 Mixin 配置，Forge 依此加载格子背包装备化的三处注入
+                // （生产环境为 SRG 名，注入目标靠 deltanexus.refmap.json 重映射）
+                'MixinConfigs'            : 'deltanexus.mixins.json'
         ])
     }
 

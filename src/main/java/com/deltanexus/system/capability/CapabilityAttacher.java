@@ -360,6 +360,8 @@ public final class CapabilityAttacher {
         // 0.3.0Beta：加载路径扫描并清除历史残留占位物（旧版本可能把它们写进存档）
         if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer sp) {
             com.deltanexus.system.grid.core.GridService.onPlayerLoaded(sp);
+            // 0.5.0Beta：登录即同步胸挂/背包装备本体与几何（客户端界面要画装备槽图标）
+            com.deltanexus.system.server.GearService.sendAllSync(sp);
         }
         if (!com.deltanexus.system.config.ModConfig.onlineMode()) {
             return;

@@ -222,7 +222,7 @@ public final class ManufacturingService {
         if (next != null) {
             for (UpgradeConfig.RequiredItem req : next.requiredItems) {
                 materials.add(new SyncWarehousePacket.Material(req.item, req.count, req.nbt,
-                        countMatching(player, req), req.matchType.key()));
+                        countMatching(player, req), req.matchMode.key));
             }
         }
         // 安全箱（1.1.0Alpha）：等级/尺寸/下一级费用与材料
@@ -232,7 +232,7 @@ public final class ManufacturingService {
         if (safeNext != null) {
             for (UpgradeConfig.RequiredItem req : safeNext.requiredItems) {
                 safeMaterials.add(new SyncWarehousePacket.Material(req.item, req.count, req.nbt,
-                        countMatching(player, req), req.matchType.key()));
+                        countMatching(player, req), req.matchMode.key));
             }
         }
         int rows = ModConfig.warehouseRows();
@@ -449,8 +449,11 @@ public final class ManufacturingService {
         for (int i = 0; i < 9; i++) {
             items[i] = safe.getStackInSlot(i).copy();
         }
-        ItemStack carried = player.containerMenu instanceof net.minecraft.world.inventory.InventoryMenu
-                ? player.containerMenu.getCarried() : ItemStack.EMPTY;
+        // 光标栈始终带上「真实的那一份 + 它所属的菜单 id」：客户端只在 id 与当前菜单一致时套用，
+        // 从而无论玩家开的是背包、容器还是仓库界面，光标状态都不会被错误地抹成空。
+        net.minecraft.world.inventory.AbstractContainerMenu menu = player.containerMenu;
+        ItemStack carried = menu == null ? ItemStack.EMPTY : menu.getCarried().copy();
+        int carriedMenuId = menu == null ? -1 : menu.containerId;
         PacketHandler.sendToPlayer(player, new SyncSafeBoxPacket(
                 allowed,
                 data.getSafeBoxLevel(),
@@ -459,7 +462,8 @@ public final class ManufacturingService {
                 data.getSafeBoxWidth(),
                 data.getSafeBoxHeight(),
                 items,
-                carried));
+                carried,
+                carriedMenuId));
     }
 
     /**
@@ -533,6 +537,12 @@ public final class ManufacturingService {
             syncSafeBox(player);
             return;
         }
+        // 0.5.0Beta：安全箱不存放胸挂/背包（与仓库界面的 SafeBoxSlot 口径一致）
+        if (!cursor.isEmpty() && com.deltanexus.system.grid.GearConfig.isGear(cursor)) {
+            msg(player, "msg.dn.safe.no_gear");
+            syncSafeBox(player);
+            return;
+        }
         // 2.0.10Alpha：1x1 安全箱（仅 1 格）不能塞入大于 1x1 的物品——
         // 拒绝放入，物品回到鼠标指针（与仓库界面 SafeBoxSlot 口径一致）
         if (!cursor.isEmpty()
@@ -571,10 +581,9 @@ public final class ManufacturingService {
         if (item == null) {
             return 0;
         }
-        net.minecraft.nbt.CompoundTag expected = com.deltanexus.system.common.NbtMatcher.parseTag(req.nbt);
         int[] total = {0};
         forEachMaterialSource(player, (stack, idx) -> {
-            if (stack.is(item) && com.deltanexus.system.common.NbtMatcher.matchesNbt(stack.getTag(), expected, req.matchType)) {
+            if (stack.is(item) && req.matchesNbt(stack.getTag())) {
                 total[0] += stack.getCount();
             }
         });
@@ -591,13 +600,12 @@ public final class ManufacturingService {
         if (item == null) {
             return;
         }
-        net.minecraft.nbt.CompoundTag expected = com.deltanexus.system.common.NbtMatcher.parseTag(req.nbt);
         int[] remaining = {need};
         forEachMaterialSource(player, (stack, idx) -> {
             if (remaining[0] <= 0) {
                 return;
             }
-            if (!stack.is(item) || !com.deltanexus.system.common.NbtMatcher.matchesNbt(stack.getTag(), expected, req.matchType)) {
+            if (!stack.is(item) || !req.matchesNbt(stack.getTag())) {
                 return;
             }
             int take = Math.min(remaining[0], stack.getCount());
@@ -776,7 +784,7 @@ public final class ManufacturingService {
             msg(player, "msg.dn.task.parallel_full", recipeId, recipe.maxParallel);
             return;
         }
-        // 校验并消耗输入材料（NbtMatcher 按 exact/contains/ignore 匹配）
+        // 校验并消耗输入材料（NbtSpec 按 id/full_nbt/partial_nbt + 键规则匹配）
         if (!consumeInputs(player, recipe)) {
             msg(player, "msg.dn.task.no_materials");
             return;
@@ -819,8 +827,7 @@ public final class ManufacturingService {
             if (need[0] <= 0) {
                 return;
             }
-            if (com.deltanexus.system.common.NbtMatcher.matchesItem(
-                    stack, ing.item, 1, ing.matchType, ing.nbt)) {
+            if (ing.item != null && stack.is(ForgeRegistries.ITEMS.getValue(ResourceLocation.tryParse(ing.item))) && ing.matchesNbt(stack.getTag())) {
                 need[0] -= stack.getCount();
             }
         });
@@ -837,8 +844,7 @@ public final class ManufacturingService {
             if (remaining[0] <= 0) {
                 return;
             }
-            if (com.deltanexus.system.common.NbtMatcher.matchesItem(
-                    stack, ing.item, 1, ing.matchType, ing.nbt)) {
+            if (ing.item != null && stack.is(ForgeRegistries.ITEMS.getValue(ResourceLocation.tryParse(ing.item))) && ing.matchesNbt(stack.getTag())) {
                 int take = Math.min(remaining[0], stack.getCount());
                 stack.shrink(take);
                 remaining[0] -= take;
@@ -1014,7 +1020,7 @@ public final class ManufacturingService {
                     Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.tryParse(ing.item));
                     if (item != null) {
                         ItemStack stack = new ItemStack(item, Math.max(1, ing.count));
-                        net.minecraft.nbt.CompoundTag tag = com.deltanexus.system.common.NbtMatcher.parseTag(ing.nbt);
+                        net.minecraft.nbt.CompoundTag tag = ing.expectedTag();
                         if (tag != null) {
                             stack.setTag(tag);
                         }
@@ -1104,10 +1110,10 @@ public final class ManufacturingService {
         ing.count = hand.getCount();
         net.minecraft.nbt.CompoundTag tag = hand.getTag();
         if (tag != null) {
-            ing.matchType = com.deltanexus.system.common.NbtMatcher.MatchType.EXACT;
+            ing.matchMode = com.deltanexus.system.common.NbtSpec.MatchMode.FULL_NBT;
             ing.nbt = tag.toString();
         } else {
-            ing.matchType = com.deltanexus.system.common.NbtMatcher.MatchType.IGNORE;
+            ing.matchMode = com.deltanexus.system.common.NbtSpec.MatchMode.ID;
             ing.nbt = "";
         }
         r.input.add(ing);
@@ -1262,9 +1268,9 @@ public final class ManufacturingService {
         if (key == null) return false;
         net.minecraft.nbt.CompoundTag tag = hand.getTag();
         String nbt = tag != null ? tag.toString() : "";
-        com.deltanexus.system.common.NbtMatcher.MatchType mt = tag != null
-                ? com.deltanexus.system.common.NbtMatcher.MatchType.EXACT
-                : com.deltanexus.system.common.NbtMatcher.MatchType.IGNORE;
+        com.deltanexus.system.common.NbtSpec.MatchMode mt = tag != null
+                ? com.deltanexus.system.common.NbtSpec.MatchMode.FULL_NBT
+                : com.deltanexus.system.common.NbtSpec.MatchMode.ID;
         UpgradeConfig.get().addRequiredItem(level, key.toString(), hand.getCount(), nbt, mt);
         return true;
     }
@@ -1302,9 +1308,9 @@ public final class ManufacturingService {
         if (key == null) return false;
         net.minecraft.nbt.CompoundTag tag = hand.getTag();
         String nbt = tag != null ? tag.toString() : "";
-        com.deltanexus.system.common.NbtMatcher.MatchType mt = tag != null
-                ? com.deltanexus.system.common.NbtMatcher.MatchType.EXACT
-                : com.deltanexus.system.common.NbtMatcher.MatchType.IGNORE;
+        com.deltanexus.system.common.NbtSpec.MatchMode mt = tag != null
+                ? com.deltanexus.system.common.NbtSpec.MatchMode.FULL_NBT
+                : com.deltanexus.system.common.NbtSpec.MatchMode.ID;
         UpgradeConfig.get().safeAddRequiredItem(level, key.toString(), hand.getCount(), nbt, mt);
         return true;
     }

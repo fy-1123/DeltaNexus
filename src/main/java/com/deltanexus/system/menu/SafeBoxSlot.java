@@ -40,10 +40,16 @@ public class SafeBoxSlot extends SlotItemHandler {
 
     @Override
     public boolean mayPlace(ItemStack stack) {
+        // 0.5.0Beta：安全箱不存放胸挂/背包（装备本体只走装备槽、仓库与容器）。
+        // 这一条与权限/解锁无关，客户端同样拦截——否则客户端会先预测放入、由服务端回弹。
+        if (com.deltanexus.system.grid.GearConfig.isGear(stack)) {
+            return false;
+        }
         if (this.player.level().isClientSide()) {
             return super.mayPlace(stack);
         }
-        if (!permitted() || !unlocked() || SafeBoxRestrictions.isRestricted(stack) || !super.mayPlace(stack)) {
+        if (!permitted() || !unlocked() || SafeBoxRestrictions.isRestricted(stack)
+                || !super.mayPlace(stack)) {
             return false;
         }
         // 2.0.10Alpha：安全箱仅 1 格可用时只能放 1x1——大于 1x1 的物品放不下，拒绝放入（回光标）

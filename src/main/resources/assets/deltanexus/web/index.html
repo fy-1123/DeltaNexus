@@ -570,6 +570,31 @@
             color: #f5a1a5;
             font-weight: 600;
         }
+        /* 权限表：点击格子切换覆盖 */
+        .perm-cell {
+            cursor: pointer;
+            user-select: none;
+        }
+        .perm-cell:hover {
+            text-decoration: underline;
+        }
+
+        /* ===== 刷兵系统（0.5.0Beta）===== */
+        .sp-grid2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            align-items: start;
+        }
+        @media (max-width: 1100px) {
+            .sp-grid2 { grid-template-columns: 1fr; }
+        }
+        .sp-pos {
+            color: var(--text-2nd);
+            font-variant-numeric: tabular-nums;
+        }
+        .sp-ok { color: #6fe0ae; }
+        .sp-bad { color: #f5a1a5; }
 
         /* ===== 表格 ===== */
         .table-scroll {
@@ -886,6 +911,145 @@
                 padding: 9px 10px;
             }
         }
+
+        /* ===== 统一物品选择器（0.5.0Beta）：创造全集 + 在线玩家物品 ===== */
+        .ip-mask {
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(4, 6, 10, .62);
+        }
+        .ip-mask.open {
+            display: flex;
+        }
+        .ip-panel {
+            display: flex;
+            flex-direction: column;
+            width: min(760px, 100%);
+            max-height: min(580px, 100%);
+            background: var(--bg-surface);
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-md);
+            overflow: hidden;
+        }
+        .ip-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .ip-head h3 {
+            flex: 1;
+            margin: 0;
+            font-size: 15px;
+            font-weight: 650;
+        }
+        .ip-tabs {
+            display: flex;
+            gap: 6px;
+            padding: 10px 16px 0;
+        }
+        .ip-tab {
+            padding: 6px 12px;
+            font-size: 12.5px;
+            font-weight: 550;
+            color: var(--text-2nd);
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 7px 7px 0 0;
+            cursor: pointer;
+        }
+        .ip-tab:hover {
+            color: var(--accent-strong);
+        }
+        .ip-tab.active {
+            color: var(--text);
+            background: var(--bg-subtle);
+            border-color: var(--border);
+        }
+        .ip-search {
+            padding: 12px 16px;
+        }
+        .ip-search input {
+            width: 100%;
+        }
+        .ip-list {
+            flex: 1;
+            min-height: 180px;
+            margin: 0 16px;
+            overflow-y: auto;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
+        .ip-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 12px;
+            border-bottom: 1px solid rgba(38, 46, 63, .55);
+            cursor: pointer;
+        }
+        .ip-item:last-child {
+            border-bottom: none;
+        }
+        .ip-item:hover {
+            background: var(--bg-hover);
+        }
+        .ip-item.active {
+            background: var(--bg-hover);
+            box-shadow: inset 2px 0 0 var(--accent);
+        }
+        .ip-item.picked {
+            background: var(--accent-soft);
+        }
+        .ip-item .ip-id {
+            font-family: var(--mono);
+            font-size: 12px;
+            color: var(--accent-strong);
+        }
+        .ip-item .ip-name {
+            flex: 1;
+            font-size: 12.5px;
+            color: var(--text-2nd);
+        }
+        .ip-item .ip-meta {
+            font-family: var(--mono);
+            font-size: 11.5px;
+            color: var(--text-muted);
+        }
+        .ip-empty {
+            padding: 20px;
+            text-align: center;
+            font-size: 12.5px;
+            color: var(--text-muted);
+        }
+        .ip-foot {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--bg-subtle);
+            border-top: 1px solid var(--border);
+        }
+        .ip-foot .ctl-label {
+            font-size: 12.5px;
+            color: var(--text-2nd);
+        }
+        .ip-picked {
+            flex: 1;
+            min-width: 150px;
+            font-family: var(--mono);
+            font-size: 12px;
+            color: var(--accent-strong);
+        }
     </style>
 </head>
 <body>
@@ -909,6 +1073,7 @@
             <span class="nav-item" data-target="sec-player"><span class="icon">👤</span>玩家数据</span>
             <span class="nav-item" data-target="sec-perm"><span class="icon">🔐</span>权限管理</span>
             <span class="nav-item" data-target="sec-trade"><span class="icon">🛒</span>交易行</span>
+            <span class="nav-item" data-target="sec-spawner"><span class="icon">👹</span>刷兵系统</span>
         </nav>
     </aside>
 
@@ -1000,6 +1165,7 @@
                 <div class="tag-stack" id="gridSizes"></div>
                 <div class="field-ctl">
                     <input id="gItem" placeholder="物品ID" style="width:160px">
+                    <button class="btn small" onclick="openItemPicker('gItem')">选</button>
                     <input type="number" id="gW" value="2" min="1" max="9" style="width:60px">
                     <span class="dim-sep">×</span>
                     <input type="number" id="gH" value="1" min="1" max="9" style="width:60px">
@@ -1022,8 +1188,23 @@
                 <div class="tag-stack" id="gridItemClasses"></div>
                 <div class="field-ctl">
                     <input id="gicItem" placeholder="物品ID" style="width:160px">
+                    <button class="btn small" onclick="openItemPicker('gicItem')">选</button>
                     <input id="gicClass" placeholder="类名" style="width:120px">
                     <button class="btn" onclick="setGridItemClass()">设置</button>
+                </div>
+            </div>
+            <div class="setup-group">
+                <div class="setup-group-title">装备（胸挂 / 背包）</div>
+                <p class="sec-desc">登记哪些物品可作胸挂/背包及各自格子尺寸（上限 9×6），登记后该物品即可穿上并打开容器。</p>
+                <div class="tag-stack" id="gearList"></div>
+                <div class="field-ctl">
+                    <input id="gearItem" placeholder="物品ID" style="width:160px">
+                    <button class="btn small" onclick="openItemPicker('gearItem')">选</button>
+                    <select id="gearKind"><option value="rig">胸挂</option><option value="backpack">背包</option></select>
+                    <input type="number" id="gearW" value="4" min="1" max="9" style="width:60px">
+                    <span class="dim-sep">×</span>
+                    <input type="number" id="gearH" value="3" min="1" max="9" style="width:60px">
+                    <button class="btn" onclick="setGear()">添加 / 改写</button>
                 </div>
             </div>
         </section>
@@ -1128,7 +1309,10 @@
                 <div class="toolbar-row" style="margin-bottom:12px">
                     <input id="srNbt" placeholder='NBT（如 {"Damage":0}）' class="wide" spellcheck="false">
                     <input id="srItem" placeholder="物品ID（留空 = 任意）" style="width:150px" spellcheck="false">
-                    <select id="srMatch"><option value="contains">包含匹配</option><option value="exact">完全匹配</option></select>
+                    <button class="btn small" onclick="openItemPicker('srItem','srNbt','','mk_srKeys')">选</button>
+                    <select id="mk_srKeys" data-nbt="srNbt" onchange="krSync('srKeys')"><option value="id">id</option><option value="full_nbt">full_nbt</option><option value="partial_nbt" selected>partial_nbt</option></select>
+                    <input type="hidden" id="srKeys" value="">
+                    <button class="btn small" id="krBtn_srKeys" onclick="openKeyRules('srKeys')">键规则</button>
                     <button class="btn" onclick="safeRestrictAdd()">添加</button>
                 </div>
                 <div class="table-scroll">
@@ -1170,28 +1354,36 @@
         <section id="sec-perm" class="section-panel">
             <div class="sec-head">
                 <h2>权限管理</h2>
-                <p class="sec-desc">控制玩家能否用指令 / 按键打开仓库、配方工作台与特勤处（OP 始终允许）。</p>
+                <p class="sec-desc">控制玩家能否用指令 / 按键打开仓库、配方工作台、特勤处、安全箱、交易行与胸挂背包（OP 始终允许）。表格中点击格子即可切换覆盖，灰色表示跟随全局默认。</p>
             </div>
             <div class="setup-group">
                 <div class="setup-group-title">全局默认</div>
-                <div class="field-ctl">
-                    <span class="ctl-label">仓库</span><select id="permDefaultWh" style="width:96px"><option value="allow">允许</option><option value="deny">拒绝</option></select>
-                    <span class="ctl-label">工作台</span><select id="permDefaultWb" style="width:96px"><option value="allow">允许</option><option value="deny">拒绝</option></select>
-                    <span class="ctl-label">特勤处</span><select id="permDefaultSp" style="width:96px"><option value="allow">允许</option><option value="deny">拒绝</option></select>
+                <div class="field-ctl" id="permDefaultRow">
+                    <span class="ctl-label">仓库</span><select id="permDefault_warehouse" style="width:88px"><option value="allow">允许</option><option value="deny">拒绝</option></select>
+                    <span class="ctl-label">工作台</span><select id="permDefault_workbench" style="width:88px"><option value="allow">允许</option><option value="deny">拒绝</option></select>
+                    <span class="ctl-label">特勤处</span><select id="permDefault_special" style="width:88px"><option value="allow">允许</option><option value="deny">拒绝</option></select>
+                    <span class="ctl-label">安全箱</span><select id="permDefault_safe_box" style="width:88px"><option value="allow">允许</option><option value="deny">拒绝</option></select>
+                    <span class="ctl-label">交易行</span><select id="permDefault_trade" style="width:88px"><option value="allow">允许</option><option value="deny">拒绝</option></select>
+                    <span class="ctl-label">胸挂背包</span><select id="permDefault_gear" style="width:88px"><option value="allow">允许</option><option value="deny">拒绝</option></select>
                     <button class="btn" onclick="savePermDefaults()">保存</button>
+                </div>
+                <div class="field-ctl">
+                    <span class="ctl-label">OP 豁免</span>
+                    <select id="permOpExempt" style="width:130px"><option value="true">OP 不受权限限制</option><option value="false">OP 同样受限</option></select>
+                    <button class="btn" onclick="savePermOp()">保存</button>
                 </div>
             </div>
             <div class="setup-group">
                 <div class="setup-group-title">新增覆盖</div>
                 <div class="field-ctl">
                     <input id="permName" placeholder="玩家名" class="wide">
-                    <select id="permType"><option value="all">全部</option><option value="warehouse">仓库</option><option value="workbench">工作台</option><option value="special">特勤处</option></select>
+                    <select id="permType"><option value="all">全部</option><option value="warehouse">仓库</option><option value="workbench">工作台</option><option value="special">特勤处</option><option value="safe_box">安全箱</option><option value="trade">交易行</option><option value="gear">胸挂背包</option></select>
                     <select id="permAllow"><option value="true">允许</option><option value="false">拒绝</option></select>
                     <button class="btn" onclick="permSet()">设置</button>
                 </div>
             </div>
             <div class="table-scroll">
-                <table id="permTable"><thead><tr><th>玩家</th><th>仓库</th><th>工作台</th><th>特勤处</th><th class="center">操作</th></tr></thead><tbody></tbody></table>
+                <table id="permTable"><thead><tr><th>玩家</th><th>仓库</th><th>工作台</th><th>特勤处</th><th>安全箱</th><th>交易行</th><th>胸挂背包</th><th>功能</th><th class="center">操作</th></tr></thead><tbody></tbody></table>
             </div>
         </section>
 
@@ -1273,9 +1465,10 @@
                     <h4>物品与匹配</h4>
                     <div class="row">
                         <label class="ctl-label">物品 ID</label><input id="trItemId" placeholder="minecraft:diamond">
+                        <button class="btn small" onclick="openItemPicker('trItemId','trNbt','trUnit','trMatch')">选</button>
                         <label class="ctl-label">单位数量</label><input id="trUnit" type="number" min="1" value="1" style="width:72px">
                     </div>
-                    <div class="row">
+                    <div class="row" id="trNbtWrap">
                         <label class="ctl-label">NBT 模板 (SNBT)</label><input id="trNbt" style="flex:1;min-width:260px" placeholder='如 {Damage:0}，留空 = 无 NBT'>
                     </div>
                     <div class="row">
@@ -1371,8 +1564,295 @@
             </div>
         </section>
 
+        <!-- 刷兵系统（0.5.0Beta 加入 Web 配置） -->
+        <section id="sec-spawner" class="section-panel">
+            <div class="sec-head">
+                <h2>刷兵系统</h2>
+                <p class="sec-desc">
+                    零活动刷兵：不自动刷兵、无冷却/波次，只有在这里（或指令）明确执行时才刷一次。
+                    配置分三层——全局保护（总开关 / 黑名单 / 上限）、日志、世界层（刷兵器 + 点位组）。
+                    点位坐标可以直接<b>从在线玩家取</b>：选一个玩家点「取该玩家坐标」即可填入。
+                </p>
+            </div>
+
+            <div class="sp-grid2">
+                <div class="setup-group">
+                    <div class="setup-group-title">全局保护</div>
+                    <div class="field">
+                        <div class="field-top"><span class="field-name">总开关</span><span class="field-note">关闭时下列上限全部不生效（默认关闭）</span></div>
+                        <div class="field-ctl">
+                            <label><input type="checkbox" id="spEnabled"> 启用全局限制</label>
+                            <button class="btn" onclick="spSaveGlobal()">保存</button>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <div class="field-top"><span class="field-name">黑名单世界</span><span class="field-note">通配符 * ?，匹配维度 id 或世界文件夹名；每行一条</span></div>
+                        <div class="field-ctl">
+                            <textarea id="spBlacklist" rows="3" class="wide" spellcheck="false" placeholder="minecraft:the_end&#10;*_nether"></textarea>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <div class="field-top"><span class="field-name">单世界实体上限</span><span class="field-note">超过则拒绝刷兵（0 = 不限制）</span></div>
+                        <div class="field-ctl"><input type="number" id="spMaxWorld" min="0" style="width:90px"></div>
+                    </div>
+                    <div class="field">
+                        <div class="field-top"><span class="field-name">单区块实体上限</span><span class="field-note">按刷兵点所在区块统计</span></div>
+                        <div class="field-ctl"><input type="number" id="spMaxChunk" min="0" style="width:90px"></div>
+                    </div>
+                    <div class="field">
+                        <div class="field-top"><span class="field-name">最低 TPS</span><span class="field-note">低于此值拒绝刷兵（0 ~ 20）</span></div>
+                        <div class="field-ctl"><input type="number" id="spMinTps" min="0" max="20" step="0.1" style="width:90px"></div>
+                    </div>
+                    <div class="field">
+                        <div class="field-top"><span class="field-name">最低剩余内存 %</span><span class="field-note">低于此值拒绝刷兵</span></div>
+                        <div class="field-ctl"><input type="number" id="spMinMem" min="0" max="100" style="width:90px"></div>
+                    </div>
+                </div>
+
+                <div class="setup-group">
+                    <div class="setup-group-title">日志</div>
+                    <div class="field">
+                        <div class="field-top"><span class="field-name">日志级别</span><span class="field-note">off / error / warn / info / debug</span></div>
+                        <div class="field-ctl">
+                            <select id="spLogLevel"></select>
+                            <button class="btn" onclick="spSaveLogging()">保存</button>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <div class="field-top"><span class="field-name">记录内容</span><span class="field-note">按级别与开关决定打印</span></div>
+                        <div class="field-ctl" style="flex-wrap:wrap;gap:10px">
+                            <label><input type="checkbox" id="spLogSuccess"> 成功刷兵</label>
+                            <label><input type="checkbox" id="spLogFail"> 失败刷兵</label>
+                            <label><input type="checkbox" id="spLogReject"> 条件拒绝</label>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <div class="field-top"><span class="field-name">输出目标</span><span class="field-note">控制台 / 文件</span></div>
+                        <div class="field-ctl" style="flex-wrap:wrap;gap:10px">
+                            <label><input type="checkbox" id="spLogConsole"> 控制台</label>
+                            <label><input type="checkbox" id="spLogFile"> 写文件</label>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <div class="field-top"><span class="field-name">日志文件路径</span><span class="field-note">相对路径 = 服务器根目录</span></div>
+                        <div class="field-ctl"><input id="spLogPath" class="wide" spellcheck="false" placeholder="logs/deltanexus_spawn.log"></div>
+                    </div>
+                    <div class="row muted" style="margin:0">
+                        在线玩家位置来自当前服务器；「取该玩家坐标」会把玩家<b>当前</b>维度与坐标一起填入并提示维度是否匹配执行维度。
+                    </div>
+                </div>
+            </div>
+
+            <div class="setup-group">
+                <div class="setup-group-title">刷兵器 <span class="muted" id="spFolder"></span></div>
+                <div class="toolbar-row">
+                    <input id="spNewName" placeholder="新刷兵器名（字母/数字/_-.:）" spellcheck="false">
+                    <button class="btn" onclick="spNew()">＋ 新建</button>
+                    <span class="muted" id="spCount"></span>
+                    <span style="flex:1"></span>
+                    <label class="ctl-label">执行维度</label>
+                    <select id="spDimension"></select>
+                    <button class="btn" onclick="spReload()">重载刷兵配置</button>
+                </div>
+                <div class="table-scroll">
+                    <table id="spTable">
+                        <thead><tr><th>刷兵器</th><th>实体</th><th class="num">数量</th><th>点位引用</th><th class="num">有效点位</th><th>条件</th><th class="center" style="width:240px">操作</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 刷兵器编辑器 -->
+            <div class="setup-group" id="spEditor" style="display:none">
+                <div class="setup-group-title">编辑刷兵器：<span id="spEditName"></span></div>
+                <div class="sp-grid2">
+                    <div>
+                        <div class="field">
+                            <div class="field-top"><span class="field-name">固定实体</span><span class="field-note">与实体池二选一；填 id 即固定刷该实体</span></div>
+                            <div class="field-ctl">
+                                <input id="spEntity" list="spEntityList" class="wide" spellcheck="false" placeholder="minecraft:zombie">
+                                <datalist id="spEntityList"></datalist>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <div class="field-top"><span class="field-name">数量</span><span class="field-note">如 1、3-6、per_point:2（小于点位时随机抽点）</span></div>
+                            <div class="field-ctl"><input id="spCountVal" class="wide" spellcheck="false" placeholder="1"></div>
+                        </div>
+                        <div class="field">
+                            <div class="field-top"><span class="field-name">点位引用</span><span class="field-note">留空 = 用本刷兵器的全部点位；也可写点位名或 group:组名</span></div>
+                            <div class="field-ctl">
+                                <input id="spPointRef" list="spPointRefList" class="wide" spellcheck="false" placeholder="（全部点位）">
+                                <datalist id="spPointRefList"></datalist>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <div class="field-top"><span class="field-name">难度条件</span><span class="field-note">逗号分隔，留空 = 不限（peaceful/easy/normal/hard）</span></div>
+                            <div class="field-ctl"><input id="spDifficulty" class="wide" spellcheck="false" placeholder="normal,hard"></div>
+                        </div>
+                        <div class="field">
+                            <div class="field-top"><span class="field-name">最少在线人数</span><span class="field-note">0 = 不限</span></div>
+                            <div class="field-ctl"><input type="number" id="spOnlineMin" min="0" style="width:90px"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="field">
+                            <div class="field-top"><span class="field-name">安全检测</span><span class="field-note">寻位规则</span></div>
+                            <div class="field-ctl" style="flex-wrap:wrap;gap:10px">
+                                <label><input type="checkbox" id="spSolid"> 需要坚实地面</label>
+                                <label><input type="checkbox" id="spLava"> 避开熔岩</label>
+                                <label><input type="checkbox" id="spWater"> 避开水</label>
+                                <label>最大尝试 <input type="number" id="spAttempts" min="1" style="width:64px"></label>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <div class="field-top"><span class="field-name">生成后行为</span><span class="field-note">实体属性与特效</span></div>
+                            <div class="field-ctl" style="flex-wrap:wrap;gap:10px">
+                                <label><input type="checkbox" id="spGlowing"> 发光</label>
+                                <label><input type="checkbox" id="spPersistent"> 持久（不自然消失）</label>
+                                <label><input type="checkbox" id="spSilent"> 静音</label>
+                                <label><input type="checkbox" id="spNoAi"> 无 AI</label>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <div class="field-top"><span class="field-name">粒子 / 音效</span><span class="field-note">可留空</span></div>
+                            <div class="field-ctl" style="flex-wrap:wrap;gap:8px">
+                                <input id="spParticle" list="spParticleList" style="width:210px" spellcheck="false" placeholder="粒子 id">
+                                <datalist id="spParticleList"></datalist>
+                                <input id="spSound" list="spSoundList" style="width:230px" spellcheck="false" placeholder="音效 id">
+                                <datalist id="spSoundList"></datalist>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <div class="field-top"><span class="field-name">生成后命令</span><span class="field-note">每行一条（可用 ~ ~ ~ 指代实体）</span></div>
+                            <div class="field-ctl"><textarea id="spCommands" rows="3" class="wide" spellcheck="false" placeholder="say spawned"></textarea></div>
+                        </div>
+                        <div class="field">
+                            <div class="field-top"><span class="field-name">实体 NBT</span><span class="field-note">JSON 形式（= 配置文件里的写法）</span></div>
+                            <div class="field-ctl">
+                                <textarea id="spNbt" rows="3" class="wide" spellcheck="false" placeholder='{"Health":20.0f}'></textarea>
+                                <button class="btn small" onclick="$id('spNbt').value=''">清空</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="setup-group-title" style="margin-top:14px">点位 <span class="muted" id="spPointHint"></span></div>
+                <div class="toolbar-row">
+                    <input id="spPointName" placeholder="点位名（如 p1）" style="width:150px" spellcheck="false">
+                    <input type="number" id="spPointX" placeholder="x" step="0.01" style="width:90px">
+                    <input type="number" id="spPointY" placeholder="y" step="0.01" style="width:90px">
+                    <input type="number" id="spPointZ" placeholder="z" step="0.01" style="width:90px">
+                    <input type="number" id="spPointR" placeholder="半径" step="0.5" min="0" style="width:80px" value="0">
+                    <button class="btn" onclick="spPointAdd()">＋ 添加点位</button>
+                    <span style="flex:1"></span>
+                    <label class="ctl-label">在线玩家</label>
+                    <select id="spPlayerSel" onchange="spRenderPlayerPos()"></select>
+                    <span class="sp-pos" id="spPlayerPosHint"></span>
+                    <button class="btn small" onclick="spRefreshPlayers()">↻ 刷新位置</button>
+                    <button class="btn small green" onclick="spPointFromPlayer()">以该玩家为点位</button>
+                </div>
+                <div class="table-scroll">
+                    <table id="spPointTable">
+                        <thead><tr><th>点位</th><th class="num">x</th><th class="num">y</th><th class="num">z</th><th class="num">半径</th><th class="center">启用</th><th class="center" style="width:250px">操作</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div class="setup-group-title" style="margin-top:14px">实体池 <span class="muted">（与固定实体二选一；留空则用固定实体）</span></div>
+                <div class="table-scroll">
+                    <table id="spPoolTable">
+                        <thead><tr><th>实体 id</th><th class="num">权重</th><th class="center" style="width:90px">操作</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="toolbar-row">
+                    <input id="spPoolId" list="spEntityList" placeholder="实体 id" class="wide" spellcheck="false">
+                    <input type="number" id="spPoolWeight" value="1" min="1" style="width:80px">
+                    <button class="btn" onclick="spPoolAdd()">＋ 加入池</button>
+                </div>
+
+                <div class="row" style="margin-top:14px">
+                    <button class="btn green" onclick="spSave()">保存刷兵器</button>
+                    <button class="btn" onclick="spCloseEditor()">关闭编辑器</button>
+                    <span class="muted" id="spDirty"></span>
+                </div>
+            </div>
+
+            <!-- 点位组 -->
+            <div class="setup-group">
+                <div class="setup-group-title">点位组 <span class="muted">（组内是「点位名」，可跨刷兵器引用；刷兵器的点位引用填 group:组名）</span></div>
+                <div class="table-scroll">
+                    <table id="spGroupTable">
+                        <thead><tr><th style="width:180px">组名</th><th>点位（逗号分隔）</th><th class="center" style="width:90px">操作</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="toolbar-row">
+                    <input id="spGroupNewName" placeholder="新组名" style="width:160px" spellcheck="false">
+                    <input id="spGroupNewPoints" list="spPointNameList" placeholder="点位名，逗号分隔" class="wide" spellcheck="false">
+                    <datalist id="spPointNameList"></datalist>
+                    <button class="btn" onclick="spGroupAdd()">＋ 建组</button>
+                    <span style="flex:1"></span>
+                    <button class="btn green" onclick="spGroupsSave()">保存全部点位组</button>
+                </div>
+            </div>
+        </section>
+
     </main>
     </div><!-- /main-col -->
+
+    <!-- ===== 统一物品选择器（0.5.0Beta）：创造全集 + 在线玩家物品 ===== -->
+    <div class="ip-mask" id="ipMask">
+        <div class="ip-panel" id="ipPanel">
+            <div class="ip-head">
+                <h3>选择物品</h3>
+                <button class="btn small" onclick="closeItemPicker()">关闭</button>
+            </div>
+            <div class="ip-tabs">
+                <button class="ip-tab active" id="ipTabCreative" onclick="ipTab('creative')">创造全集</button>
+                <button class="ip-tab" id="ipTabPlayer" onclick="ipTab('player')">在线玩家物品</button>
+            </div>
+            <div class="ip-search">
+                <input id="ipSearch" placeholder="搜索物品 ID 或名称（如 diamond / 钻石）" spellcheck="false">
+            </div>
+            <div class="ip-list" id="ipList"></div>
+            <div class="ip-foot">
+                <label class="ctl-label">物品</label>
+                <input class="ip-picked" id="ipPicked" readonly placeholder="未选择">
+                <label class="ctl-label">数量</label>
+                <input type="number" id="ipCount" min="1" value="1" style="width:72px">
+                <label class="ctl-label">NBT</label>
+                <input id="ipNbt" placeholder="SNBT，留空 = 无" style="width:200px" spellcheck="false">
+                <label class="ctl-label">匹配</label>
+                <select id="ipMatch"><option value="id">id</option><option value="full_nbt">full_nbt</option><option value="partial_nbt">partial_nbt</option></select>
+                <button class="btn green" id="ipApply" onclick="ipApply()" disabled>填入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 键规则编辑器（partial_nbt，0.5.0Beta）：与交易行同款 ===== -->
+    <div class="ip-mask" id="krMask">
+        <div class="ip-panel" style="max-width:680px">
+            <div class="ip-head">
+                <h3>键规则（partial_nbt）</h3>
+                <button class="btn small" onclick="krClose()">关闭</button>
+            </div>
+            <div class="row muted" style="padding:12px 16px 0;margin:0">exact / contains 的取值取自 NBT 模板；“指定” = 指定键名与对应值（不依赖模板）。</div>
+            <div id="krList" class="ip-list" style="margin:12px 16px;padding:4px 0"></div>
+            <div class="ip-foot">
+                <input id="krName" style="width:180px" placeholder="键名，如 Damage" spellcheck="false">
+                <select id="krOp" onchange="krAddOpChange()">
+                    <option value="exact">精确 exact</option>
+                    <option value="contains">包含 contains</option>
+                    <option value="specified">指定（键 + 值）</option>
+                </select>
+                <input id="krValue" style="width:200px;display:none" placeholder="指定值，如 0 或 文本" spellcheck="false">
+                <button class="btn small green" onclick="krAdd()">＋ 加键</button>
+                <span style="flex:1"></span>
+                <button class="btn green" onclick="krApply()">确定</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         "use strict";
@@ -1394,9 +1874,12 @@
             });
 
             // 恢复上次活跃页签（仅白名单内 id，防 localStorage 注入非法选择器）
-            const TABS = ['sec-settings', 'sec-grid', 'sec-workbench', 'sec-recipe', 'sec-tree', 'sec-safe', 'sec-player', 'sec-perm', 'sec-trade'];
+            const TABS = ['sec-settings', 'sec-grid', 'sec-workbench', 'sec-recipe', 'sec-tree', 'sec-safe', 'sec-player', 'sec-perm', 'sec-trade', 'sec-spawner'];
             const saved = localStorage.getItem('dn_activeTab');
             if (TABS.indexOf(saved) >= 0) activateTab(saved);
+
+            // 安全箱限制默认 partial_nbt：同步一次控件可见性（隐藏无用的 NBT 模板框）
+            krSync('srKeys');
 
             // 全局搜索：输入建议 / 键盘导航 / 点击跳转
             const gs = document.getElementById('globalSearch');
@@ -1500,6 +1983,7 @@
             renderPlayers();
             renderPerms();
             renderTrade();
+            renderSpawner();
         }
 
         // ============================================================
@@ -1526,6 +2010,10 @@
                 idx.push({ kind: 'good', label: g.id, sub: '交易所 · ' + (g.category || ''), id: g.id });
             });
             (STATE.players || []).forEach(p => idx.push({ kind: 'player', label: p.name, sub: '玩家', id: p.name }));
+            const sSp = (STATE.spawner || {}).world || {};
+            Object.keys(sSp.spawners || {}).forEach(n => idx.push({ kind: 'spawner', label: n,
+                sub: '刷兵器 · ' + ((sSp.spawners[n] || {}).entity || '随机池'), id: n }));
+            Object.keys(sSp.groups || {}).forEach(g => idx.push({ kind: 'spgroup', label: g, sub: '点位组', id: g }));
             _glIndex = idx;
         }
 
@@ -1583,6 +2071,15 @@
                 localStorage.setItem('dn_playerSel', it.id);
                 renderPlayerInfo();
                 status('已定位玩家 ' + it.id, true);
+            } else if (it.kind === 'spawner') {
+                activateTab('sec-spawner');
+                spOpenEditor(it.id, true);
+                flashRow('#spTable tbody tr', it.id);
+                status('已打开刷兵器 ' + it.id, true);
+            } else if (it.kind === 'spgroup') {
+                activateTab('sec-spawner');
+                flashRow('#spGroupTable tbody tr', it.id);
+                status('已定位点位组 ' + it.id, true);
             }
         }
 
@@ -1654,6 +2151,11 @@
                 '<span class="tag">' + esc(i) + ' -> ' + esc(items[i]) +
                 ' <button class="btn red small" onclick="unsetGridItemClass(\'' + esc(i) + '\')">✕</button></span>'
             ).join('') || '<span class="muted">无物品归属（默认灰色背景）</span>';
+            const gear = document.getElementById('gearList');
+            gear.innerHTML = (s.gear || []).map(g =>
+                '<span class="tag">' + esc(g.item) + ' ' + esc(g.kind === 'rig' ? '胸挂' : '背包') + ' ' + g.w + 'x' + g.h +
+                ' <button class="btn red small" onclick="removeGear(\'' + esc(g.item) + '\')">✕</button></span>'
+            ).join('') || '<span class="muted">无装备登记</span>';
         }
 
         function renderCurrencyParams() {
@@ -1705,6 +2207,14 @@
         }
 
         async function unsetGridItemClass(item) { doAction('/api/grid/class/unsetclass', { item: item }); }
+
+        async function setGear() {
+            doAction('/api/gear/set', { item: document.getElementById('gearItem').value.trim(),
+                kind: document.getElementById('gearKind').value,
+                w: parseInt(document.getElementById('gearW').value), h: parseInt(document.getElementById('gearH').value) });
+        }
+
+        async function removeGear(item) { doAction('/api/gear/remove', { item: item }); }
 
         async function saveCurrency() {
             const t = document.getElementById('sCurrency').value;
@@ -1899,12 +2409,14 @@
                     i + '" min="1" value="' + ing.count + '" style="width:64px">' +
                     '<button class="btn" onclick="setInputCount(\'' + esc(r.recipe_id) + '\',' + i +
                     ')">改</button></td>' +
-                    '<td class="muted">' + esc(ing.nbt) + '</td><td>' + esc(ing.match_type) + '</td>' +
+                    '<td class="muted">' + esc(ing.nbt) + '</td><td>' + krSummary(ing.match_mode, ing.match_keys) + '</td>' +
                     '<td><button class="btn red" onclick="delInput(\'' + esc(r.recipe_id) + '\',' + i +
                     ')">删除</button></td></tr>';
             });
             h +=
-                '</tbody></table><div class="inline-form row"><input id="inItem" placeholder="物品ID" class="wide"><input type="number" id="inCount" value="1" min="1"><input id="inNbt" placeholder="NBT(可空)" style="width:180px"><select id="inMatch"><option>ignore</option><option>exact</option><option>contains</option></select><button class="btn green" onclick="addInput(\'' +
+                '</tbody></table><div class="inline-form row"><input id="inItem" placeholder="物品ID" class="wide"><button class="btn small" onclick="openItemPicker(\'inItem\',\'inNbt\',\'inCount\',\'mk_inKeys\')">选</button><input type="number" id="inCount" value="1" min="1"><input id="inNbt" placeholder="NBT(可空)" style="width:180px">' +
+                matchEditor('inKeys', 'inNbt') +
+                '<button class="btn green" onclick="addInput(\'' +
                 esc(r.recipe_id) + '\')">添加原料</button></div>';
             h += '<h3>产物</h3><table><thead><tr><th>物品</th><th>数量</th><th>NBT</th><th></th></tr></thead><tbody>';
             r.output.forEach((o, i) => {
@@ -1917,11 +2429,12 @@
                     ')">删除</button></td></tr>';
             });
             h +=
-                '</tbody></table><div class="inline-form row"><input id="outItem" placeholder="物品ID" class="wide"><input type="number" id="outCount" value="1" min="1"><input id="outNbt" placeholder="NBT(可空)" style="width:180px"><button class="btn green" onclick="addOutput(\'' +
+                '</tbody></table><div class="inline-form row"><input id="outItem" placeholder="物品ID" class="wide"><button class="btn small" onclick="openItemPicker(\'outItem\',\'outNbt\',\'outCount\')">选</button><input type="number" id="outCount" value="1" min="1"><input id="outNbt" placeholder="NBT(可空)" style="width:180px"><button class="btn green" onclick="addOutput(\'' +
                 esc(r.recipe_id) + '\')">添加产物</button></div>';
             h += '<div class="row"><button class="btn red" onclick="removeRecipe(\'' + esc(r.recipe_id) +
                 '\')">删除配方</button></div>';
             d.innerHTML = h;
+            krSync('inKeys');
         }
 
         async function saveRecipeName(id) { doAction('/api/recipe/rename', { recipe_id: id, display_name: document
@@ -1936,9 +2449,14 @@
         async function saveRecipeParallel(id) { doAction('/api/recipe/parallel', { recipe_id: id, limit: parseInt(document
                     .getElementById('rParallel').value) }); }
 
-        async function addInput(id) { doAction('/api/recipe/input/add', { recipe_id: id, item: document.getElementById(
-                    'inItem').value, count: parseInt(document.getElementById('inCount').value), nbt: document
-                    .getElementById('inNbt').value, match_type: document.getElementById('inMatch').value }); }
+        async function addInput(id) {
+            const body = krBody('inKeys', 'mk_inKeys');
+            body.recipe_id = id;
+            body.item = document.getElementById('inItem').value;
+            body.count = parseInt(document.getElementById('inCount').value);
+            body.nbt = document.getElementById('inNbt').value;
+            doAction('/api/recipe/input/add', body);
+        }
 
         async function delInput(id, i) { doAction('/api/recipe/input/remove', { recipe_id: id, index: i }); }
 
@@ -1976,19 +2494,21 @@
                         '" min="1" value="' + it.count + '" style="width:64px">' +
                         '<button class="btn small" onclick="treeItemSet(' + u.level + ',' + i +
                         ')">改</button>' +
-                        (it.nbt ? '(' + esc(it.nbt) + ')' : '') +
+                        (it.nbt ? '(' + esc(it.nbt) + ')' : '') + ' ' + krSummary(it.match_mode, it.match_keys) +
                         ' <button class="btn red small" onclick="treeItemDel(' + u.level + ',' + i +
                         ')">✕</button></span> ';
                 });
                 h +=
-                    '</div><div class="row"><input id="ti_' + u.level + '" placeholder="材料物品ID" class="wide"><input type="number" id="tiq_' +
+                    '</div><div class="row"><input id="ti_' + u.level + '" placeholder="材料物品ID" class="wide"><button class="btn small" onclick="openItemPicker(\'ti_' + u.level + '\',\'tin_' + u.level + '\',\'tiq_' + u.level + '\',\'mk_tink_' + u.level + '\')">选</button><input type="number" id="tiq_' +
                     u.level + '" value="1" min="1" style="width:70px"><input id="tin_' + u.level +
-                    '" placeholder="NBT(可空)" style="width:160px"><select id="tim_' + u.level +
-                    '"><option>ignore</option><option>exact</option><option>contains</option></select><button class="btn green" onclick="treeItemAdd(' +
+                    '" placeholder="NBT(可空)" style="width:160px">' +
+                    matchEditor('tink_' + u.level, 'tin_' + u.level) +
+                    '<button class="btn green" onclick="treeItemAdd(' +
                     u.level + ')">添加材料</button></div></div>';
             }
             if (!STATE.tree.length) h = '<span class="muted">升级树为空</span>';
             el.innerHTML = h;
+            STATE.tree.forEach(u => krSync('tink_' + u.level));
         }
 
         async function treeAdd() { doAction('/api/tree/add', { level: parseInt(document.getElementById('treeLevelNew')
@@ -2000,9 +2520,14 @@
 
         async function treeDel(l) { if (confirm('确认删除等级 Lv' + l + '？')) doAction('/api/tree/remove', { level: l }); }
 
-        async function treeItemAdd(l) { doAction('/api/tree/item/add', { level: l, item: document.getElementById('ti_' + l)
-                    .value, count: parseInt(document.getElementById('tiq_' + l).value), nbt: document.getElementById(
-                    'tin_' + l).value, match_type: document.getElementById('tim_' + l).value }); }
+        async function treeItemAdd(l) {
+            const body = krBody('tink_' + l, 'mk_tink_' + l);
+            body.level = l;
+            body.item = document.getElementById('ti_' + l).value;
+            body.count = parseInt(document.getElementById('tiq_' + l).value);
+            body.nbt = document.getElementById('tin_' + l).value;
+            doAction('/api/tree/item/add', body);
+        }
 
         async function treeItemDel(l, i) { doAction('/api/tree/item/remove', { level: l, index: i }); }
 
@@ -2042,19 +2567,21 @@
                         '" min="1" value="' + it.count + '" style="width:64px">' +
                         '<button class="btn small" onclick="safeTreeItemSet(' + u.level + ',' + i +
                         ')">改</button>' +
-                        (it.nbt ? '(' + esc(it.nbt) + ')' : '') +
+                        (it.nbt ? '(' + esc(it.nbt) + ')' : '') + ' ' + krSummary(it.match_mode, it.match_keys) +
                         ' <button class="btn red small" onclick="safeTreeItemDel(' + u.level + ',' + i +
                         ')">✕</button></span> ';
                 });
                 h +=
-                    '</div><div class="row"><input id="sti_' + u.level + '" placeholder="材料物品ID" class="wide"><input type="number" id="stiq_' +
+                    '</div><div class="row"><input id="sti_' + u.level + '" placeholder="材料物品ID" class="wide"><button class="btn small" onclick="openItemPicker(\'sti_' + u.level + '\',\'stin_' + u.level + '\',\'stiq_' + u.level + '\',\'mk_stink_' + u.level + '\')">选</button><input type="number" id="stiq_' +
                     u.level + '" value="1" min="1" style="width:70px"><input id="stin_' + u.level +
-                    '" placeholder="NBT(可空)" style="width:160px"><select id="stim_' + u.level +
-                    '"><option>ignore</option><option>exact</option><option>contains</option></select><button class="btn green" onclick="safeTreeItemAdd(' +
+                    '" placeholder="NBT(可空)" style="width:160px">' +
+                    matchEditor('stink_' + u.level, 'stin_' + u.level) +
+                    '<button class="btn green" onclick="safeTreeItemAdd(' +
                     u.level + ')">添加材料</button></div></div>';
             }
             if (!STATE.safe_tree.length) h = '<span class="muted">安全箱升级树为空（解锁行 x 列，各 1~3，按 3x3 网格左上角排布）</span>';
             el.innerHTML = h;
+            STATE.safe_tree.forEach(u => krSync('stink_' + u.level));
         }
 
         async function safeTreeAdd() { doAction('/api/safe/tree/add', { level: parseInt(document.getElementById(
@@ -2067,9 +2594,14 @@
 
         async function safeTreeDel(l) { if (confirm('确认删除安全箱等级 Lv' + l + '？')) doAction('/api/safe/tree/remove', { level: l }); }
 
-        async function safeTreeItemAdd(l) { doAction('/api/safe/tree/item/add', { level: l, item: document.getElementById(
-                    'sti_' + l).value, count: parseInt(document.getElementById('stiq_' + l).value), nbt: document
-                    .getElementById('stin_' + l).value, match_type: document.getElementById('stim_' + l).value }); }
+        async function safeTreeItemAdd(l) {
+            const body = krBody('stink_' + l, 'mk_stink_' + l);
+            body.level = l;
+            body.item = document.getElementById('sti_' + l).value;
+            body.count = parseInt(document.getElementById('stiq_' + l).value);
+            body.nbt = document.getElementById('stin_' + l).value;
+            doAction('/api/safe/tree/item/add', body);
+        }
 
         async function safeTreeItemDel(l, i) { doAction('/api/safe/tree/item/remove', { level: l, index: i }); }
 
@@ -2091,7 +2623,7 @@
                 const tr = document.createElement('tr');
                 tr.innerHTML = '<td>' + i + '</td>' +
                     '<td>' + (r.item ? esc(r.item) : '<span class="muted">任意</span>') + '</td>' +
-                    '<td>' + esc(r.match_type) + '</td>' +
+                    '<td>' + krSummary(r.match_mode, r.match_keys) + '</td>' +
                     '<td style="word-break:break-all" class="muted">' + esc(r.nbt) + '</td>' +
                     '<td><button class="btn red" onclick="safeRestrictRemove(' + i + ')">删除</button></td>';
                 tb.appendChild(tr);
@@ -2099,13 +2631,11 @@
         }
 
         async function safeRestrictAdd() {
-            const nbt = document.getElementById('srNbt').value.trim();
-            if (!nbt) { status('请输入 NBT 字符串', false); return; }
-            doAction('/api/safe/restrict/add', {
-                nbt: nbt,
-                item: document.getElementById('srItem').value.trim(),
-                match_type: document.getElementById('srMatch').value
-            });
+            const body = krBody('srKeys', 'mk_srKeys');
+            body.nbt = document.getElementById('srNbt').value.trim();
+            body.item = document.getElementById('srItem').value.trim();
+            if (!body.nbt && !body.match_keys) { status('请填写 NBT 模板或至少一条键规则', false); return; }
+            doAction('/api/safe/restrict/add', body);
         }
 
         async function safeRestrictRemove(i) {
@@ -2157,46 +2687,80 @@
         // ============================================================
         //  权限管理
         // ============================================================
+        // 权限类型（顺序与表格列、全局默认选择器一致）
+        const PERM_TYPES = [
+            { key: 'warehouse', label: '仓库' },
+            { key: 'workbench', label: '工作台' },
+            { key: 'special', label: '特勤处' },
+            { key: 'safe_box', label: '安全箱' },
+            { key: 'trade', label: '交易行' },
+            { key: 'gear', label: '胸挂背包' }
+        ];
+
         function renderPerms() {
             const perms = STATE.permissions;
-            document.getElementById('permDefaultWh').value = perms.default_warehouse ? 'allow' : 'deny';
-            document.getElementById('permDefaultWb').value = perms.default_workbench ? 'allow' : 'deny';
-            document.getElementById('permDefaultSp').value = perms.default_special ? 'allow' : 'deny';
+            PERM_TYPES.forEach(t => {
+                document.getElementById('permDefault_' + t.key).value =
+                    perms['default_' + t.key] ? 'allow' : 'deny';
+            });
+            document.getElementById('permOpExempt').value = perms.op_exempt ? 'true' : 'false';
             const tb = document.querySelector('#permTable tbody');
             tb.innerHTML = '';
             const names = Object.keys(perms.players);
             if (!names.length) {
-                tb.innerHTML = '<tr><td colspan="5" class="muted">无玩家覆盖（全部按全局默认）</td></tr>';
+                tb.innerHTML = '<tr><td colspan="' + (PERM_TYPES.length + 3) +
+                    '" class="muted">无玩家覆盖（全部按全局默认）</td></tr>';
                 return;
             }
             for (const n of names) {
                 const p = perms.players[n];
-                const wh = p.warehouse !== undefined ? p.warehouse : perms.default_warehouse;
-                const wb = p.workbench !== undefined ? p.workbench : perms.default_workbench;
-                const sp = p.special !== undefined ? p.special : perms.default_special;
-                const whTag = p.warehouse !== undefined ? (wh ? 'tag-allow' : 'tag-deny') : 'muted';
-                const wbTag = p.workbench !== undefined ? (wb ? 'tag-allow' : 'tag-deny') : 'muted';
-                const spTag = p.special !== undefined ? (sp ? 'tag-allow' : 'tag-deny') : 'muted';
-                const whTxt = (wh ? '允许' : '拒绝') + (p.warehouse !== undefined ? '' : '（默认）');
-                const wbTxt = (wb ? '允许' : '拒绝') + (p.workbench !== undefined ? '' : '（默认）');
-                const spTxt = (sp ? '允许' : '拒绝') + (p.special !== undefined ? '' : '（默认）');
+                let cells = '';
+                PERM_TYPES.forEach(t => {
+                    const has = p[t.key] !== undefined;
+                    const val = has ? p[t.key] : perms['default_' + t.key];
+                    const tag = has ? (val ? 'tag-allow' : 'tag-deny') : 'muted';
+                    const txt = (val ? '允许' : '拒绝') + (has ? '' : '（默认）');
+                    cells += '<td class="' + tag + '"><span class="perm-cell" onclick="permFlip(\'' +
+                        esc(n) + '\',\'' + t.key + '\')">' + txt + '</span></td>';
+                });
+                cells += featureCell(n, p);
+                cells += '<td><button class="btn red" onclick="permRemove(\'' + esc(n) +
+                    '\')">移除覆盖</button></td>';
                 const tr = document.createElement('tr');
-                tr.innerHTML = '<td>' + esc(n) + '</td>' +
-                    '<td class="' + whTag + '">' + whTxt + '</td>' +
-                    '<td class="' + wbTag + '">' + wbTxt + '</td>' +
-                    '<td class="' + spTag + '">' + spTxt + '</td>' +
-                    '<td><button class="btn" onclick="permFlip(\'' + esc(n) + '\',\'warehouse\')">切换仓库</button> ' +
-                    '<button class="btn" onclick="permFlip(\'' + esc(n) + '\',\'workbench\')">切换工作台</button> ' +
-                    '<button class="btn" onclick="permFlip(\'' + esc(n) + '\',\'special\')">切换特勤处</button> ' +
-                    '<button class="btn red" onclick="permRemove(\'' + esc(n) + '\')">移除覆盖</button></td>';
+                tr.innerHTML = '<td>' + esc(n) + '</td>' + cells;
                 tb.appendChild(tr);
             }
         }
 
+        /** 功能硬开关列：禁用后该玩家全部 mod 功能关闭，客户端 UI 恢复原版。 */
+        function featureCell(name, p) {
+            const disabled = p.features === false;
+            const tag = disabled ? 'tag-deny' : 'tag-allow';
+            const txt = disabled ? '已禁用' : '启用';
+            const next = disabled ? 'true' : 'false';
+            return '<td class="' + tag + '"><span class="perm-cell" onclick="permFeature(\'' +
+                name.replace(/'/g, "\\'") + '\',' + next + ')">' + txt + '</span></td>';
+        }
+
+        async function permFeature(name, allow) {
+            if (!allow && !confirm('确认禁用 ' + name + ' 的全部 mod 功能？该玩家界面将恢复原版。')) return;
+            doAction('/api/perm/feature', { name: name, allow: allow });
+        }
+
         async function savePermDefaults() {
-            doAction('/api/perm/default', { type: 'warehouse', allow: document.getElementById('permDefaultWh').value === 'allow' });
-            doAction('/api/perm/default', { type: 'workbench', allow: document.getElementById('permDefaultWb').value === 'allow' });
-            doAction('/api/perm/default', { type: 'special', allow: document.getElementById('permDefaultSp').value === 'allow' });
+            for (const t of PERM_TYPES) {
+                const r = await api('/api/perm/default', {
+                    type: t.key,
+                    allow: document.getElementById('permDefault_' + t.key).value === 'allow'
+                });
+                if (!r.ok) { status(r.msg || '保存失败', false); return; }
+            }
+            status('全局默认权限已保存', true);
+            loadAll();
+        }
+
+        async function savePermOp() {
+            doAction('/api/perm/op', { allow: document.getElementById('permOpExempt').value === 'true' });
         }
 
         async function permSet() {
@@ -2212,9 +2776,7 @@
         async function permFlip(name, type) {
             const perms = STATE.permissions;
             const p = perms.players[name];
-            const def = type === 'warehouse' ? perms.default_warehouse
-                : (type === 'workbench' ? perms.default_workbench : perms.default_special);
-            const cur = p && p[type] !== undefined ? p[type] : def;
+            const cur = p && p[type] !== undefined ? p[type] : perms['default_' + type];
             doAction('/api/perm/set', { name: name, type: type, allow: !cur });
         }
 
@@ -2354,6 +2916,8 @@
         function trMatchChange() {
             const partial = $id('trMatch').value === 'partial_nbt';
             $id('trKeysWrap').style.display = partial ? '' : 'none';
+            const nbtWrap = $id('trNbtWrap');
+            if (nbtWrap) nbtWrap.style.display = partial ? 'none' : '';
             if (partial) trKeysRender();
         }
 
@@ -2630,9 +3194,941 @@
         document.getElementById('sCurrency').addEventListener('change', renderCurrencyParams);
 
         // ============================================================
+        //  统一物品选择器（0.5.0Beta）：创造全集 + 在线玩家物品
+        //  用法：openItemPicker('物品输入框id', 'NBT输入框id', '数量输入框id', '匹配下拉id')
+        //  后三个可省略；省略即不覆盖对应字段。
+        // ============================================================
+        const IP_MAX_ROWS = 300;
+        const IP = { data: null, loading: false, tab: 'creative', q: '', picked: null, active: -1, target: null };
+
+        function openItemPicker(itemId, nbtId, countId, matchId) {
+            const el = document.getElementById(itemId);
+            if (!el) return;
+            IP.target = { item: itemId, nbt: nbtId || '', count: countId || '', match: matchId || '' };
+            IP.tab = 'creative';
+            IP.picked = null;
+            IP.active = -1;
+            IP.q = (el.value || '').trim().toLowerCase();
+            const si = document.getElementById('ipSearch');
+            si.value = el.value || '';
+            document.getElementById('ipMask').classList.add('open');
+            ipSyncTabs();
+            ipUpdateFoot();
+            ipRender();
+            ipEnsureData();
+            si.focus();
+            si.select();
+        }
+
+        function closeItemPicker() {
+            document.getElementById('ipMask').classList.remove('open');
+        }
+
+        async function ipEnsureData() {
+            if (IP.data || IP.loading) return;
+            IP.loading = true;
+            ipRender();
+            const r = await api('/api/items');
+            IP.loading = false;
+            if (!r.ok) {
+                status(r.msg || '物品目录加载失败', false);
+                ipRender();
+                return;
+            }
+            IP.data = { items: r.items || [], players: r.players || [] };
+            ipRender();
+        }
+
+        function ipTab(tab) {
+            IP.tab = tab;
+            IP.picked = null;
+            IP.active = -1;
+            ipSyncTabs();
+            ipUpdateFoot();
+            ipRender();
+        }
+
+        function ipSyncTabs() {
+            document.getElementById('ipTabCreative').classList.toggle('active', IP.tab === 'creative');
+            document.getElementById('ipTabPlayer').classList.toggle('active', IP.tab === 'player');
+        }
+
+        function ipQuery(v) {
+            IP.q = (v || '').trim().toLowerCase();
+            IP.active = -1;
+            ipRender();
+        }
+
+        /** 当前页签的全部条目（玩家页签按 物品id + NBT 去重，meta 记来源玩家）。 */
+        function ipSource() {
+            if (!IP.data) return [];
+            if (IP.tab === 'creative') {
+                return IP.data.items.map(i => ({ id: i.id, name: i.name, count: 1,
+                    nbt: i.nbt || '', mode: i.match_mode || 'id', meta: i.ns }));
+            }
+            const seen = new Map();
+            IP.data.players.forEach(p => {
+                (p.items || []).forEach(it => {
+                    const k = it.id + '\u0000' + it.nbt;
+                    const cur = seen.get(k);
+                    if (cur) {
+                        cur.meta += ' / ' + p.name;
+                        cur.count = Math.max(cur.count, it.count);
+                    } else {
+                        seen.set(k, { id: it.id, name: it.name, count: it.count, nbt: it.nbt,
+                            mode: it.match_mode || (it.nbt ? 'full_nbt' : 'id'), meta: p.name });
+                    }
+                });
+            });
+            return Array.from(seen.values());
+        }
+
+        function ipFiltered() {
+            const all = ipSource();
+            if (!IP.q) return all;
+            return all.filter(i => i.id.toLowerCase().includes(IP.q)
+                || (i.name && i.name.toLowerCase().includes(IP.q)));
+        }
+
+        function ipRender() {
+            const list = document.getElementById('ipList');
+            if (IP.loading) { list.innerHTML = '<div class="ip-empty">加载中…</div>'; return; }
+            if (!IP.data) { list.innerHTML = '<div class="ip-empty">正在获取物品目录…</div>'; return; }
+            const rows = ipFiltered();
+            if (!rows.length) {
+                const empty = IP.tab === 'player' && !IP.data.players.length
+                    ? '当前没有在线玩家' : '无匹配物品';
+                list.innerHTML = '<div class="ip-empty">' + empty + '</div>';
+                return;
+            }
+            const show = rows.slice(0, IP_MAX_ROWS);
+            let h = '';
+            show.forEach((it, i) => {
+                const picked = IP.picked && IP.picked.id === it.id && IP.picked.nbt === it.nbt;
+                h += '<div class="ip-item' + (i === IP.active ? ' active' : '') + (picked ? ' picked' : '') +
+                    '" data-i="' + i + '"><span class="ip-id">' + esc(it.id) + '</span>' +
+                    '<span class="ip-name">' + esc(it.name || '') + '</span>' +
+                    (it.nbt ? '<span class="ip-meta">' + esc(it.nbt) + '</span>' : '') +
+                    (it.mode && it.mode !== 'id' ? '<span class="ip-meta">' + esc(it.mode) + '</span>' : '') +
+                    '<span class="ip-meta">' + esc(it.meta || '') + '</span></div>';
+            });
+            if (rows.length > show.length) {
+                h += '<div class="ip-empty">仅显示前 ' + show.length + ' 项（共 ' + rows.length +
+                    ' 项），继续输入可缩小范围</div>';
+            }
+            list.innerHTML = h;
+        }
+
+        function ipPick(i) {
+            const it = ipFiltered().slice(0, IP_MAX_ROWS)[i];
+            if (!it) return;
+            IP.picked = it;
+            IP.active = i;
+            ipUpdateFoot();
+            ipRender();
+        }
+
+        /** 未选中时禁用「填入」，并让数量/NBT/匹配默认值可预期。
+         *  条目自带 NBT（玩家物品、NBT 驱动物品如 TACZ 枪械）时直接带出真实 NBT 与匹配模式。 */
+        function ipUpdateFoot() {
+            const p = IP.picked;
+            const countEl = document.getElementById('ipCount');
+            const nbtEl = document.getElementById('ipNbt');
+            const matchEl = document.getElementById('ipMatch');
+            const cur = id => { const e = IP.target && IP.target[id] ? document.getElementById(IP.target[id]) : null; return e ? e.value : ''; };
+            document.getElementById('ipPicked').value = p ? p.id : '';
+            if (p) {
+                countEl.value = IP.tab === 'player' ? p.count : (cur('count') || 1);
+                nbtEl.value = p.nbt || '';
+                matchEl.value = p.mode || 'id';
+            } else {
+                countEl.value = 1;
+                nbtEl.value = '';
+                matchEl.value = cur('match') || 'id';
+            }
+            document.getElementById('ipApply').disabled = !p;
+        }
+
+        function ipApply() {
+            const p = IP.picked;
+            if (!p || !IP.target) return;
+            const set = (id, v) => { const e = id ? document.getElementById(id) : null; if (e) e.value = v; };
+            set(IP.target.item, document.getElementById('ipPicked').value.trim() || p.id);
+            set(IP.target.count, document.getElementById('ipCount').value);
+            set(IP.target.nbt, document.getElementById('ipNbt').value.trim());
+            set(IP.target.match, document.getElementById('ipMatch').value);
+            const me = IP.target.match ? document.getElementById(IP.target.match) : null;
+            if (me) me.dispatchEvent(new Event('change'));
+            closeItemPicker();
+        }
+
+        function ipMove(delta) {
+            const rows = Array.prototype.slice.call(document.getElementById('ipList').querySelectorAll('.ip-item'));
+            if (!rows.length) return;
+            const next = Math.max(0, Math.min(rows.length - 1, IP.active < 0 ? 0 : IP.active + delta));
+            IP.active = next;
+            rows.forEach((r, i) => r.classList.toggle('active', i === next));
+            rows[next].scrollIntoView({ block: 'nearest' });
+        }
+
+        function ipBind() {
+            const mask = document.getElementById('ipMask');
+            // 点击遮罩空白处关闭（面板内的点击不冒泡出去）
+            mask.addEventListener('mousedown', e => { if (e.target === mask) closeItemPicker(); });
+            document.getElementById('ipSearch').addEventListener('input', function() { ipQuery(this.value); });
+            document.getElementById('ipSearch').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') { e.preventDefault(); ipPick(IP.active < 0 ? 0 : IP.active); }
+                else if (e.key === 'ArrowDown') { e.preventDefault(); ipMove(1); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); ipMove(-1); }
+            });
+            document.getElementById('ipList').addEventListener('click', function(e) {
+                const row = e.target.closest('.ip-item');
+                if (row) ipPick(parseInt(row.dataset.i, 10));
+            });
+            document.addEventListener('keydown', function(e) {
+                if (!mask.classList.contains('open')) return;
+                if (e.key === 'Escape') { e.preventDefault(); closeItemPicker(); }
+            });
+        }
+        ipBind();
+
+        // ============================================================
+        //  键规则编辑器（partial_nbt，0.5.0Beta）：配方/升级树/安全箱共用
+        //  约定：隐藏输入 id = keysId，匹配下拉 id = 'mk_' + keysId，按钮 id = 'krBtn_' + keysId
+        // ============================================================
+        let _krKeys = [];
+        let _krTarget = '';
+
+        /** 生成「匹配模式 + 键规则」控件组（下拉 / 隐藏 JSON / 键规则按钮）。 */
+        function matchEditor(keysId, nbtId) {
+            const mid = 'mk_' + keysId;
+            return '<select id="' + mid + '"' + (nbtId ? ' data-nbt="' + nbtId + '"' : '') + ' onchange="krSync(\'' + keysId + '\')">'
+                + '<option value="id">id</option>'
+                + '<option value="full_nbt">full_nbt</option>'
+                + '<option value="partial_nbt">partial_nbt</option>'
+                + '</select>'
+                + '<input type="hidden" id="' + keysId + '" value="">'
+                + '<button class="btn small" id="krBtn_' + keysId + '" style="display:none" onclick="openKeyRules(\'' + keysId + '\')">键规则</button>';
+        }
+
+        function krParse(raw) {
+            let obj = null;
+            if (raw && typeof raw === 'object') obj = raw;
+            else { try { obj = raw ? JSON.parse(raw) : null; } catch (e) { obj = null; } }
+            const out = [];
+            if (obj && typeof obj === 'object') {
+                for (const k in obj) {
+                    const v = obj[k];
+                    if (typeof v === 'string') {
+                        if (v === 'ignore') continue;
+                        out.push({ k: k, op: v, value: '' });
+                    } else if (v && typeof v === 'object') {
+                        out.push({ k: k, op: v.op || 'exact', value: v.value || '' });
+                    }
+                }
+            }
+            return out;
+        }
+
+        function krToJson(keys) {
+            const mk = {};
+            keys.forEach(k => {
+                if (k.op === 'specified' || (k.value && k.value.length)) mk[k.k] = { op: k.op, value: k.value || '' };
+                else mk[k.k] = k.op;
+            });
+            return mk;
+        }
+
+        /** 表格内展示：匹配模式 + 键名列表。 */
+        function krSummary(mode, keysRaw) {
+            const names = Object.keys(krToJson(krParse(keysRaw)));
+            let s = esc(mode || 'id');
+            if (names.length) s += ' <span class="muted">[' + esc(names.join(', ')) + ']</span>';
+            return s;
+        }
+
+        /** 字段对象：按匹配模式附带 match_keys。 */
+        function krBody(keysId, matchId) {
+            const body = { match_mode: document.getElementById(matchId).value };
+            const keys = krParse(document.getElementById(keysId).value);
+            if (body.match_mode === 'partial_nbt' && keys.length) body.match_keys = krToJson(keys);
+            return body;
+        }
+
+        function krSync(keysId) {
+            const sel = document.getElementById('mk_' + keysId);
+            const keysEl = document.getElementById(keysId);
+            const btn = document.getElementById('krBtn_' + keysId);
+            if (!sel || !btn) return;
+            const partial = sel.value === 'partial_nbt';
+            const n = partial ? Object.keys(krToJson(krParse(keysEl ? keysEl.value : ''))).length : 0;
+            btn.style.display = partial ? '' : 'none';
+            btn.textContent = n ? ('键规则 (' + n + ')') : '键规则';
+            // partial_nbt 走键规则：NBT 模板框不再使用，隐藏（切换回 id/full_nbt 时恢复）
+            const nbtEl = sel.dataset.nbt ? document.getElementById(sel.dataset.nbt) : null;
+            if (nbtEl) nbtEl.style.display = partial ? 'none' : '';
+        }
+
+        function openKeyRules(keysId) {
+            _krTarget = keysId;
+            const el = document.getElementById(keysId);
+            _krKeys = krParse(el ? el.value : '');
+            document.getElementById('krName').value = '';
+            document.getElementById('krValue').value = '';
+            document.getElementById('krOp').value = 'exact';
+            krAddOpChange();
+            krRender();
+            document.getElementById('krMask').classList.add('open');
+        }
+
+        function krClose() { document.getElementById('krMask').classList.remove('open'); }
+
+        function krApply() {
+            const el = document.getElementById(_krTarget);
+            if (el) el.value = JSON.stringify(krToJson(_krKeys));
+            krSync(_krTarget);
+            krClose();
+        }
+
+        function krAddOpChange() {
+            document.getElementById('krValue').style.display = document.getElementById('krOp').value === 'specified' ? '' : 'none';
+        }
+
+        function krRender() {
+            const box = document.getElementById('krList');
+            if (!_krKeys.length) { box.innerHTML = '<div class="ip-empty">尚未添加指定键</div>'; return; }
+            let s = '';
+            _krKeys.forEach((k, i) => {
+                const isSpec = k.op === 'specified';
+                s += '<div class="ip-item" style="cursor:default"><span class="ip-id" style="width:180px">' + esc(k.k) + '</span>'
+                    + '<select onchange="krOpSet(' + i + ',this.value)">'
+                    + '<option value="exact"' + (k.op === 'exact' ? ' selected' : '') + '>精确 exact</option>'
+                    + '<option value="contains"' + (k.op === 'contains' ? ' selected' : '') + '>包含 contains</option>'
+                    + '<option value="specified"' + (isSpec ? ' selected' : '') + '>指定（键+值）</option>'
+                    + '</select>'
+                    + (isSpec ? '<input value="' + esc(k.value || '') + '" placeholder="指定值" style="width:200px" oninput="krValueSet(' + i + ',this.value)">' : '')
+                    + '<span style="flex:1"></span>'
+                    + '<button class="btn small red" onclick="krRemove(' + i + ')">移除</button></div>';
+            });
+            box.innerHTML = s;
+        }
+
+        function krAdd() {
+            const n = document.getElementById('krName').value.trim();
+            if (!n) { status('请输入键名', false); return; }
+            const op = document.getElementById('krOp').value;
+            const value = op === 'specified' ? document.getElementById('krValue').value.trim() : '';
+            if (op === 'specified' && !value) { status('“指定”模式需要填写对应值', false); return; }
+            _krKeys.push({ k: n, op: op, value: value });
+            document.getElementById('krName').value = '';
+            document.getElementById('krValue').value = '';
+            krRender();
+        }
+
+        function krOpSet(i, op) { _krKeys[i].op = op; krRender(); }
+        function krValueSet(i, v) { _krKeys[i].value = v; }
+        function krRemove(i) { _krKeys.splice(i, 1); krRender(); }
+
+        // ============================================================
+        //  刷兵系统（0.5.0Beta）：全局保护 / 日志 / 世界层刷兵器与点位组
+        //  点位坐标可直接「从在线玩家取」——见 spPointFromPlayer / spPointUsePlayer
+        // ============================================================
+        let SP = { sel: "", draft: null, draftName: "", groups: {}, registry: null, players: [] };
+
+        function spData() { return (STATE && STATE.spawner) || {}; }
+        function numOr(v, d) { const n = Number(v); return isFinite(n) ? n : d; }
+
+        /** 内联事件里的字符串字面量：先做 HTML 属性转义，再做 JS 字符串转义（顺序不能反）。 */
+        function spJsAttr(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+                .replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        }
+
+        function spFmtPos(p) {
+            if (!p) return '';
+            const f = v => (Math.round(numOr(v, 0) * 10) / 10);
+            return (p.dimension || '?') + ' @ ' + f(p.x) + ', ' + f(p.y) + ', ' + f(p.z);
+        }
+
+        /** 概览 → 刷兵页（保留编辑器草稿：刷新不会丢掉正在编辑的内容）。 */
+        function renderSpawner() {
+            const s = spData();
+            const g = s.global || {};
+            const lg = s.logging || {};
+            const w = s.world || {};
+
+            // 全局保护
+            $id('spEnabled').checked = !!g.enabled;
+            const lim = g.limits || {};
+            $id('spMaxWorld').value = numOr(lim.max_total_entities_per_world, 200);
+            $id('spMaxChunk').value = numOr(lim.max_entities_per_chunk, 20);
+            $id('spMinTps').value = numOr(lim.min_tps_to_allow_spawn, 15);
+            $id('spMinMem').value = numOr(lim.min_free_memory_percent, 20);
+            $id('spBlacklist').value = (g.blacklisted_world_patterns || []).join('\n');
+
+            // 日志
+            const levels = lg.levels || ['off', 'error', 'warn', 'info', 'debug'];
+            $id('spLogLevel').innerHTML = levels.map(l => '<option value="' + esc(l) + '">' + esc(l) + '</option>').join('');
+            $id('spLogLevel').value = lg.log_level || 'info';
+            $id('spLogSuccess').checked = lg.log_successful_spawns !== false;
+            $id('spLogFail').checked = lg.log_failed_spawns !== false;
+            $id('spLogReject').checked = lg.log_condition_rejections !== false;
+            $id('spLogConsole').checked = lg.log_to_console !== false;
+            $id('spLogFile').checked = lg.log_to_file !== false;
+            $id('spLogPath').value = lg.log_file_path || 'logs/deltanexus_spawn.log';
+
+            // 世界层
+            $id('spFolder').textContent = w.folder ? '（' + w.folder + '）' : '';
+            const dimSel = $id('spDimension');
+            const prevDim = dimSel.value;
+            const dims = w.dimensions || [];
+            dimSel.innerHTML = dims.length
+                ? dims.map(d => '<option value="' + esc(d.id) + '">' + esc(d.id) + '</option>').join('')
+                : '<option value="minecraft:overworld">minecraft:overworld</option>';
+            if (prevDim && dims.some(d => d.id === prevDim)) dimSel.value = prevDim;
+
+            spRenderTable();
+            SP.groups = Object.assign({}, w.groups || {});
+            spRenderGroups(s.point_names || []);
+            spRenderPlayers(STATE.players || []);
+            spEnsureRegistry();
+
+            // 编辑器：仍指向的刷兵器就继续编辑（保留草稿），否则收起
+            const sps = w.spawners || {};
+            if (SP.sel) {
+                if (!sps[SP.sel]) {
+                    spCloseEditor();
+                } else {
+                    $id('spEditor').style.display = '';
+                    $id('spEditName').textContent = SP.sel;
+                    if (!SP.draft || SP.draftName !== SP.sel) {
+                        SP.draft = JSON.parse(JSON.stringify(sps[SP.sel]));
+                        SP.draftName = SP.sel;
+                    }
+                    spFillForm();
+                    spRenderPoints();
+                    spRenderPool();
+                    spRefreshPointVariants();
+                }
+            }
+        }
+
+        /** 重新拉概览（只刷新刷兵与玩家段，其他页面不动）。freshDraft=true 时丢弃编辑器草稿。 */
+        async function spRefreshData(freshDraft) {
+            const r = await api('/api/overview');
+            if (!r.ok) { status(r.msg || '加载失败', false); return false; }
+            STATE.spawner = r.spawner;
+            STATE.players = r.players;
+            if (freshDraft) { SP.draft = null; SP.draftName = ''; }
+            renderSpawner();
+            return true;
+        }
+
+        // ---------------- 刷兵器列表 ----------------
+
+        function spRenderTable() {
+            const w = spData().world || {};
+            const sps = w.spawners || {};
+            const names = Object.keys(sps).sort();
+            $id('spCount').textContent = names.length ? ('共 ' + names.length + ' 个刷兵器') : '暂无刷兵器';
+            let h = '';
+            names.forEach(n => {
+                const o = sps[n] || {};
+                const ent = o.entity ? o.entity
+                    : ((o.entity_pool && o.entity_pool.length) ? '随机池(' + o.entity_pool.length + ')' : '（未配置）');
+                const cond = [];
+                if (o.condition && (o.condition.difficulty || []).length) cond.push(o.condition.difficulty.join('/'));
+                if (o.condition && numOr(o.condition.player_online_min, 0) > 0) cond.push('≥' + o.condition.player_online_min + ' 人');
+                const cnt = numOr(o._point_count, 0);
+                const a = spJsAttr(n);
+                h += '<tr>'
+                    + '<td>' + esc(n)
+                        + (o._has_entity ? '' : ' <span class="sp-bad">缺实体</span>')
+                        + (cnt > 0 ? '' : ' <span class="sp-bad">缺点位</span>') + '</td>'
+                    + '<td>' + esc(ent) + '</td>'
+                    + '<td class="num">' + esc(o.count || '1') + '</td>'
+                    + '<td>' + esc(o.point ? o.point : '（全部点位）') + '</td>'
+                    + '<td class="num">' + cnt + '</td>'
+                    + '<td>' + esc(cond.join(' · ') || '—') + '</td>'
+                    + '<td class="center">'
+                    + '<button class="btn small" onclick="spOpenEditor(\'' + a + '\',true)">编辑</button> '
+                    + '<button class="btn small" onclick="spAction(\'' + a + '\',\'preview\')">预览</button> '
+                    + '<button class="btn small" onclick="spAction(\'' + a + '\',\'dry-run\')">干跑</button> '
+                    + '<button class="btn small green" onclick="spAction(\'' + a + '\',\'run\')">执行</button> '
+                    + '<button class="btn small red" onclick="spRemove(\'' + a + '\')">删除</button>'
+                    + '</td></tr>';
+            });
+            $id('spTable').querySelector('tbody').innerHTML = h
+                || '<tr><td colspan="7" class="muted">暂无刷兵器：输入名字点「＋ 新建」开始配置。</td></tr>';
+        }
+
+        function spNew() {
+            const name = $id('spNewName').value.trim();
+            if (!name) { status('请输入刷兵器名', false); return; }
+            if (!/^[A-Za-z0-9_\-.:]{1,64}$/.test(name)) { status('刷兵器名只允许字母/数字/_-.:（1~64 字）', false); return; }
+            const sps = (spData().world || {}).spawners || {};
+            if (sps[name]) { status('刷兵器已存在：' + name, false); return; }
+            SP.draft = { count: '1', points: {}, condition: { difficulty: [], player_online_min: 0 },
+                safety: { require_solid_ground: true, avoid_lava: true, avoid_water: true, max_attempts_per_entity: 5 },
+                behavior: { spawn_effect: {}, on_spawn_commands: [], glowing: false, persistent: true, silent: false, no_ai: false } };
+            SP.draftName = name;
+            SP.sel = name;
+            $id('spNewName').value = '';
+            $id('spEditor').style.display = '';
+            $id('spEditName').textContent = name;
+            spFillForm();
+            spRenderPoints();
+            spRenderPool();
+            spRefreshPointVariants();
+            status('已创建草稿「' + name + '」：配置实体与点位后点「保存刷兵器」', true);
+        }
+
+        function spOpenEditor(name, fresh) {
+            const sps = (spData().world || {}).spawners || {};
+            const src = sps[name];
+            if (!src) { status('刷兵器不存在：' + name, false); return; }
+            if (fresh || !SP.draft || SP.draftName !== name) {
+                SP.draft = JSON.parse(JSON.stringify(src));
+                SP.draftName = name;
+            }
+            SP.sel = name;
+            $id('spEditor').style.display = '';
+            $id('spEditName').textContent = name;
+            spFillForm();
+            spRenderPoints();
+            spRenderPool();
+            spRefreshPointVariants();
+        }
+
+        function spCloseEditor() {
+            SP.sel = '';
+            SP.draft = null;
+            SP.draftName = '';
+            $id('spEditor').style.display = 'none';
+        }
+
+        // ---------------- 表单 ↔ 草稿 ----------------
+
+        function spFillForm() {
+            const d = SP.draft || {};
+            $id('spEntity').value = d.entity || '';
+            $id('spCountVal').value = d.count || '1';
+            $id('spPointRef').value = d.point || '';
+            const c = d.condition || {};
+            $id('spDifficulty').value = (c.difficulty || []).join(',');
+            $id('spOnlineMin').value = numOr(c.player_online_min, 0);
+            const sf = d.safety || {};
+            $id('spSolid').checked = sf.require_solid_ground !== false;
+            $id('spLava').checked = sf.avoid_lava !== false;
+            $id('spWater').checked = sf.avoid_water !== false;
+            $id('spAttempts').value = numOr(sf.max_attempts_per_entity, 5);
+            const b = d.behavior || {};
+            const eff = b.spawn_effect || {};
+            $id('spParticle').value = eff.particle || '';
+            $id('spSound').value = eff.sound || '';
+            $id('spGlowing').checked = !!b.glowing;
+            $id('spPersistent').checked = b.persistent !== false;
+            $id('spSilent').checked = !!b.silent;
+            $id('spNoAi').checked = !!b.no_ai;
+            $id('spCommands').value = (b.on_spawn_commands || []).join('\n');
+            $id('spNbt').value = d.nbt ? JSON.stringify(d.nbt) : '';
+        }
+
+        /** 表单 → 草稿；NBT 非法 JSON 时返回 false（并提示）。 */
+        function spCollectForm() {
+            const d = SP.draft || (SP.draft = {});
+            const entity = $id('spEntity').value.trim();
+            if (entity) d.entity = entity; else delete d.entity;
+            d.count = $id('spCountVal').value.trim() || '1';
+            const ref = $id('spPointRef').value.trim();
+            if (ref) d.point = ref; else delete d.point;
+
+            d.condition = {
+                difficulty: $id('spDifficulty').value.split(',').map(x => x.trim().toLowerCase()).filter(Boolean),
+                player_online_min: Math.max(0, Math.round(numOr($id('spOnlineMin').value, 0)))
+            };
+            d.safety = {
+                require_solid_ground: $id('spSolid').checked, avoid_lava: $id('spLava').checked,
+                avoid_water: $id('spWater').checked,
+                max_attempts_per_entity: Math.max(1, Math.round(numOr($id('spAttempts').value, 5)))
+            };
+            const behavior = {
+                spawn_effect: {}, on_spawn_commands: $id('spCommands').value.split('\n').map(x => x.trim()).filter(Boolean),
+                glowing: $id('spGlowing').checked, persistent: $id('spPersistent').checked,
+                silent: $id('spSilent').checked, no_ai: $id('spNoAi').checked
+            };
+            const particle = $id('spParticle').value.trim();
+            const sound = $id('spSound').value.trim();
+            if (particle) behavior.spawn_effect.particle = particle;
+            if (sound) behavior.spawn_effect.sound = sound;
+            d.behavior = behavior;
+
+            const nbt = $id('spNbt').value.trim();
+            if (!nbt) {
+                delete d.nbt;
+            } else {
+                try {
+                    d.nbt = JSON.parse(nbt);
+                } catch (e) {
+                    status('实体 NBT 不是合法 JSON：' + e.message, false);
+                    return false;
+                }
+            }
+            if (Array.isArray(d.entity_pool) && !d.entity_pool.length) delete d.entity_pool;
+            if (!d.points || typeof d.points !== 'object') d.points = {};
+            return true;
+        }
+
+        async function spSave() {
+            if (!SP.sel) { status('请先选择要编辑的刷兵器', false); return; }
+            if (!spCollectForm()) return;
+            const body = { spawners: {} };
+            body.spawners[SP.sel] = SP.draft;
+            const r = await api('/api/spawner/world/save', body);
+            status(r.msg || (r.ok ? '已保存' : '保存失败'), !!r.ok);
+            if (r.ok) await spRefreshData(true);
+        }
+
+        function spRemove(name) {
+            if (!confirm('删除刷兵器 ' + name + '？（含其点位定义；点位组不受影响）')) return;
+            spSaveBody({ removed_spawners: [name] });
+        }
+
+        /** 只提交某个片段（删除/点位组等），保存后重新拉取。 */
+        async function spSaveBody(extra) {
+            const r = await api('/api/spawner/world/save', extra);
+            status(r.msg || (r.ok ? '已保存' : '保存失败'), !!r.ok);
+            if (r.ok) await spRefreshData(false);
+            return r;
+        }
+
+        async function spSaveGlobal() {
+            const patterns = $id('spBlacklist').value.split('\n').map(x => x.trim()).filter(Boolean);
+            const r = await api('/api/spawner/global', {
+                enabled: $id('spEnabled').checked,
+                blacklisted_world_patterns: patterns,
+                limits: {
+                    max_total_entities_per_world: Math.round(numOr($id('spMaxWorld').value, 200)),
+                    max_entities_per_chunk: Math.round(numOr($id('spMaxChunk').value, 20)),
+                    min_tps_to_allow_spawn: numOr($id('spMinTps').value, 15),
+                    min_free_memory_percent: Math.round(numOr($id('spMinMem').value, 20))
+                }
+            });
+            status(r.msg || (r.ok ? '已保存' : '保存失败'), !!r.ok);
+        }
+
+        async function spSaveLogging() {
+            const r = await api('/api/spawner/logging', {
+                log_level: $id('spLogLevel').value,
+                log_successful_spawns: $id('spLogSuccess').checked,
+                log_failed_spawns: $id('spLogFail').checked,
+                log_condition_rejections: $id('spLogReject').checked,
+                log_to_console: $id('spLogConsole').checked,
+                log_to_file: $id('spLogFile').checked,
+                log_file_path: $id('spLogPath').value.trim()
+            });
+            status(r.msg || (r.ok ? '已保存' : '保存失败'), !!r.ok);
+        }
+
+        async function spReload() {
+            const r = await api('/api/spawner/reload', {});
+            status(r.msg || (r.ok ? '已重载' : '重载失败'), !!r.ok);
+            if (r.ok) await spRefreshData(false);
+        }
+
+        /** 预览 / 干跑 / 执行一次（零活动：只有点这一下才刷）。 */
+        async function spAction(name, action) {
+            if (action === 'run' && !confirm('立即执行一次刷兵「' + name + '」？\n（零活动设计：仅这一次，不会有后续自动刷兵）')) return;
+            const r = await api('/api/spawner/action', { name: name, action: action, dimension: $id('spDimension').value });
+            status((r.msg || '').replace(/\n/g, ' ') || (r.ok ? '完成' : '失败'), !!r.ok);
+        }
+
+        // ---------------- 在线玩家位置 ----------------
+
+        function spRenderPlayers(players) {
+            SP.players = Array.isArray(players) ? players : [];
+            const sel = $id('spPlayerSel');
+            if (!sel) return;
+            const cur = sel.value;
+            sel.innerHTML = SP.players.length
+                ? SP.players.map(p => '<option value="' + esc(p.name) + '">' + esc(p.name + ' · ' + spFmtPos(p)) + '</option>').join('')
+                : '<option value="">（无在线玩家）</option>';
+            if (cur && SP.players.some(p => p.name === cur)) sel.value = cur;
+            spRenderPlayerPos();
+        }
+
+        function spSelectedPlayer() {
+            const name = $id('spPlayerSel') ? $id('spPlayerSel').value : '';
+            return SP.players.find(p => p.name === name) || null;
+        }
+
+        function spRenderPlayerPos() {
+            const el = $id('spPlayerPosHint');
+            if (!el) return;
+            const p = spSelectedPlayer();
+            el.textContent = p ? spFmtPos(p) : '';
+        }
+
+        async function spRefreshPlayers() {
+            const r = await api('/api/players/positions');
+            if (!r.ok) { status(r.msg || '刷新失败', false); return; }
+            spRenderPlayers(r.players);
+            status('已刷新在线玩家位置（' + (r.players || []).length + ' 人）', true);
+        }
+
+        /** 维度不匹配时提示（点位本身不带维度，执行维度由页面顶部下拉决定）。 */
+        function spDimWarn(p) {
+            const dim = $id('spDimension').value;
+            if (p && p.dimension && dim && p.dimension !== dim) {
+                status('注意：该玩家在 ' + p.dimension + '，而执行维度是 ' + dim + '（点位坐标仍按玩家位置填入）', false);
+            }
+        }
+
+        /** 以选中玩家为模板新建一个点位（名字取玩家名，重名自动加序号）。 */
+        function spPointFromPlayer() {
+            const p = spSelectedPlayer();
+            if (!p) { status('没有在线玩家可选', false); return; }
+            const d = SP.draft || (SP.draft = {});
+            if (!d.points || typeof d.points !== 'object') d.points = {};
+            let base = p.name.replace(/[^\w-]/g, '_') || 'p';
+            let name = base, i = 2;
+            while (d.points[name]) { name = base + '_' + (i++); }
+            d.points[name] = { x: numOr(p.x, 0), y: numOr(p.y, 0), z: numOr(p.z, 0),
+                radius: numOr($id('spPointR').value, 0), enabled: true };
+            spDimWarn(p);
+            spRenderPoints();
+            spRefreshPointVariants();
+            status('已添加点位 ' + name + '（' + spFmtPos(p) + '）', true);
+        }
+
+        /** 把选中玩家的当前位置覆盖到某个已有点位。 */
+        function spPointUsePlayer(name) {
+            const p = spSelectedPlayer();
+            if (!p) { status('没有在线玩家可选', false); return; }
+            const d = SP.draft || {};
+            const pt = (d.points || {})[name];
+            if (!pt) return;
+            pt.x = numOr(p.x, 0);
+            pt.y = numOr(p.y, 0);
+            pt.z = numOr(p.z, 0);
+            spDimWarn(p);
+            spRenderPoints();
+            status('点位 ' + name + ' 已取 ' + p.name + ' 的坐标（' + spFmtPos(p) + '）', true);
+        }
+
+        // ---------------- 点位表 ----------------
+
+        function spRenderPoints() {
+            const pts = (SP.draft && SP.draft.points) || {};
+            const names = Object.keys(pts);
+            let h = '';
+            names.forEach(n => {
+                const p = pts[n] || {};
+                const a = spJsAttr(n);
+                h += '<tr>'
+                    + '<td>' + esc(n) + '</td>'
+                    + '<td class="num"><input type="number" step="0.01" style="width:92px" value="' + numOr(p.x, 0)
+                        + '" onchange="spPointSet(\'' + a + '\',\'x\',this.value)"></td>'
+                    + '<td class="num"><input type="number" step="0.01" style="width:92px" value="' + numOr(p.y, 0)
+                        + '" onchange="spPointSet(\'' + a + '\',\'y\',this.value)"></td>'
+                    + '<td class="num"><input type="number" step="0.01" style="width:92px" value="' + numOr(p.z, 0)
+                        + '" onchange="spPointSet(\'' + a + '\',\'z\',this.value)"></td>'
+                    + '<td class="num"><input type="number" step="0.5" min="0" style="width:74px" value="' + numOr(p.radius, 0)
+                        + '" onchange="spPointSet(\'' + a + '\',\'radius\',this.value)"></td>'
+                    + '<td class="center"><input type="checkbox"' + (p.enabled === false ? '' : ' checked')
+                        + ' onchange="spPointSet(\'' + a + '\',\'enabled\',this.checked)"></td>'
+                    + '<td class="center">'
+                    + '<button class="btn small green" onclick="spPointUsePlayer(\'' + a + '\')">取该玩家坐标</button> '
+                    + '<button class="btn small red" onclick="spPointRemove(\'' + a + '\')">删除</button>'
+                    + '</td></tr>';
+            });
+            $id('spPointTable').querySelector('tbody').innerHTML = h
+                || '<tr><td colspan="7" class="muted">暂无点位：填好坐标（或用「以该玩家为点位」）后点「＋ 添加点位」。</td></tr>';
+            $id('spPointHint').textContent = names.length ? ('共 ' + names.length + ' 个') : '';
+        }
+
+        function spPointSet(name, key, value) {
+            const pt = (SP.draft && SP.draft.points || {})[name];
+            if (!pt) return;
+            pt[key] = (key === 'enabled') ? !!value : numOr(value, 0);
+        }
+
+        function spPointAdd() {
+            const name = $id('spPointName').value.trim();
+            if (!name) { status('请填写点位名', false); return; }
+            const d = SP.draft || (SP.draft = {});
+            if (!d.points || typeof d.points !== 'object') d.points = {};
+            if (d.points[name]) { status('点位已存在：' + name + '（可直接在表格里改坐标）', false); return; }
+            d.points[name] = { x: numOr($id('spPointX').value, 0), y: numOr($id('spPointY').value, 0),
+                z: numOr($id('spPointZ').value, 0), radius: numOr($id('spPointR').value, 0), enabled: true };
+            $id('spPointName').value = '';
+            spRenderPoints();
+            spRefreshPointVariants();
+        }
+
+        function spPointRemove(name) {
+            const d = SP.draft || {};
+            if (d.points) delete d.points[name];
+            spRenderPoints();
+            spRefreshPointVariants();
+        }
+
+        /** 点位名下拉（点位引用 + 点位组输入共用）。 */
+        function spRefreshPointVariants() {
+            const own = Object.keys((SP.draft && SP.draft.points) || {});
+            const all = (spData().point_names || []).slice();
+            own.forEach(n => { if (all.indexOf(n) < 0) all.push(n); });
+            const opts = all.map(n => '<option value="' + esc(n) + '"></option>').join('');
+            $id('spPointNameList').innerHTML = opts;
+            $id('spPointRefList').innerHTML = '<option value="group:"></option>'
+                + Object.keys(SP.groups || {}).map(g => '<option value="group:' + esc(g) + '"></option>').join('')
+                + own.map(n => '<option value="' + esc(n) + '"></option>').join('');
+        }
+
+        // ---------------- 实体池 ----------------
+
+        function spRenderPool() {
+            const pool = (SP.draft && SP.draft.entity_pool) || [];
+            let h = '';
+            pool.forEach((e, i) => {
+                h += '<tr><td>' + esc(e.id || '') + '</td><td class="num">' + numOr(e.weight, 1) + '</td>'
+                    + '<td class="center"><button class="btn small red" onclick="spPoolRemove(' + i + ')">移除</button></td></tr>';
+            });
+            $id('spPoolTable').querySelector('tbody').innerHTML = h
+                || '<tr><td colspan="3" class="muted">池为空：留空则使用上方「固定实体」（固定实体优先）。</td></tr>';
+        }
+
+        function spPoolAdd() {
+            const id = $id('spPoolId').value.trim();
+            if (!id) { status('请填写实体 id', false); return; }
+            const d = SP.draft || (SP.draft = {});
+            if (!Array.isArray(d.entity_pool)) d.entity_pool = [];
+            d.entity_pool.push({ id: id, weight: Math.max(1, Math.round(numOr($id('spPoolWeight').value, 1))) });
+            $id('spPoolId').value = '';
+            spRenderPool();
+        }
+
+        function spPoolRemove(i) {
+            const d = SP.draft || {};
+            if (Array.isArray(d.entity_pool)) d.entity_pool.splice(i, 1);
+            spRenderPool();
+        }
+
+        // ---------------- 点位组 ----------------
+
+        function spRenderGroups(pointNames) {
+            const names = Object.keys(SP.groups || {}).sort();
+            let h = '';
+            names.forEach(g => {
+                const a = spJsAttr(g);
+                h += '<tr><td>' + esc(g) + '</td>'
+                    + '<td><input class="wide" id="spGroupPts_' + tradeEscId(g) + '" value="'
+                        + esc((SP.groups[g] || []).join(',')) + '" spellcheck="false"></td>'
+                    + '<td class="center"><button class="btn small green" onclick="spGroupSet(\'' + a + '\')">保存</button> '
+                    + '<button class="btn small red" onclick="spGroupRemove(\'' + a + '\')">删除</button></td></tr>';
+            });
+            $id('spGroupTable').querySelector('tbody').innerHTML = h
+                || '<tr><td colspan="3" class="muted">暂无点位组：可在下方新建（组内填点位名，逗号分隔）。</td></tr>';
+            $id('spPointNameList').innerHTML = (pointNames || []).map(n => '<option value="' + esc(n) + '"></option>').join('');
+        }
+
+        function spGroupRead(name) {
+            const el = $id('spGroupPts_' + tradeEscId(name));
+            const list = el ? el.value.split(',').map(x => x.trim()).filter(Boolean) : [];
+            return { name: name, points: list };
+        }
+
+        function spGroupSet(name) {
+            const g = spGroupRead(name);
+            const groups = {};
+            groups[g.name] = g.points;
+            const body = { groups: groups };
+            spSaveBody(body);
+        }
+
+        function spGroupAdd() {
+            const name = $id('spGroupNewName').value.trim();
+            if (!name) { status('请填写组名', false); return; }
+            const pts = $id('spGroupNewPoints').value.split(',').map(x => x.trim()).filter(Boolean);
+            const groups = {};
+            groups[name] = pts;
+            $id('spGroupNewName').value = '';
+            $id('spGroupNewPoints').value = '';
+            spSaveBody({ groups: groups });
+        }
+
+        function spGroupRemove(name) {
+            if (!confirm('删除点位组 ' + name + '？（引用 group:' + name + ' 的刷兵器会失去点位）')) return;
+            spSaveBody({ removed_groups: [name] });
+        }
+
+        function spGroupsSave() {
+            const groups = {};
+            Object.keys(SP.groups || {}).forEach(g => {
+                const el = $id('spGroupPts_' + tradeEscId(g));
+                if (el) groups[g] = el.value.split(',').map(x => x.trim()).filter(Boolean);
+            });
+            spSaveBody({ groups: groups });
+        }
+
+        // ---------------- 可选项（实体/粒子/音效注册表） ----------------
+
+        async function spEnsureRegistry() {
+            if (SP.registry) { spFillDatalists(); return; }
+            const r = await api('/api/spawner/registry');
+            if (!r.ok) return;
+            SP.registry = r;
+            spFillDatalists();
+        }
+
+        function spFillDatalists() {
+            const reg = SP.registry || {};
+            const fill = (id, arr) => {
+                const el = $id(id);
+                if (el) el.innerHTML = (arr || []).map(x => '<option value="' + esc(x) + '"></option>').join('');
+            };
+            fill('spEntityList', reg.entity);
+            fill('spParticleList', reg.particle);
+            fill('spSoundList', reg.sound);
+        }
+
+        // ============================================================
+        //  实时推送（SSE）：在线玩家数据，免整页刷新
+        // ============================================================
+        let _es = null;
+
+        function connectEvents() {
+            if (_es || !window.EventSource) return;
+            const token = new URLSearchParams(location.search).get('token') || '';
+            _es = new EventSource('/api/events' + (token ? '?token=' + encodeURIComponent(token) : ''));
+            _es.addEventListener('players', function(e) {
+                try { applyLivePlayers(JSON.parse(e.data).players); } catch (err) { /* 忽略坏包 */ }
+            });
+            // error 时浏览器会按 retry 自动重连，无需额外处理
+        }
+
+        /** 应用实时玩家快照：玩家下拉（名单未变只刷新信息）+ 物品选择器「在线玩家物品」页签。 */
+        function applyLivePlayers(players) {
+            if (!Array.isArray(players)) return;
+            STATE.players = players;
+            const sel = document.getElementById('playerSel');
+            const next = players.map(p => p.name).join('\u0000');
+            const cur = Array.prototype.map.call(sel.options, o => o.value).join('\u0000');
+            if (next !== cur) renderPlayers(); else renderPlayerInfo();
+            if (IP.data) {
+                IP.data.players = players;
+                if (IP.tab === 'player' && document.getElementById('ipMask').classList.contains('open')) ipRender();
+            }
+            // 刷兵页的「在线玩家」下拉与位置提示（不重绘整页，避免打断正在编辑的草稿）
+            spRenderPlayers(players);
+        }
+
+        // ============================================================
         //  启动
         // ============================================================
         loadAll();
+        connectEvents();
     </script>
 </body>
 </html>

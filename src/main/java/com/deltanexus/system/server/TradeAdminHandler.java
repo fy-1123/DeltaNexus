@@ -1,7 +1,6 @@
 package com.deltanexus.system.server;
 
 import com.deltanexus.system.DeltaNexus;
-import com.deltanexus.system.common.NbtMatcher;
 import com.deltanexus.system.network.packet.SyncTradeCatalogPacket;
 import com.deltanexus.system.trade.FeedSnapshot;
 import com.deltanexus.system.trade.ItemSpec;

@@ -3,10 +3,14 @@ package com.deltanexus.system.network;
 import com.deltanexus.system.DeltaNexus;
 import com.deltanexus.system.network.packet.C2SCancelTaskPacket;
 import com.deltanexus.system.network.packet.C2SClaimTaskPacket;
+import com.deltanexus.system.network.packet.C2SOpenGearPacket;
+import com.deltanexus.system.network.packet.C2SOpenGearWindowPacket;
 import com.deltanexus.system.network.packet.C2SOpenSpecialOpsPacket;
 import com.deltanexus.system.network.packet.C2SOpenWarehousePacket;
+import com.deltanexus.system.network.packet.C2SOverlayClickPacket;
 import com.deltanexus.system.network.packet.C2SPickupGridStackPacket;
 import com.deltanexus.system.network.packet.C2SRefreshTasksPacket;
+import com.deltanexus.system.network.packet.C2SGearWindowClickPacket;
 import com.deltanexus.system.network.packet.C2SRequestWorkbenchDataPacket;
 import com.deltanexus.system.network.packet.C2SRequestSafeBoxPacket;
 import com.deltanexus.system.network.packet.C2SSafeBoxClickPacket;
@@ -20,6 +24,8 @@ import com.deltanexus.system.network.packet.C2SUpgradeWarehousePacket;
 import com.deltanexus.system.network.packet.C2SWarehouseScrollPacket;
 import com.deltanexus.system.network.packet.GiveItemPacket;
 import com.deltanexus.system.network.packet.OpenScreenPacket;
+import com.deltanexus.system.network.packet.SyncGearPacket;
+import com.deltanexus.system.network.packet.SyncGearWindowPacket;
 import com.deltanexus.system.network.packet.SyncGridSizesPacket;
 import com.deltanexus.system.network.packet.SyncManufacturePacket;
 import com.deltanexus.system.network.packet.SyncSafeBoxPacket;
@@ -49,7 +55,7 @@ import java.util.function.Supplier;
  */
 public final class PacketHandler {
 
-    /** 人类可读的协议代号（2.0.8Alpha：dn1 → 2.2Alpha：dn1 → 0.2.0Beta：dn2 → 0.3.0Beta：dn3）。 */
+    /** 人类可读的协议代号（2.0.8Alpha：dn1 → 0.2.0Beta：dn2 → 0.3.0Beta：dn3 → 0.5.0Beta 嵌套补丁：dn4）。 */
     public static final String PROTOCOL = "dn3";
 
     /** 已注册包数量（仅用于启动日志；不参与握手、不做任何指纹）。 */
@@ -138,6 +144,21 @@ public final class PacketHandler {
         register(C2SSellModePacket.class,
                 C2SSellModePacket::encode, C2SSellModePacket::decode, C2SSellModePacket::handle,
                 NetworkDirection.PLAY_TO_SERVER);
+        // 装备容器（0.5.0Beta）：请求打开背包/胸挂格子容器
+        register(C2SOpenGearPacket.class,
+                C2SOpenGearPacket::encode, C2SOpenGearPacket::decode, C2SOpenGearPacket::handle,
+                NetworkDirection.PLAY_TO_SERVER);
+        // 非菜单槽点击（0.5.0Beta 类塔克夫界面）：内嵌的胸挂/背包网格 + 容器界面下的盔甲/副手
+        register(C2SOverlayClickPacket.class,
+                C2SOverlayClickPacket::encode, C2SOverlayClickPacket::decode, C2SOverlayClickPacket::handle,
+                NetworkDirection.PLAY_TO_SERVER);
+        // 装备窗口（0.5.0Beta 嵌套补丁）：打开任意一层装备 / 窗口内网格点击
+        register(C2SOpenGearWindowPacket.class,
+                C2SOpenGearWindowPacket::encode, C2SOpenGearWindowPacket::decode, C2SOpenGearWindowPacket::handle,
+                NetworkDirection.PLAY_TO_SERVER);
+        register(C2SGearWindowClickPacket.class,
+                C2SGearWindowClickPacket::encode, C2SGearWindowClickPacket::decode, C2SGearWindowClickPacket::handle,
+                NetworkDirection.PLAY_TO_SERVER);
 
         // 服务端 -> 客户端
         register(OpenScreenPacket.class,
@@ -173,6 +194,14 @@ public final class PacketHandler {
         // 网格布局（0.3.0Beta：服务端唯一的几何真相下发；与 C2SSellModePacket 同属 dn3 变更）
         register(SyncGridLayoutPacket.class,
                 SyncGridLayoutPacket::encode, SyncGridLayoutPacket::decode, SyncGridLayoutPacket::handle,
+                NetworkDirection.PLAY_TO_CLIENT);
+        // 装备几何（0.5.0Beta：多格占用的锚点/姿态只有服务端算得出来，开菜单前与几何变化后下发）
+        register(SyncGearPacket.class,
+                SyncGearPacket::encode, SyncGearPacket::decode, SyncGearPacket::handle,
+                NetworkDirection.PLAY_TO_CLIENT);
+        // 装备窗口内容（0.5.0Beta 嵌套补丁：任意一层装备的几何整份下发）
+        register(SyncGearWindowPacket.class,
+                SyncGearWindowPacket::encode, SyncGearWindowPacket::decode, SyncGearWindowPacket::handle,
                 NetworkDirection.PLAY_TO_CLIENT);
 
         // 包表注册完毕（仅打印数量，便于排障；不做任何指纹/比对）

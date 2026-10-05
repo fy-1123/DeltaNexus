@@ -1,136 +1,197 @@
 package com.deltanexus.system.client.gui;
 
 /**
- * UI 设计规范（UI.html）三列布局（2.0.8Alpha）：
+ * 仓库界面布局（0.5.0Beta）：<b>照抄 {@code sakura-inventory-ui} 的双面板几何</b>。
  *
+ * <p>与背包/容器界面（{@link DnInventoryScreen}）共用同一套 sakura 几何：</p>
  * <ul>
- *   <li>左列（窄）—— 盔甲 4 格 / 快捷栏 1-4 号格（竖排）/ 副手 1 格</li>
- *   <li>中列（宽）—— 口袋（快捷栏 5-9 号格）/ 背包 3x9 / 安全箱 3x3</li>
- *   <li>右列（宽）—— 容器/仓库视口（仅仓库界面使用）</li>
+ *   <li><b>左面板</b>（{@link #EQUIP_W} = 128 宽）：装备（胸挂 / 背包本体槽）+ 盔甲（仅头盔 / 胸甲，
+ *       照抄 sakura 只留两格，护腿 / 靴子 / 副手隐藏）；</li>
+ *   <li><b>主面板</b>（{@link #MAIN_W} = 188 宽）：口袋 5 → 安全箱（可滚动），底部钉死快捷栏 9；</li>
+ *   <li><b>容器面板</b>（{@link #RIGHT_W} = 188 宽）：仓库视口（{@link #whRows} 行 x 9 列）。</li>
  * </ul>
  *
- * <p>背包界面 = 左列 + 中列（水平居中）；仓库界面 = 左列 + 中列 + 右列
- * （左侧与中部为玩家背包界面，右侧为容器/仓库 GUI，符合网页布局规范）。</p>
+ * <p>槽位几何照抄 sakura：格框 18px（{@link #SLOT}）、步距 17px（{@link #PITCH}），相邻格框叠边 1px。
+ * 面板高固定 300（{@link #MIN_PANEL_H}），左/主/容器三列顶部对齐。</p>
  *
- * <p>纵向节奏：每组 = 标题条({@link #TITLE_H}) + 槽位行，组间隔 {@link #SECTION_GAP}。
- * 坐标为 GUI 逻辑像素（槽位 18px），不依赖任何客户端类，服务端构造菜单同样可用。</p>
+ * <p>坐标为 GUI 逻辑像素，<b>不依赖任何客户端类</b>——服务端构造菜单时同样可用
+ * （此时坐标仅占位，客户端以自己的窗口尺寸重算）。</p>
  */
 public final class PlayerLayout {
 
-    /** 槽位尺寸（原版 18px 槽）。 */
-    public static final int SLOT = 18;
-    /** 组标题条高度（含上下留白）。 */
-    public static final int TITLE_H = 22;
-    /** 组与组的垂直间隔。 */
-    public static final int SECTION_GAP = 4;
-    /** 左列与中列、中列与右列的水平间隔。 */
-    public static final int COL_GAP = 16;
+    /** 槽位尺寸（照抄 sakura：格框 18px）。 */
+    public static final int SLOT = DnUiLayout.SLOT_SIZE;
+    /** 槽位步距（照抄 sakura：17px）。 */
+    public static final int PITCH = DnUiLayout.SLOT_PITCH;
+    /** 屏幕四周最小留白。 */
+    public static final int OUTER_MARGIN = 6;
+    /** 面板内边距。 */
+    public static final int PANEL_PAD = 8;
+    /** 分组标签条高度。 */
+    public static final int LABEL_H = 18;
+    /** 分组之间的间隔。 */
+    public static final int GROUP_GAP = 12;
 
-    /** 左列/中列内容整体顶部 y（首个槽位行；标题条在其上方 22px）。 */
-    public final int baseY;
-    /** 左列 x（盔甲/快捷栏列/副手共用）。 */
+    /** 左面板宽（照抄 sakura TACTICAL_LEFT_W）。 */
+    public static final int EQUIP_W = DnUiLayout.LEFT_PANEL_W;
+    /** 主面板宽（照抄 sakura TACTICAL_RIGHT_W）。 */
+    public static final int MAIN_W = DnUiLayout.MAIN_PANEL_W;
+    /** 容器（仓库）面板宽。 */
+    public static final int RIGHT_W = DnUiLayout.CONTAINER_PANEL_W;
+    /** 面板间距（照抄 sakura PANEL_GAP）。 */
+    public static final int COL_GAP = DnUiLayout.PANEL_GAP;
+    /** 面板固定高（照抄 sakura MAIN_PANEL_H）。 */
+    public static final int MIN_PANEL_H = DnUiLayout.MAIN_PANEL_H;
+
+    /** 主面板内容内缩（照抄 sakura getMainSlotX：+6）。 */
+    public static final int CONTENT_INSET = 6;
+    /** 左面板盔甲列 x（相对面板左）。 */
+    public static final int ARMOR_X = 10;
+    /** 左面板装备（胸挂 / 背包本体）列 x（相对面板左）。 */
+    public static final int GEAR_X = 104;
+    /** 左面板盔甲 / 装备首行 y（相对面板顶）。 */
+    public static final int GEAR_TOP_Y = 116;
+    /** 左面板盔甲 / 装备行步距。 */
+    public static final int GEAR_STEP = 32;
+    /** 屏外坐标（隐藏槽位用）。 */
+    public static final int OFFSCREEN = -1000;
+
+    /** 面板顶 y（左/主/容器三列共用）。 */
+    public final int topY;
+    /** 面板高度。 */
+    public final int panelH;
+    /** 三列面板左边界（画外壳用）。 */
+    public final int leftPanelX;
+    public final int midPanelX;
+    public final int whPanelX;
+
+    // ---- 左面板 ----
+    /** 盔甲列槽位 x。 */
     public final int leftX;
+    /** 装备（胸挂 / 背包本体）列槽位 x。 */
+    public final int gearX;
+    /** 装备标题 y。 */
+    public final int gearLabelY;
+    /** 装备槽 y（胸挂 / 背包本体）。 */
+    public final int gearRigY;
+    public final int gearBagY;
+    /** 盔甲标题 y（照抄 sakura 无独立盔甲标签，保留占位）。 */
+    public final int armorLabelY;
+    /** 盔甲首行 y。 */
     public final int armorY;
-    public final int hotbarColY;
+    /** 快捷栏标签 y / 槽位 y / 首列 x（主面板底）。 */
+    public final int hotbarLabelY;
+    public final int hotbarY;
+    public final int hotbarX;
+    /** 副手（照抄 sakura 不显示，坐标置屏外）。 */
+    public final int offhandLabelY;
     public final int offhandY;
-    /** 中列 x（口袋/背包/安全箱共用）。 */
+
+    // ---- 主面板 ----
+    /** 主面板首列槽位 x。 */
     public final int midX;
+    public final int pocketLabelY;
     public final int pocketY;
-    public final int invY;
+    public final int safeLabelY;
     public final int safeY;
-    /** 右列仓库视口（withWarehouse=false 时为 -1）。 */
+
+    // ---- 容器面板（仓库）----
+    public final int whLabelY;
     public final int whX;
     public final int whY;
-    /** 仓库视口行数（与 WarehouseMenu.WAREHOUSE_ROWS 一致，避免循环依赖硬编码 12）。 */
     public final int whRows;
 
-    private PlayerLayout(int baseY, int leftX, int armorY, int hotbarColY, int offhandY,
-                         int midX, int pocketY, int invY, int safeY,
-                         int whX, int whY, int whRows) {
-        this.baseY = baseY;
+    private PlayerLayout(int topY, int panelH, int leftPanelX, int midPanelX, int whPanelX,
+                         int leftX, int gearX, int gearLabelY, int gearRigY, int gearBagY,
+                         int armorLabelY, int armorY,
+                         int hotbarLabelY, int hotbarY, int hotbarX,
+                         int offhandLabelY, int offhandY,
+                         int midX, int pocketLabelY, int pocketY, int safeLabelY, int safeY,
+                         int whLabelY, int whX, int whY, int whRows) {
+        this.topY = topY;
+        this.panelH = panelH;
+        this.leftPanelX = leftPanelX;
+        this.midPanelX = midPanelX;
+        this.whPanelX = whPanelX;
         this.leftX = leftX;
+        this.gearX = gearX;
+        this.gearLabelY = gearLabelY;
+        this.gearRigY = gearRigY;
+        this.gearBagY = gearBagY;
+        this.armorLabelY = armorLabelY;
         this.armorY = armorY;
-        this.hotbarColY = hotbarColY;
+        this.hotbarLabelY = hotbarLabelY;
+        this.hotbarY = hotbarY;
+        this.hotbarX = hotbarX;
+        this.offhandLabelY = offhandLabelY;
         this.offhandY = offhandY;
         this.midX = midX;
+        this.pocketLabelY = pocketLabelY;
         this.pocketY = pocketY;
-        this.invY = invY;
+        this.safeLabelY = safeLabelY;
         this.safeY = safeY;
+        this.whLabelY = whLabelY;
         this.whX = whX;
         this.whY = whY;
         this.whRows = whRows;
     }
 
-    /**
-     * 计算布局。
-     *
-     * @param screenW      屏幕 GUI 宽度
-     * @param screenH      屏幕 GUI 高度
-     * @param withWarehouse true = 仓库界面（三列，仓库靠右）；false = 背包界面（左中两列水平居中）
-     */
-    public static PlayerLayout compute(int screenW, int screenH, boolean withWarehouse) {
-        // 纵向节奏：baseY 起为槽位行，下一组槽位行 = 上一组槽位底部 + 组间隔 + 标题条
-        int step = SECTION_GAP + TITLE_H;
-        int leftContentH = 4 * SLOT + step + 4 * SLOT + step + SLOT;   // 盔甲 + 快捷栏列 + 副手 = 192
-        int midContentH = SLOT + step + 3 * SLOT + step + 3 * SLOT;    // 口袋 + 背包 + 安全箱 = 156
-        int whRows = 12;
-        int whInfoH = 18;                                              // 仓库底部行信息行
-        int whContentH = whRows * SLOT + whInfoH;                      // 234
-        int contentH = Math.max(leftContentH, Math.max(midContentH, withWarehouse ? whContentH : 0));
-        // 顶部至少留出标题条空间（baseY - TITLE_H >= 4）
-        int baseY = Math.max(TITLE_H + 4, (screenH - contentH) / 2);
-
-        int leftX;
-        int midX;
-        int whX = -1;
-        int whY = -1;
-        if (withWarehouse) {
-            // 三列：玩家区靠左，仓库贴右侧（符合「左中背包、右容器」布局规范）
-            leftX = 16;
-            midX = leftX + SLOT + COL_GAP;
-            whX = Math.max(midX + 9 * SLOT + COL_GAP, screenW - 9 * SLOT - 16);
-            whY = baseY;
-        } else {
-            // 背包界面：左中两列水平居中
-            int groupW = SLOT + COL_GAP + 9 * SLOT;
-            leftX = Math.max(8, (screenW - groupW) / 2);
-            midX = leftX + SLOT + COL_GAP;
-        }
-        int armorY = baseY;
-        int hotbarColY = armorY + 4 * SLOT + step;
-        int offhandY = hotbarColY + 4 * SLOT + step;
-        int pocketY = baseY;
-        int invY = pocketY + SLOT + step;
-        int safeY = invY + 3 * SLOT + step;
-        return new PlayerLayout(baseY, leftX, armorY, hotbarColY, offhandY,
-                midX, pocketY, invY, safeY, whX, whY, whRows);
+    /** 组内容高度（标签 + n 行槽位）。 */
+    public static int groupHeight(int rows) {
+        return LABEL_H + rows * PITCH;
     }
 
     /**
-     * 通用容器界面布局（2.0.10Alpha）：左列 = 快捷栏 1-4 竖排（容器菜单无盔甲/副手槽，
-     * 不凭空造槽位）；中列 = 口袋/背包/安全箱（与背包界面一致）；右列 = 容器槽位
-     * （cols 列 x rows 行，列数由原版槽位坐标推断）。
+     * 计算布局（sakura 几何：左 128 / 主 188 / 容器 188，面板高固定 300）。
+     *
+     * @param screenW  屏幕 GUI 宽度
+     * @param screenH  屏幕 GUI 高度
+     * @param safeRows 安全箱行数（1~3；几何固定，仅作占位兼容）
+     * @param whRows   仓库视口行数（几何固定，仅作占位兼容）
      */
-    public static PlayerLayout computeContainer(int screenW, int screenH, int cols, int rows) {
-        int step = SECTION_GAP + TITLE_H;
-        int leftContentH = 4 * SLOT;                                   // 仅快捷栏 1-4 竖排
-        int midContentH = SLOT + step + 3 * SLOT + step + 3 * SLOT;    // 口袋 + 背包 + 安全箱
-        int ctnContentH = rows * SLOT + 18;                            // 容器区（+ 底部留白）
-        int contentH = Math.max(leftContentH, Math.max(midContentH, ctnContentH));
-        int baseY = Math.max(TITLE_H + 4, (screenH - contentH) / 2);
+    public static PlayerLayout compute(int screenW, int screenH, int safeRows, int whRows) {
+        int totalW = EQUIP_W + COL_GAP + MAIN_W + COL_GAP + RIGHT_W;
+        int panelH = MIN_PANEL_H;
+        int leftPanelX = Math.max(OUTER_MARGIN, (screenW - totalW) / 2);
+        int midPanelX = leftPanelX + EQUIP_W + COL_GAP;
+        int whPanelX = midPanelX + MAIN_W + COL_GAP;
+        int topY = Math.max(OUTER_MARGIN, (screenH - panelH) / 2);
 
-        // 三列：玩家区靠左，容器贴右（与仓库界面一致的方位规范）
-        int leftX = 16;
-        int midX = leftX + SLOT + COL_GAP;
-        int ctnX = Math.max(midX + 9 * SLOT + COL_GAP, screenW - cols * SLOT - 16);
-        int ctnY = baseY;
+        // 左面板：装备（胸挂 / 背包本体）+ 盔甲（仅头盔 / 胸甲）。
+        // +2 的视觉修正：格子以装备图标为中心（与 DnInventoryScreen 一致）。
+        int leftX = leftPanelX + ARMOR_X + 2;
+        int gearX = leftPanelX + GEAR_X + 2;
+        int gearLabelY = topY + 8;
+        int gearRigY = topY + GEAR_TOP_Y + 2;
+        int gearBagY = topY + GEAR_TOP_Y + 2 + GEAR_STEP;
+        int armorLabelY = topY + 8;
+        int armorY = topY + GEAR_TOP_Y;
 
-        // 容器界面无盔甲/副手槽：左列快捷栏与口袋行对齐（armorY/hotbarColY 同值避免误用歧义）
-        int hotbarColY = baseY;
-        int pocketY = baseY;
-        int invY = pocketY + SLOT + step;
-        int safeY = invY + 3 * SLOT + step;
-        return new PlayerLayout(baseY, leftX, baseY, hotbarColY, hotbarColY + 4 * SLOT,
-                midX, pocketY, invY, safeY, ctnX, ctnY, rows);
+        // 主面板：口袋 → 安全箱；快捷栏钉在面板底
+        int midX = midPanelX + CONTENT_INSET;
+        int pocketLabelY = topY + 8;
+        int pocketY = topY + 22;
+        int safeLabelY = topY + 50;
+        int safeY = topY + 64;
+        int hotbarLabelY = topY + panelH - 34;
+        int hotbarY = topY + panelH - 20;
+        int hotbarX = midPanelX + CONTENT_INSET;
+
+        // 容器面板：仓库视口（顶部标题下起排）
+        int whLabelY = topY + 8;
+        int whX = whPanelX + CONTENT_INSET;
+        int whY = topY + 26;
+
+        return new PlayerLayout(topY, panelH, leftPanelX, midPanelX, whPanelX,
+                leftX, gearX, gearLabelY, gearRigY, gearBagY, armorLabelY, armorY,
+                hotbarLabelY, hotbarY, hotbarX,
+                OFFSCREEN, OFFSCREEN,
+                midX, pocketLabelY, pocketY, safeLabelY, safeY,
+                whLabelY, whX, whY, Math.max(1, whRows));
+    }
+
+    /** 默认安全箱 3 行 / 仓库 12 行的布局（服务端占位坐标用）。 */
+    public static PlayerLayout compute(int screenW, int screenH) {
+        return compute(screenW, screenH, 3, 12);
     }
 }

@@ -31,8 +31,15 @@ public class GridConfig {
     /** 0.3.0Beta：兼容开关——true = 恢复 0.2.x「所有 ≥9 格容器一律接管」的行为。 */
     public static final ForgeConfigSpec.BooleanValue LEGACY_ANY_CONTAINER;
 
-    /** 2.0.9Alpha 默认规则（1-4 号格 ANY 任意大小 / 5-9 号格 GRID 仅 1x1 留存）。 */
-    public static final List<String> DEFAULT_RULES = List.of("0-3:ANY", "4-8:GRID");
+    /**
+     * 快捷栏默认规则（0.5.0Beta 修正）：<b>快捷栏 1-9 号格一律 ANY</b>——无视尺寸，
+     * 任意大小的物品都能放进快捷栏（按 1x1 存放）。口袋（主背包前 5 格）反过来只收 1x1，
+     * 由 {@code GridSizes#pocketAccepts} 裁决。
+     */
+    public static final List<String> DEFAULT_RULES = List.of("0-8:ANY");
+
+    /** 历史默认规则（0.5.0Beta 之前）：读到时视为 {@link #DEFAULT_RULES}，避免旧配置文件继续限制快捷栏。 */
+    private static final List<String> LEGACY_DEFAULT_RULES = List.of("0-3:ANY", "4-8:GRID");
 
     /** 客户端运行时覆盖（来自服务端同步包，会话内有效）。 */
     private static volatile List<String> RUNTIME_RULES;
@@ -42,8 +49,8 @@ public class GridConfig {
 
         HOTBAR_RULES = BUILDER
                 .comment("定义快捷栏规则。格式: '起始-结束:模式'（索引 0-8 = 键位 1-9）",
-                        "模式: ANY = 无视尺寸(按1x1放置,任意大小可留存), GRID = 按格子尺寸(口袋区仅1x1留存,大件重排至背包), FOOD = 食物按1x1(非食物同GRID)",
-                        "默认: 0-3:ANY(1-4号格任意大小,左列), 4-8:GRID(5-9号格仅1x1,口袋)")
+                        "模式: ANY = 无视尺寸(按1x1放置,任意大小可留存), GRID = 按格子尺寸(仅 1x1 物品可留存), FOOD = 食物按1x1(非食物同GRID)",
+                        "默认: 0-8:ANY(快捷栏 1-9 号格任意大小)——口袋(主背包前 5 格)固定只收 1x1 普通物品")
                 .defineList("hotbar_rules",
                         DEFAULT_RULES,
                         obj -> obj instanceof String);
@@ -81,7 +88,10 @@ public class GridConfig {
         if (rt != null) {
             return rt;
         }
-        return SPEC.isLoaded() ? HOTBAR_RULES.get() : DEFAULT_RULES;
+        List<? extends String> configured = SPEC.isLoaded() ? HOTBAR_RULES.get() : DEFAULT_RULES;
+        // 旧配置文件里的历史默认值（0-3:ANY,4-8:GRID）不再限制快捷栏：
+        // 用户诉求是「快捷栏能放任意大小」，而口袋只收 1x1（由 pocketAccepts 裁决，与本配置无关）。
+        return LEGACY_DEFAULT_RULES.equals(configured) ? DEFAULT_RULES : configured;
     }
 
     /** 2.0.2Alpha：设置快捷栏规则并落盘（服务端）。 */

@@ -34,12 +34,12 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
     /**
      * 仓库存储（0.3.0Beta 重写：<b>网格内核 v2 是唯一存储</b>）。
      *
-     * <p>{@link com.deltanexus.system.grid.v2.GridHandlerBridge} 把网格暴露成旧的 {@code ItemStackHandler}
+     * <p>{@link com.deltanexus.system.grid.GridHandlerBridge} 把网格暴露成旧的 {@code ItemStackHandler}
      * 形态，因此菜单槽位、制造扣料、交易交付、指令、Web 等既有调用点<b>无需改动</b>；
      * 但底层已经是「只存锚点 + 占用派生 + 唯一入口事务」的模型——占位物、派生标记都不复存在。</p>
      */
-    private final com.deltanexus.system.grid.v2.GridHandlerBridge warehouse;
-    private final com.deltanexus.system.grid.v2.GridHandlerBridge safeBox;
+    private final com.deltanexus.system.grid.GridHandlerBridge warehouse;
+    private final com.deltanexus.system.grid.GridHandlerBridge safeBox;
     private final BitSet unlocked = new BitSet(ModConfig.warehouseRows() * 9);
     private int warehouseLevel = 0;
     /** 安全箱等级（0 = 配置默认尺寸；>0 按安全箱升级树）。 */
@@ -47,13 +47,15 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
     /** 工作台 id -> 任务队列（动态注册表；未知 id 惰性创建）。 */
     private final Map<String, Deque<Task>> tasks = new LinkedHashMap<>();
     private int nextTaskId = 1;
+    /** 装备槽（0.5.0Beta）：下标 = {@link com.deltanexus.system.grid.GearKind#ordinal()}（胸挂 / 背包）。 */
+    private final ItemStack[] equipped = {ItemStack.EMPTY, ItemStack.EMPTY};
 
     public PlayerDataImpl() {
         // 容量 = 行数 x 9（每行 9 格）；配置未加载时（如客户端实体构造）回退默认 6 行 = 54
         int capacity = ModConfig.warehouseRows() * 9;
         int rows = Math.max(1, capacity / 9);
-        warehouse = new com.deltanexus.system.grid.v2.GridHandlerBridge(9, rows,
-                new com.deltanexus.system.grid.v2.GridHandlerBridge.Access() {
+        warehouse = new com.deltanexus.system.grid.GridHandlerBridge(9, rows,
+                new com.deltanexus.system.grid.GridHandlerBridge.Access() {
                     @Override
                     public boolean usable(int containerIndex) {
                         return isSlotUnlocked(containerIndex);
@@ -74,11 +76,11 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
      * <p>几何：宽度 = 解锁列数（1~3），行数 = ⌈9 / 宽度⌉；可用格由解锁数决定，
      * 物品准入额外受 {@code SafeBoxRestrictions} 限制（迁移旧数据时不走准入，绝不丢已有物品）。</p>
      */
-    private static com.deltanexus.system.grid.v2.GridHandlerBridge createSafeBox(PlayerDataImpl owner) {
+    private static com.deltanexus.system.grid.GridHandlerBridge createSafeBox(PlayerDataImpl owner) {
         int width = Math.max(1, Math.min(3, ModConfig.safeBoxWidth()));
         int rows = Math.max(1, (9 + width - 1) / width);
-        return new com.deltanexus.system.grid.v2.GridHandlerBridge(width, rows,
-                new com.deltanexus.system.grid.v2.GridHandlerBridge.Access() {
+        return new com.deltanexus.system.grid.GridHandlerBridge(width, rows,
+                new com.deltanexus.system.grid.GridHandlerBridge.Access() {
                     @Override
                     public boolean usable(int containerIndex) {
                         return owner.isSafeSlotUnlocked(containerIndex);
@@ -86,7 +88,9 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
 
                     @Override
                     public boolean accepts(ItemStack stack) {
-                        return !com.deltanexus.system.config.SafeBoxRestrictions.isRestricted(stack);
+                        // 安全箱准入：NBT 限制命中者禁止；0.5.0Beta 起胸挂/背包也不进安全箱
+                        return !com.deltanexus.system.config.SafeBoxRestrictions.isRestricted(stack)
+                                && !com.deltanexus.system.grid.GearConfig.isGear(stack);
                     }
                 });
     }
@@ -258,6 +262,33 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
     // 序列化（正确性优先：始终返回完整数据，杜绝任何路径下的存档丢失）
     // ------------------------------------------------------------------
 
+    // ------------------------------------------------------------------
+    // 装备（0.5.0Beta）：背包 / 胸挂
+    // ------------------------------------------------------------------
+
+    @Override
+    public ItemStack getEquipped(com.deltanexus.system.grid.GearKind kind) {
+        if (kind == null || kind.ordinal() >= equipped.length) {
+            return ItemStack.EMPTY;
+        }
+        ItemStack stack = equipped[kind.ordinal()];
+        return stack == null ? ItemStack.EMPTY : stack;
+    }
+
+    @Override
+    public boolean setEquipped(com.deltanexus.system.grid.GearKind kind, ItemStack stack) {
+        if (kind == null || kind.ordinal() >= equipped.length) {
+            return false;
+        }
+        ItemStack next = stack == null ? ItemStack.EMPTY : stack;
+        // 种类校验：物品必须已被登记为该种类的装备（配置驱动），否则拒绝写入
+        if (!next.isEmpty() && com.deltanexus.system.grid.GearConfig.kindOf(next.getItem()) != kind) {
+            return false;
+        }
+        equipped[kind.ordinal()] = next;
+        return true;
+    }
+
     private static final String KEY_WAREHOUSE = "warehouse";
     private static final String KEY_LEVEL = "level";
     private static final String KEY_UNLOCKED = "unlocked";
@@ -266,6 +297,8 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
     private static final String KEY_ITEMS = "items";
     private static final String KEY_SAFE_BOX = "safe_box";
     private static final String KEY_SAFE_LEVEL = "safe_level";
+    /** 装备槽（0.5.0Beta）：{@code { <kind>: <ItemStack NBT> }}，空槽不写。 */
+    private static final String KEY_EQUIPMENT = "equipment";
 
     @Override
     public CompoundTag serializeNBT() {
@@ -301,6 +334,16 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
         safe.putInt(KEY_SAFE_LEVEL, safeBoxLevel);
         safe.put(KEY_ITEMS, safeBox.serializeNBT());
         root.put(KEY_SAFE_BOX, safe);
+
+        // 装备（0.5.0Beta）：按种类 id 存物品本体（内容已在物品 NBT 内，空槽不写以减小存档）
+        CompoundTag gearTag = new CompoundTag();
+        for (com.deltanexus.system.grid.GearKind kind : com.deltanexus.system.grid.GearKind.values()) {
+            ItemStack gearStack = getEquipped(kind);
+            if (!gearStack.isEmpty()) {
+                gearTag.put(kind.id(), gearStack.save(new CompoundTag()));
+            }
+        }
+        root.put(KEY_EQUIPMENT, gearTag);
 
         CompoundTag tasksTag = new CompoundTag();
         for (Map.Entry<String, Deque<Task>> e : tasks.entrySet()) {
@@ -370,6 +413,13 @@ public class PlayerDataImpl implements IPlayerData, INBTSerializable<CompoundTag
                                 "[DN] 玩家安全箱容量不匹配，存档 {} > 9，跳过物品加载，等级保留",
                                 itemsTag.getInt("Size"));
                     }
+                }
+            }
+            // 装备（0.5.0Beta；旧存档无此段则保持空装备）
+            CompoundTag gearTag = tag.getCompound(KEY_EQUIPMENT);
+            for (com.deltanexus.system.grid.GearKind kind : com.deltanexus.system.grid.GearKind.values()) {
+                if (gearTag.contains(kind.id(), Tag.TAG_COMPOUND)) {
+                    equipped[kind.ordinal()] = ItemStack.of(gearTag.getCompound(kind.id()));
                 }
             }
             CompoundTag tasksTag = tag.getCompound(KEY_TASKS);

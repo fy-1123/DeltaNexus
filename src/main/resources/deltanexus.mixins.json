@@ -1,0 +1,17 @@
+{
+  "required": true,
+  "minVersion": "0.8.5",
+  "package": "com.deltanexus.system.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "deltanexus.refmap.json",
+  "mixins": [
+    "InventoryMixin",
+    "MenuMixin",
+    "SlotMixin"
+  ],
+  "client": [],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

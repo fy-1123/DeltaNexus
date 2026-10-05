@@ -242,7 +242,7 @@ public class SpecialOpsScreen extends Screen {
                         Component.literal("§7" + Component.translatable("gui.dn.warehouse.material_need",
                                 FormatUtil.compact(m.held), FormatUtil.compact(m.needed)).getString()
                                 + (m.nbt != null && !m.nbt.isBlank()
-                                ? "\n§7" + Component.translatable("gui.dn.warehouse.material_nbt", m.matchType).getString() : "")));
+                                ? "\n§7" + Component.translatable("gui.dn.warehouse.material_nbt", m.matchMode).getString() : "")));
             }
         }
         if (materials.size() > perPage) {

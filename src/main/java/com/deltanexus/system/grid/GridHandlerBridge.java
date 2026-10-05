@@ -1,16 +1,14 @@
-package com.deltanexus.system.grid.v2;
+package com.deltanexus.system.grid;
 
 import com.deltanexus.system.DeltaNexus;
-import com.deltanexus.system.grid.core.GridDim;
-import com.deltanexus.system.grid.core.GridTags;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.items.ItemStackHandler;
 
 /**
- * 网格处理器桥接（重写版内核，v2 接线层）。
+ * 网格处理器桥接（重写版内核，新内核 {@link GridStore} 接线层）。
  *
- * <p>作用：让 <b>{@link GridInventory} 成为唯一存储</b>，同时把旧的 {@link ItemStackHandler} 形态
+ * <p>作用：让 <b>{@link GridStore} 成为唯一存储</b>，同时把旧的 {@link ItemStackHandler} 形态
  * 暴露给既有调用点（菜单槽位、制造扣料、交易交付、指令、Web…）——**调用点零改动**。</p>
  *
  * <p>映射语义（与旧的“锚点 + 占位物”模型的关键差异）：</p>
@@ -19,7 +17,7 @@ import net.minecraftforge.items.ItemStackHandler;
  *   <li>{@code setStackInSlot(i, stack)} → 翻译成网格操作：空 = 取出；非空 = 落位（放不下时依次尝试
  *       原位 → 首个空位 → 退化为 1x1 保留，<b>绝不丢物品</b>）；</li>
  *   <li>{@code insertItem / extractItem} → 同样翻译成落位/取出，并按 Forge 约定返回剩余/取出的数量；</li>
- *   <li>{@code deserializeNBT} → 先按新格式读；不是新格式则走 {@link GridStorage#migrateFrom} 迁移旧平铺数据；</li>
+ *   <li>{@code deserializeNBT} → 先按新格式读；不是新格式则走 {@link GridNbt} 迁移旧平铺数据；</li>
  *   <li>{@code serializeNBT} → 只写锚点（新格式），占位物之类派生态从此不可能落盘。</li>
  * </ul>
  */
@@ -40,7 +38,7 @@ public final class GridHandlerBridge extends ItemStackHandler {
 
     private final int width;
     private final Access access;
-    private GridInventory grid;
+    private GridStore grid;
 
     public GridHandlerBridge(int width, int rows, Access access) {
         super(Math.max(1, width * rows)); // 仅用于满足父类构造；实际读写全部走 grid
@@ -51,10 +49,10 @@ public final class GridHandlerBridge extends ItemStackHandler {
         int size = this.width * Math.max(1, rows);
         boolean[] allUsable = new boolean[size];
         java.util.Arrays.fill(allUsable, true);
-        this.grid = new GridInventory(this.width, Math.max(1, rows), allUsable);
+        this.grid = new GridStore(this.width, Math.max(1, rows), allUsable);
     }
 
-    public GridInventory grid() {
+    public GridStore grid() {
         return grid;
     }
 
@@ -73,8 +71,8 @@ public final class GridHandlerBridge extends ItemStackHandler {
             return;
         }
         java.util.List<GridEntry> entries = new java.util.ArrayList<>(grid.entries().values());
-        GridInventory bigger = new GridInventory(width, newRows, usableMask(newRows * width));
-        GridInventory.Result result = bigger.replaceAll(entries);
+        GridStore bigger = new GridStore(width, newRows, usableMask(newRows * width));
+        GridStore.Result result = bigger.replaceAll(entries);
         if (result.failed()) {
             DeltaNexus.LOGGER.warn("[DN] 网格扩容安置失败（保持原尺寸）: {}", result.reason());
             return;
@@ -130,19 +128,19 @@ public final class GridHandlerBridge extends ItemStackHandler {
             }
             return;
         }
-        boolean rotated = GridTags.isRotated(stack);
-        GridEntry entry = GridEntry.of(GridTags.stripped(stack), rotated);
+        boolean rotated = GridMarker.isRotated(stack);
+        GridEntry entry = GridEntry.of(GridMarker.stripped(stack), rotated);
 
         boolean isAnchor = grid.entryAt(slot) != null;
-        if (!isAnchor && grid.anchorCovering(slot) >= 0) {
+        if (!isAnchor && grid.anchorAt(slot) >= 0) {
             // 目标格属于别的跨格物品的足迹：拒绝写入（不挤占、也不改写到别处）
             DeltaNexus.LOGGER.warn("[DN] 拒绝写入：格 {} 属于其它跨格物品的足迹（{}）", slot, stack);
             return;
         }
         // 关键：**先判定可行性，再动任何物品**。否则“先腾空、再发现放不下”会让
         // 原版把光标换成腾出来的物品、而新物品无处安放 → 物品消失。
-        boolean canStay = grid.canPlaceAfterRemoving(slot, entry.dim());
-        int spot = canStay ? -1 : grid.findFreeSpot(entry.dim());
+        boolean canStay = grid.canPlaceAfterRemoving(slot, entry.size());
+        int spot = canStay ? -1 : grid.findFreeSpot(entry.size());
         // 目标格是“锁定格”时不停手：旧处理器允许写锁定格（管理员降级 / 旧档 / 内部代码路径依赖它），
         // 由后面的 placeForced 兜底；只有普通格子才在“腾空后放不下且无空位”时拒绝。
         if (!canStay && spot < 0 && grid.usable(slot)) {
@@ -181,7 +179,7 @@ public final class GridHandlerBridge extends ItemStackHandler {
         }
         if (slot >= 0 && slot < grid.size()) {
             GridEntry target = grid.entryAt(slot);
-            if (target != null && target.sameKind(GridEntry.of(stack, GridTags.isRotated(stack)))) {
+            if (target != null && target.sameKind(GridEntry.of(stack, GridMarker.isRotated(stack)))) {
                 int space = target.maxStackSize() - target.count();
                 if (space > 0) {
                     int add = Math.min(space, stack.getCount());
@@ -195,8 +193,8 @@ public final class GridHandlerBridge extends ItemStackHandler {
             }
         }
         if (simulate) {
-            GridEntry probe = GridEntry.of(stack, GridTags.isRotated(stack));
-            if (grid.canPlace(slot, probe.dim()) == null || grid.findFreeSpot(probe.dim()) >= 0) {
+            GridEntry probe = GridEntry.of(stack, GridMarker.isRotated(stack));
+            if (grid.canPlace(slot, probe.size()) == null || grid.findFreeSpot(probe.size()) >= 0) {
                 return ItemStack.EMPTY;
             }
             return stack;
@@ -226,7 +224,7 @@ public final class GridHandlerBridge extends ItemStackHandler {
             return out;
         }
         // 部分取出：数量变化同样通过网格操作表达（place 会做不变式与守恒之外的合法性校验）
-        GridInventory.Result rewrote = grid.place(slot, entry.withCount(entry.count() - take));
+        GridStore.Result rewrote = grid.place(slot, entry.withCount(entry.count() - take));
         if (rewrote.ok()) {
             changed();
             return out;
@@ -242,7 +240,7 @@ public final class GridHandlerBridge extends ItemStackHandler {
         if (access != null && !access.accepts(stack)) {
             return false;
         }
-        var dim = GridEntry.of(stack, GridTags.isRotated(stack)).dim();
+        var dim = GridEntry.of(stack, GridMarker.isRotated(stack)).size();
         // 精确判定：①本格本身能放；②腾空本格（交换会腾空）后能放；③网格内还有其它空位。
         // 三者都不行 → 返回 false，让原版直接中止这次交换（物品留在光标，绝不消失、绝不复制）。
         return grid.canPlace(slot, dim) == null
@@ -257,7 +255,7 @@ public final class GridHandlerBridge extends ItemStackHandler {
 
     @Override
     public CompoundTag serializeNBT() {
-        return GridStorage.write(grid);
+        return GridNbt.write(grid);
     }
 
     @Override
@@ -267,14 +265,18 @@ public final class GridHandlerBridge extends ItemStackHandler {
         }
         // 载入失败绝不能让玩家数据变成“无效”（那会直接进不去世界）：出错就保持空容器并打完整堆栈
         try {
-            GridInventory loaded = GridStorage.read(nbt, width, grid.rows(), usableMask(grid.size()));
+            GridStore loaded = GridNbt.read(nbt, width, grid.rows(), usableMask(grid.size()));
             if (loaded != null) {
                 this.grid = loaded;
                 return;
             }
             ItemStackHandler legacy = new ItemStackHandler(grid.size());
             legacy.deserializeNBT(nbt);
-            this.grid = GridStorage.migrateFrom(legacy, width, grid.rows(), usableMask(grid.size()));
+            java.util.List<ItemStack> legacyFlat = new java.util.ArrayList<>(legacy.getSlots());
+            for (int i = 0; i < legacy.getSlots(); i++) {
+                legacyFlat.add(legacy.getStackInSlot(i));
+            }
+            this.grid = GridNbt.read(nbt, width, grid.rows(), usableMask(grid.size()), legacyFlat, "容器");
             changed();
         } catch (Throwable t) {
             DeltaNexus.LOGGER.error("[DN] 网格容器载入失败（已降级为空容器，请把堆栈发给开发者）", t);
@@ -288,9 +290,9 @@ public final class GridHandlerBridge extends ItemStackHandler {
     /**
      * 把一件物品放进网格：先并入同类且未满的条目，再行优先找空位；返回放不下的剩余。
      *
-     * <p>这是「外部交付」的正确入口——旧路径会为足迹写占位物，而 v2 没有占位物，
+     * <p>这是「外部交付」的正确入口——旧路径会为足迹写占位物，而新内核 {@link GridStore} 没有占位物，
      * 于是那些占位物会被当成普通物品落位，往仓库里塞进垃圾 `blocked_slot`。
-     * 交付必须走内核操作（{@link GridInventory#place}），由内核保证不变式与守恒。</p>
+     * 交付必须走内核操作（{@link GridStore#place}），由内核保证不变式与守恒。</p>
      */
     public ItemStack insertIntoGrid(ItemStack stack, boolean simulate) {
         if (stack == null || stack.isEmpty()) {
@@ -299,8 +301,8 @@ public final class GridHandlerBridge extends ItemStackHandler {
         if (access != null && !access.accepts(stack)) {
             return stack.copy();
         }
-        boolean rotated = GridTags.isRotated(stack);
-        ItemStack clean = GridTags.stripped(stack);
+        boolean rotated = GridMarker.isRotated(stack);
+        ItemStack clean = GridMarker.stripped(stack);
         int remain = clean.getCount();
 
         // 1) 并入同类条目
@@ -326,12 +328,12 @@ public final class GridHandlerBridge extends ItemStackHandler {
         GridEntry proto = GridEntry.of(clean, rotated);
         while (remain > 0) {
             int chunk = Math.min(proto.maxStackSize(), remain);
-            int spot = grid.findFreeSpot(proto.dim());
+            int spot = grid.findFreeSpot(proto.size());
             if (spot < 0) {
                 break;
             }
             if (!simulate) {
-                GridInventory.Result placed = grid.place(spot, proto.withCount(chunk));
+                GridStore.Result placed = grid.place(spot, proto.withCount(chunk));
                 if (placed.failed()) {
                     break;
                 }
@@ -358,31 +360,31 @@ public final class GridHandlerBridge extends ItemStackHandler {
         if (access != null && !access.accepts(stack)) {
             return; // 准入被拒（如安全箱 NBT 限制）：保持原状，物品仍由调用方持有
         }
-        boolean rotated = GridTags.isRotated(stack);
-        GridEntry entry = GridEntry.of(GridTags.stripped(stack), rotated);
-        GridInventory.Result placed = grid.place(slot, entry);
+        boolean rotated = GridMarker.isRotated(stack);
+        GridEntry entry = GridEntry.of(GridMarker.stripped(stack), rotated);
+        GridStore.Result placed = grid.place(slot, entry);
         if (placed.ok()) {
             changed();
             return;
         }
-        int spot = grid.findFreeSpot(entry.dim());
+        int spot = grid.findFreeSpot(entry.size());
         if (spot >= 0 && grid.place(spot, entry).ok()) {
             changed();
             return;
         }
-        GridEntry one = GridEntry.of(entry.stackForWrite(), GridDim.ONE, false);
+        GridEntry one = GridEntry.of(entry.stackForWrite(), GridSize.SINGLE, false);
         if (grid.place(slot, one).ok()) {
             changed();
             return;
         }
-        int anywhere = grid.findFreeSpot(GridDim.ONE);
+        int anywhere = grid.findFreeSpot(GridSize.SINGLE);
         if (anywhere >= 0 && grid.place(anywhere, one).ok()) {
             changed();
             return;
         }
         // 兼容兜底：旧处理器允许写“锁定格”（管理员降级/旧档/内部代码路径都依赖这一点），
         // 但<b>绝不允许</b>写进别的跨格物品的足迹——那正是「非锚点格也能放」的根因。
-        if (grid.anchorCovering(slot) < 0 && grid.placeForced(slot, entry).ok()) {
+        if (grid.anchorAt(slot) < 0 && grid.placeForced(slot, entry).ok()) {
             changed();
             return;
         }
@@ -395,27 +397,28 @@ public final class GridHandlerBridge extends ItemStackHandler {
         if (access != null && !access.accepts(stack)) {
             return stack; // 准入被拒：原样退回
         }
-        boolean rotated = GridTags.isRotated(stack);
-        ItemStack clean = GridTags.stripped(stack);
+        boolean rotated = GridMarker.isRotated(stack);
+        ItemStack clean = GridMarker.stripped(stack);
         GridEntry entry = GridEntry.of(clean, rotated);
-        GridInventory.Result placed = slot >= 0 ? grid.place(slot, entry) : GridInventory.Result.fail("无目标格", grid.revision());
+        GridStore.Result placed = slot >= 0 ? grid.place(slot, entry)
+                : new GridStore.Result(false, "无目标格", grid.revision(), ItemStack.EMPTY);
         if (placed.ok()) {
             changed();
             return ItemStack.EMPTY;
         }
-        int spot = grid.findFreeSpot(entry.dim());
+        int spot = grid.findFreeSpot(entry.size());
         if (spot >= 0 && grid.place(spot, entry).ok()) {
             changed();
             return ItemStack.EMPTY;
         }
-        GridEntry one = GridEntry.of(clean, GridDim.ONE, false);
-        int anyCell = grid.findFreeSpot(GridDim.ONE);
+        GridEntry one = GridEntry.of(clean, GridSize.SINGLE, false);
+        int anyCell = grid.findFreeSpot(GridSize.SINGLE);
         if (anyCell >= 0 && grid.place(anyCell, one).ok()) {
             changed();
             return ItemStack.EMPTY;
         }
         // 同理：允许“锁定格”兼容兜底，但绝不挤占别人的足迹
-        if (slot >= 0 && grid.anchorCovering(slot) < 0 && grid.placeForced(slot, entry).ok()) {
+        if (slot >= 0 && grid.anchorAt(slot) < 0 && grid.placeForced(slot, entry).ok()) {
             changed();
             return ItemStack.EMPTY;
         }
@@ -427,7 +430,7 @@ public final class GridHandlerBridge extends ItemStackHandler {
         if (entry == null) {
             return;
         }
-        GridInventory.Result result = grid.place(slot, entry.withCount(entry.count() + add));
+        GridStore.Result result = grid.place(slot, entry.withCount(entry.count() + add));
         if (result.ok()) {
             changed();
         }

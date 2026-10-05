@@ -116,15 +116,16 @@ public class InventoryGridHandler {
     }
 
     /**
-     * 手动放置到槽位前的尺寸预校验：口袋区（快捷栏 5-9 号格 = containerSlot 4-8）仅 1x1 留存。
-     * 放不下的物品直接拒绝放置、回到鼠标指针，而不是交给求解器自动重排。
+     * 手动放置到槽位前的准入预校验：口袋区（主背包前 5 格 = containerSlot 9-13）
+     * <b>只收 1x1 的普通物品</b>——大于 1x1 的物品与胸挂/背包一律拒绝放置、回到鼠标指针，
+     * 而不是交给求解器自动重排。快捷栏不受限（默认 ANY，任意大小都能放）。
      */
     public static boolean fitsManualPlacement(Player player, Slot slot, ItemStack stack) {
         if (stack == null || stack.isEmpty() || slot == null) {
             return true;
         }
         if (GridSizes.isPocketSlot(slot)) {
-            return getActualDim(stack, slot, false, player).is1x1(); // 创造模式同样接管：按真实尺寸校验
+            return GridSizes.pocketAccepts(stack);
         }
         return true;
     }
@@ -143,7 +144,7 @@ public class InventoryGridHandler {
             if (s == null || s instanceof GridAwareSlot) {
                 continue;
             }
-            if (s.container instanceof Inventory && s.getContainerSlot() >= 4 && s.getContainerSlot() <= 8) {
+            if (s.container instanceof Inventory && s.getContainerSlot() >= 9 && s.getContainerSlot() <= 13) {
                 // 必须保留原槽位 index（协议以 index 为槽位 ID，clicked/quickMove 均依赖）
                 GridAwareSlot gs = new GridAwareSlot((Inventory) s.container, s.getContainerSlot(), s.x, s.y, player);
                 gs.index = s.index;

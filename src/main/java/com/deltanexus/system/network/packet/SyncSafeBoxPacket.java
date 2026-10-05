@@ -27,12 +27,27 @@ public class SyncSafeBoxPacket {
     public final int height;
     /** 9 格物品（未解锁槽位可能为空）。 */
     public final ItemStack[] items;
-    /** 交互后的服务端光标栈（仅背包界面打开时有效）。 */
+    /** 交互后的服务端光标栈。 */
     public final ItemStack carried;
+    /**
+     * {@link #carried} 所属的菜单容器 id（-1 = 不适用，客户端不要套用）。
+     *
+     * <p>0.5.0Beta：安全箱覆盖层可以出现在背包界面以外的界面（容器界面等），而此前
+     * 服务端只在背包菜单下打包光标物品、其余情况打包空栈——客户端却无条件套用，
+     * 于是容器界面里正在被光标拿着的物品会被"抹掉"，看起来就是物品丢失。
+     * 现在带上容器 id，客户端只在 id 对得上时套用。</p>
+     */
+    public final int carriedMenuId;
 
     public SyncSafeBoxPacket(boolean allowed, int safeLevel, int safeMaxLevel,
                              int unlockedSlots, int width, int height,
                              ItemStack[] items, ItemStack carried) {
+        this(allowed, safeLevel, safeMaxLevel, unlockedSlots, width, height, items, carried, -1);
+    }
+
+    public SyncSafeBoxPacket(boolean allowed, int safeLevel, int safeMaxLevel,
+                             int unlockedSlots, int width, int height,
+                             ItemStack[] items, ItemStack carried, int carriedMenuId) {
         this.allowed = allowed;
         this.safeLevel = safeLevel;
         this.safeMaxLevel = safeMaxLevel;
@@ -41,6 +56,7 @@ public class SyncSafeBoxPacket {
         this.height = height;
         this.items = items;
         this.carried = carried;
+        this.carriedMenuId = carriedMenuId;
     }
 
     public static void encode(SyncSafeBoxPacket msg, FriendlyByteBuf buf) {
@@ -54,6 +70,7 @@ public class SyncSafeBoxPacket {
             buf.writeItem(msg.items == null || i >= msg.items.length ? ItemStack.EMPTY : msg.items[i]);
         }
         buf.writeItem(msg.carried == null ? ItemStack.EMPTY : msg.carried);
+        buf.writeVarInt(msg.carriedMenuId);
     }
 
     public static SyncSafeBoxPacket decode(FriendlyByteBuf buf) {
@@ -68,8 +85,9 @@ public class SyncSafeBoxPacket {
             items[i] = buf.readItem();
         }
         ItemStack carried = buf.readItem();
+        int carriedMenuId = buf.readVarInt();
         return new SyncSafeBoxPacket(allowed, safeLevel, safeMaxLevel,
-                unlockedSlots, width, height, items, carried);
+                unlockedSlots, width, height, items, carried, carriedMenuId);
     }
 
     public static void handle(SyncSafeBoxPacket msg, Supplier<NetworkEvent.Context> ctx) {

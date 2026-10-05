@@ -1,6 +1,7 @@
 package com.deltanexus.system.config;
 
 import com.deltanexus.system.common.NbtMatcher;
+import com.deltanexus.system.common.NbtSpec;
 import com.deltanexus.system.DeltaNexus;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -23,31 +24,23 @@ import java.util.List;
  *   "recipe_id": "iron_vest_mk1",
  *   "required_level": 1,
  *   "base_duration": 30,
- *   "input":  [ { "item": "minecraft:iron_ingot", "count": 5, "nbt": { "match_type": "ignore" } } ],
+ *   "input":  [ { "item": "minecraft:iron_ingot", "count": 5, "match_mode": "id" } ],
  *   "output": [ { "item": "minecraft:iron_chestplate", "count": 1, "nbt": "{Enchantments:[{id:\"minecraft:protection\",lvl:2}]}" } ]
  * }
  * }</pre>
  */
 public class Recipe {
 
-    /** 配方输入物品定义。 */
-    public static class Ingredient {
+    /** 配方输入物品定义（NBT 匹配口径继承 {@link NbtSpec}）。 */
+    public static class Ingredient extends NbtSpec {
         public String item = "minecraft:air";
         public int count = 1;
-        public NbtMatcher.MatchType matchType = NbtMatcher.MatchType.IGNORE;
-        /** NBT 字符串（exact/contains 时使用，可空）。 */
-        public String nbt = "";
 
         public JsonObject toJson() {
             JsonObject obj = new JsonObject();
             obj.addProperty("item", item);
             obj.addProperty("count", count);
-            JsonObject nbtObj = new JsonObject();
-            nbtObj.addProperty("match_type", matchType.key());
-            if (nbt != null && !nbt.isBlank()) {
-                nbtObj.addProperty("nbt", nbt);
-            }
-            obj.add("nbt", nbtObj);
+            writeNbtJson(obj);
             return obj;
         }
 
@@ -55,21 +48,15 @@ public class Recipe {
             Ingredient ing = new Ingredient();
             ing.item = obj.has("item") ? obj.get("item").getAsString() : "minecraft:air";
             ing.count = obj.has("count") ? Math.max(1, obj.get("count").getAsInt()) : 1;
-            if (obj.has("nbt")) {
-                JsonElement nbtEl = obj.get("nbt");
-                if (nbtEl.isJsonObject()) {
-                    JsonObject nbtObj = nbtEl.getAsJsonObject();
-                    ing.matchType = NbtMatcher.MatchType.parse(
-                            nbtObj.has("match_type") ? nbtObj.get("match_type").getAsString() : null);
-                    if (nbtObj.has("nbt")) {
-                        ing.nbt = nbtObj.get("nbt").getAsString();
-                    }
-                } else if (nbtEl.isJsonPrimitive()) {
-                    ing.nbt = nbtEl.getAsString();
-                    if (ing.nbt.isBlank()) {
-                        ing.matchType = NbtMatcher.MatchType.IGNORE;
-                    }
-                }
+            if (obj.has("nbt") && obj.get("nbt").isJsonObject()) {
+                // 旧格式：nbt: { match_type, nbt } —— 读取时自动迁移
+                JsonObject nbtObj = obj.getAsJsonObject("nbt");
+                ing.nbt = nbtObj.has("nbt") ? nbtObj.get("nbt").getAsString() : "";
+                ing.matchMode = MatchMode.parse(
+                        nbtObj.has("match_type") ? nbtObj.get("match_type").getAsString() : null);
+                ing.normalizeMatch();
+            } else {
+                ing.readNbtJson(obj);
             }
             return ing;
         }

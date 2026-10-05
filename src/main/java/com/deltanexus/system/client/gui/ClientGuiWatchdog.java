@@ -64,8 +64,12 @@ public final class ClientGuiWatchdog {
                         || ClientUiConfig.isVanillaUi(s.getClass())) {
                     return;
                 }
+                // 创造模式保持原版容器界面（与 Opener 判定一致）
+                if (mc.gameMode != null && mc.gameMode.hasInfiniteItems()) {
+                    return;
+                }
                 if (s instanceof AbstractContainerScreen<?> acs) {
-                    mc.setScreen(new DnContainerScreen(acs.getMenu(), mc.player, s.getTitle()));
+                    mc.setScreen(DnContainerScreen.of(acs, mc.player));
                 }
             }
         } catch (Exception e) {

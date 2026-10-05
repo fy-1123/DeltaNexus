@@ -1,35 +1,57 @@
 package com.deltanexus.system.client.gui;
 
 import com.deltanexus.system.DeltaNexus;
+import com.deltanexus.system.client.GearClientState;
 import com.deltanexus.system.client.TradeSellIndex;
 import com.deltanexus.system.common.FormatUtil;
+import com.deltanexus.system.grid.GearConfig;
+import com.deltanexus.system.grid.GearKind;
+import com.deltanexus.system.grid.GridClassConfig;
+import com.deltanexus.system.grid.GridClientRendering;
+import com.deltanexus.system.grid.GridEntry;
+import com.deltanexus.system.grid.GridSize;
+import com.deltanexus.system.grid.GridStore;
+import com.deltanexus.system.grid.InventoryGridHandler;
+import com.deltanexus.system.grid.StoreContainer;
 import com.deltanexus.system.menu.WarehouseMenu;
 import com.deltanexus.system.network.PacketHandler;
+import com.deltanexus.system.network.packet.C2SOpenGearPacket;
+import com.deltanexus.system.network.packet.C2SOpenGearWindowPacket;
+import com.deltanexus.system.network.packet.C2SOverlayClickPacket;
 import com.deltanexus.system.network.packet.C2STradeSellPacket;
 import com.deltanexus.system.network.packet.C2SWarehouseScrollPacket;
 import com.deltanexus.system.network.packet.SyncSafeBoxPacket;
 import com.deltanexus.system.network.packet.SyncWarehousePacket;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.List;
+
 /**
- * 仓库 GUI（2.0.8Alpha UI 重构：三列布局 + 原位滚动）。
+ * 仓库 GUI（0.5.0Beta 格子背包装备化：三列布局 + 原位滚动）。
  *
- * <p>布局遵循 UI 设计规范（{@code UI.html}，{@link PlayerLayout}）：
- * 左列 + 中列 = 玩家背包界面（盔甲/快捷栏列/副手 + 口袋/背包/安全箱），
- * 右列 = 仓库视口（12 行 x 9 列，滚轮滚动起始行）。</p>
+ * <p>布局遵循 {@link PlayerLayout}：左列 + 中列 = 玩家区，右列 = 仓库视口（12 行 x 9 列，滚轮滚动起始行）。
+ * 左列 = 装备（胸挂/背包，非菜单槽：自绘 + 自处理点击）/ 盔甲 4 / 副手 1；
+ * 中列 = 口袋（inv 9-13）/ 快捷栏 9（inv 0-8）/ 安全箱。
+ * 被胸挂/背包取代的 22 格（inv 14-35）移到屏外（菜单索引不变）。</p>
  *
  * <p>2.0.8Alpha 滚动手感优化：滚动改为服务端原位替换视口槽位（{@code WarehouseMenu#scrollTo}），
  * 不再重建菜单/界面——光标物品不掉落、鼠标指针与悬停状态不重置、无闪烁。</p>
  */
 public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu>
-        implements com.deltanexus.system.grid.adapter.InputGate.SellModeSource {
+        implements com.deltanexus.system.grid.adapter.InputGate.SellModeSource, DnOverlayTooltips {
 
-    private static final ResourceLocation SLOT = ResourceLocation.fromNamespaceAndPath(DeltaNexus.MODID, "textures/gui/slot.png");
+    /** 屏外坐标（被装备取代的 22 格隐藏用：不渲染不可点击）。 */
+    private static final int OFFSCREEN = -1000;
+
+    /** 统一提示层的 z 抬升量（提示框自身 z≈400、网格大图标 z≈550，见 {@link DnOverlayTooltips}）。 */
+    private static final int TOOLTIP_Z = 1000;
 
     /** 服务端同步数据（由 SyncWarehousePacket 填充，屏幕构造时消费；特勤处同样订阅）。 */
     public static volatile SyncWarehousePacket lastSync;
@@ -38,6 +60,21 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu>
     /** 滚轮滚动节流（2.0.1Alpha）。 */
     private int pendingScroll = 0;
     private long lastScrollSent = 0;
+
+    // ---- 主面板物品区（口袋 / 胸挂 / 背包 / 安全箱）：与 E 键界面同一套 sakura 几何 ----
+    /** 主面板内容视口（照抄 DnInventoryScreen：超出滑动 + 裁剪）。 */
+    private final DnInventoryScreen.Viewport itemViewport = new DnInventoryScreen.Viewport();
+    /** 背包标签 y（面板顶相对值）。 */
+    private int backpackLabelY;
+    /** 安全箱标签 y（面板顶相对值）。 */
+    private int safeBoxLabelY;
+    private boolean draggingScrollbar;
+    private double scrollbarGrab;
+
+    /** 布局缓存（几何固定，仅随窗口尺寸变化）。 */
+    private PlayerLayout cachedLayout;
+    private int cachedW = -1;
+    private int cachedH = -1;
 
     // ---- 交易行卖出（0.2.0Beta）：出售模式 / 多选 / 二次确认 ----
     /** 出售模式开关（开启后点击仓库格为选中而非拖拽）。 */
@@ -133,69 +170,370 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu>
     // 渲染
     // ==================================================================
 
+    /** 本帧布局（几何固定，按窗口尺寸缓存）。 */
+    private PlayerLayout layout() {
+        if (cachedLayout == null || cachedW != width || cachedH != height) {
+            int safeRows = Math.max(1, (menu.safeCount() + Math.max(1, menu.safeW) - 1) / Math.max(1, menu.safeW));
+            cachedLayout = PlayerLayout.compute(width, height, safeRows,
+                    Math.min(unlockedRows(), WarehouseMenu.WAREHOUSE_ROWS));
+            cachedW = width;
+            cachedH = height;
+        }
+        return cachedLayout;
+    }
+
+    // ==================================================================
+    // 主面板物品区（口袋 / 胸挂 / 背包 / 安全箱）：照抄 DnInventoryScreen
+    // ==================================================================
+
+    private static int gearRows(GearKind kind) {
+        return Math.max(1, GearClientState.container(kind).store().rows());
+    }
+
+    /** 安全箱行数（按已解锁槽位与列数）。 */
+    private int mainSafeRows() {
+        int w = Math.max(1, menu.safeW);
+        return Math.max(1, (menu.safeCount() + w - 1) / w);
+    }
+
+    /** 主面板第 n 列槽位 x。 */
+    private int mainSlotX(int n) {
+        return layout().midX + n * PlayerLayout.PITCH;
+    }
+
+    /** 主面板内容 y（含滚动偏移）。 */
+    private int contentY(int n) {
+        return layout().topY + n - itemViewport.offset();
+    }
+
+    private int viewportTop() {
+        return layout().topY + 4;
+    }
+
+    private int viewportBottom() {
+        return layout().hotbarLabelY - 8;
+    }
+
+    private int clipLeft() {
+        return layout().midPanelX + 3;
+    }
+
+    private int clipRight() {
+        return layout().midPanelX + PlayerLayout.MAIN_W - 8;
+    }
+
+    private int sectionBarWidth() {
+        return 168;
+    }
+
+    /** 重算主面板内容位置与视口，并重排口袋 / 安全箱菜单槽（滚动时逐帧刷新）。 */
+    private void refreshMainLayout() {
+        boolean rigEmpty = GearClientState.equipped(GearKind.RIG).isEmpty();
+        boolean bagEmpty = GearClientState.equipped(GearKind.BACKPACK).isEmpty();
+        int rigH = gearRows(GearKind.RIG) * PlayerLayout.PITCH;
+        int bagH = gearRows(GearKind.BACKPACK) * PlayerLayout.PITCH;
+        this.backpackLabelY = 64 + (rigEmpty ? 52 : rigH) + 14;
+        this.safeBoxLabelY = this.backpackLabelY + 14 + (bagEmpty ? 52 : bagH) + 14;
+        boolean safe = SafeBoxOverlay.safeAllowed(SafeBoxOverlay.lastState());
+        int contentBottom = safe
+                ? this.safeBoxLabelY + 18 + Math.max(30, mainSafeRows() * PlayerLayout.PITCH) + 30
+                : this.safeBoxLabelY;
+        this.itemViewport.configure(viewportTop(), viewportBottom(), contentBottom - 4);
+
+        // 盔甲（头盔 39 / 胸甲 38）：左面板盔甲列
+        PlayerLayout L = layout();
+        int[] armorInv = {39, 38};
+        for (int i = 0; i < armorInv.length; i++) {
+            Slot s = playerSlot(armorInv[i]);
+            if (s == null) {
+                continue;
+            }
+            s.x = L.leftX;
+            s.y = L.armorY + i * PlayerLayout.GEAR_STEP;
+        }
+
+        // 口袋（containerSlot 9..13）
+        int py = contentY(22);
+        for (int n = 0; n < 5; n++) {
+            Slot s = playerSlot(9 + n);
+            if (s == null) {
+                continue;
+            }
+            if (this.itemViewport.fullyVisible(py - 1, PlayerLayout.SLOT)) {
+                s.x = mainSlotX(n);
+                s.y = py;
+            } else {
+                s.x = OFFSCREEN;
+                s.y = OFFSCREEN;
+            }
+        }
+        // 安全箱（菜单槽）
+        int safeW = Math.max(1, menu.safeW);
+        int safeY0 = contentY(this.safeBoxLabelY + 14);
+        for (int i = 0; i < menu.safeCount(); i++) {
+            int idx = menu.safeStart + i;
+            if (idx < 0 || idx >= menu.slots.size()) {
+                continue;
+            }
+            Slot s = menu.slots.get(idx);
+            int y = safeY0 + (i / safeW) * PlayerLayout.PITCH;
+            if (safe && this.itemViewport.fullyVisible(y - 1, PlayerLayout.SLOT)) {
+                s.x = mainSlotX(i % safeW);
+                s.y = y;
+            } else {
+                s.x = OFFSCREEN;
+                s.y = OFFSCREEN;
+            }
+        }
+    }
+
+    /** 按容器内下标找玩家背包菜单槽（口袋 / 快捷栏）。 */
+    private Slot playerSlot(int containerSlot) {
+        for (Slot s : menu.slots) {
+            if (s.container instanceof Inventory && s.getContainerSlot() == containerSlot) {
+                return s;
+            }
+        }
+        return null;
+    }
+
+    private void beginItemClip(GuiGraphics gg) {
+        gg.enableScissor(clipLeft(), itemViewport.top(), clipRight(), itemViewport.bottom());
+    }
+
+    private void drawScrollbar(GuiGraphics gg) {
+        if (itemViewport.maximum() == 0) {
+            return;
+        }
+        int x = clipRight();
+        gg.fill(x, itemViewport.top(), x + 4, itemViewport.bottom(), -2010105284);
+        gg.fill(x, itemViewport.thumbY(), x + 4, itemViewport.thumbY() + itemViewport.thumbHeight(),
+                draggingScrollbar ? -1853869 : -6978976);
+    }
+
+    /** 左面板生命 / 饥饿 / 护甲读数。 */
+    private void drawLeftStatus(GuiGraphics gg) {
+        PlayerLayout L = layout();
+        DnUiTheme.drawPlayerStatus(gg, this.font, L.leftPanelX, L.topY);
+    }
+
+    /** 玩家预览。 */
+    private void drawPlayerPreview(GuiGraphics gg, int mouseX, int mouseY) {
+        PlayerLayout L = layout();
+        DnUiTheme.drawPlayerPreview(gg, L.leftPanelX, L.topY, mouseX, mouseY);
+    }
+
+    /** 胸挂 / 背包网格底框（未装备时画缺失块）。 */
+    private void drawStorageSection(GuiGraphics gg, GearKind kind, int offsetY) {
+        if (GearClientState.equipped(kind).isEmpty()) {
+            DnUiTheme.drawMissingGear(gg, font,
+                    Component.translatable(kind == GearKind.RIG
+                            ? "gui.dn.gear.empty_rig" : "gui.dn.gear.empty_backpack"),
+                    mainSlotX(0), contentY(offsetY), sectionBarWidth());
+            return;
+        }
+        StoreContainer box = GearClientState.container(kind);
+        GridStore store = box.store();
+        int cols = Math.max(1, store.width());
+        for (int cell = 0; cell < store.size(); cell++) {
+            if (box.isCovered(cell)) {
+                continue;
+            }
+            int x = mainSlotX(cell % cols);
+            int y = contentY(offsetY + (cell / cols) * PlayerLayout.PITCH);
+            GridEntry entry = store.entryAt(cell);
+            if (entry != null && !entry.isEmpty()) {
+                DnUiTheme.drawRaritySlot(gg, x, y, entry.stack());
+            } else {
+                DnUiTheme.drawSlotBackdrop(gg, x, y);
+            }
+        }
+    }
+
+    /** 胸挂 / 背包网格物品本体。 */
+    private void drawStorageItems(GuiGraphics gg, GearKind kind, int offsetY) {
+        if (GearClientState.equipped(kind).isEmpty()) {
+            return;
+        }
+        GridStore store = GearClientState.container(kind).store();
+        int cols = Math.max(1, store.width());
+        for (java.util.Map.Entry<Integer, GridEntry> e : store.entries().entrySet()) {
+            GridEntry entry = e.getValue();
+            if (entry == null || entry.isEmpty()) {
+                continue;
+            }
+            int anchor = e.getKey();
+            int x = mainSlotX(anchor % cols);
+            int y = contentY(offsetY + (anchor / cols) * PlayerLayout.PITCH);
+            GridSize size = entry.size();
+            InventoryGridHandler.ItemDim dim = new InventoryGridHandler.ItemDim(size.w(), size.h());
+            if (dim.is1x1()) {
+                if (GridClassConfig.isClassed(entry.stack())) {
+                    GridClientRendering.renderGridStack(gg, entry.stack(), x, y, dim, false,
+                            GridClassConfig.bgOf(entry.stack()));
+                } else {
+                    gg.renderItem(entry.stack(), x, y);
+                    gg.renderItemDecorations(font, entry.stack(), x, y);
+                }
+            } else {
+                GridClientRendering.renderGridStack(gg, entry.stack(), x, y, dim, entry.rotated());
+            }
+        }
+    }
+
+    private int storageCellAt(GearKind kind, int offsetY, double mouseX, double mouseY) {
+        if (GearClientState.equipped(kind).isEmpty()) {
+            return -1;
+        }
+        GridStore store = GearClientState.container(kind).store();
+        int cols = Math.max(1, store.width());
+        for (int cell = 0; cell < store.size(); cell++) {
+            int x = mainSlotX(cell % cols);
+            int y = contentY(offsetY + (cell / cols) * PlayerLayout.PITCH);
+            if (hit(mouseX, mouseY, x, y, PlayerLayout.PITCH, PlayerLayout.PITCH)) {
+                return cell;
+            }
+        }
+        return -1;
+    }
+
+    private void drawStorageHover(GuiGraphics gg, GearKind kind, int offsetY, int mouseX, int mouseY) {
+        int cell = storageCellAt(kind, offsetY, mouseX, mouseY);
+        if (cell < 0) {
+            return;
+        }
+        GridStore store = GearClientState.container(kind).store();
+        int cols = Math.max(1, store.width());
+        int anchor = store.anchorAt(cell);
+        int show = anchor >= 0 ? anchor : cell;
+        DnUiTheme.drawSlotHover(gg, mainSlotX(show % cols), contentY(offsetY + (show / cols) * PlayerLayout.PITCH));
+    }
+
+    private void drawStorageTooltip(GuiGraphics gg, GearKind kind, int offsetY, int mouseX, int mouseY) {
+        int cell = storageCellAt(kind, offsetY, mouseX, mouseY);
+        if (cell < 0) {
+            return;
+        }
+        GridStore store = GearClientState.container(kind).store();
+        int anchor = store.anchorAt(cell);
+        int show = anchor >= 0 ? anchor : cell;
+        GridEntry entry = store.entryAt(show);
+        if (entry != null && !entry.isEmpty()) {
+            gg.renderTooltip(font, entry.stack(), mouseX, mouseY);
+        }
+    }
+
+    /** 客户端侧把足迹格重定向到锚点格后发送（服务端另有权威归一）；右键点击装备物品请求打开其窗口。 */
+    private void clickGear(int target, int cell, int button, boolean shift) {
+        GearKind kind = target == C2SOverlayClickPacket.TARGET_RIG ? GearKind.RIG : GearKind.BACKPACK;
+        GridStore store = GearClientState.container(kind).store();
+        int anchor = store.anchorAt(cell);
+        int at = anchor >= 0 ? anchor : cell;
+        GridEntry entry = store.entryAt(at);
+        if (button == 1 && !shift && entry != null && !entry.isEmpty() && GearConfig.isGear(entry.stack())) {
+            PacketHandler.sendToServer(new C2SOpenGearWindowPacket(
+                    C2SOpenGearWindowPacket.ROOT_EQUIPPED, kind.ordinal(), new int[]{at}));
+            return;
+        }
+        PacketHandler.sendToServer(new C2SOverlayClickPacket(target, at, button, shift));
+    }
+
     @Override
     protected void renderBg(GuiGraphics gg, float partialTick, int mouseX, int mouseY) {
-        PlayerLayout L = PlayerLayout.compute(width, height, true);
-        // 右列：仓库面板（标题条 22 + 视口 + 行信息 18 + 底边距）
-        // 2.0.10Alpha：面板高度按“玩家已解锁行数”而非总行数/视口行数——未解锁行完全不渲染
-        int whPanelRows = Math.min(unlockedRows(), WarehouseMenu.WAREHOUSE_ROWS);
-        DnTheme.drawPanel(gg, L.whX - 8, L.whY - 22, 162 + 16, whPanelRows * 18 + 22 + 18 + 8);
-        // 左列：玩家面板（盔甲 + 快捷栏列 + 副手；2.0.9Alpha 移除 Curios，副手即底端）
-        int leftBottom = L.offhandY + PlayerLayout.SLOT + 8;
-        DnTheme.drawPanel(gg, L.leftX - 8, L.baseY - 22, PlayerLayout.SLOT + 16, leftBottom - L.baseY + 22 + 8);
-        // 中列：口袋 + 背包 + 安全箱（整体一块面板，组标题见 renderLabels）
-        // 2.0.9Alpha：面板高度按菜单实际安全箱槽位推算（按解锁数渲染，不再固定 3 行）
-        int safeRows = Math.max(1, (menu.safeCount() + menu.safeW - 1) / menu.safeW);
-        int midBottom = L.safeY + safeRows * PlayerLayout.SLOT + 8;
-        DnTheme.drawPanel(gg, L.midX - 8, L.baseY - 22, 9 * PlayerLayout.SLOT + 16, midBottom - L.baseY + 22 + 8);
-        // 视口槽位底图（2.0.9Alpha：未解锁格完全不渲染——按同步位图逐格判定）
+        PlayerLayout L = layout();
+        refreshMainLayout();
+        // 三列面板外壳（与背包/容器界面同一套皮肤）
+        DnUiTheme.drawPanelShell(gg, L.leftPanelX, L.topY, PlayerLayout.EQUIP_W, L.panelH);
+        DnUiTheme.drawPanelShell(gg, L.midPanelX, L.topY, PlayerLayout.MAIN_W, L.panelH);
+        DnUiTheme.drawPanelShell(gg, L.whPanelX, L.topY, PlayerLayout.RIGHT_W, L.panelH);
+        // 仓库视口槽位底（2.0.9Alpha：未解锁格完全不渲染——按同步位图逐格判定）
         for (int i = 0; i < WarehouseMenu.WAREHOUSE_SLOTS && i < menu.slots.size(); i++) {
             var slot = menu.slots.get(i);
             if (!isWarehouseSlotUnlocked(slot.getSlotIndex())) {
                 continue;
             }
-            gg.blit(SLOT, slot.x, slot.y, 0, 0, 18, 18, 18, 18);
+            DnUiTheme.drawSlotBackdrop(gg, slot.x, slot.y);
         }
-        // 玩家区槽位（背包/快捷栏/盔甲/副手/安全箱）按菜单槽位坐标补底图
-        // 2.1Alpha：安全箱被禁用时不渲染任何安全箱格子（标题提示见 renderLabels）
+        // ---- 主面板物品区（口袋 / 胸挂 / 背包 / 安全箱；超出视口裁剪）----
         boolean safeOk = SafeBoxOverlay.safeAllowed(SafeBoxOverlay.lastState());
+        beginItemClip(gg);
+        DnUiTheme.drawTacticalLabel(gg, font, Component.translatable("gui.dn.pocket"),
+                mainSlotX(0) - 1, contentY(8), sectionBarWidth());
+        DnUiTheme.drawTacticalLabel(gg, font, Component.translatable("gui.dn.gear.rig"),
+                mainSlotX(0) - 1, contentY(50), sectionBarWidth());
+        DnUiTheme.drawTacticalLabel(gg, font, Component.translatable("gui.dn.gear.backpack"),
+                mainSlotX(0) - 1, contentY(backpackLabelY), sectionBarWidth());
+        drawStorageSection(gg, GearKind.RIG, 64);
+        drawStorageSection(gg, GearKind.BACKPACK, backpackLabelY + 14);
+        // 安全箱标签（与胸挂 / 背包同列下方）
+        SyncSafeBoxPacket safeSt = SafeBoxOverlay.lastState();
+        String safeTitle = safeSt != null
+                ? SafeBoxOverlay.safeTitle(safeSt)
+                : Component.translatable("gui.dn.safe_box").getString();
+        DnUiTheme.drawTacticalLabel(gg, font, Component.literal(safeTitle),
+                mainSlotX(0) - 1, contentY(safeBoxLabelY), sectionBarWidth());
+        // 口袋 / 安全箱菜单槽底（快捷栏在裁剪区外单独绘制）
         int safeStart = Math.min(menu.safeStart, menu.slots.size());
         for (int i = WarehouseMenu.PLAYER_START; i < menu.slots.size(); i++) {
             if (i >= safeStart && !safeOk) {
                 continue; // 安全箱区域且被禁用：跳过格子
             }
             var slot = menu.slots.get(i);
-            gg.blit(SLOT, slot.x, slot.y, 0, 0, 18, 18, 18, 18);
+            if (slot.x <= OFFSCREEN / 2 || slot.y <= OFFSCREEN / 2) {
+                continue; // 屏外（被取代的 22 格 / 隐藏盔甲 / 副手 / 视口外）
+            }
+            if (slot.container instanceof Inventory) {
+                int ci = slot.getContainerSlot();
+                if (ci < 9 || ci == 38 || ci == 39) {
+                    continue; // 快捷栏 / 盔甲：裁剪区外或自绘
+                }
+            }
+            DnUiTheme.drawSlotBackdrop(gg, slot.x, slot.y);
+        }
+        gg.disableScissor();
+        // 快捷栏（钉在面板底，不参与滚动）
+        DnUiTheme.drawTacticalLabel(gg, font, Component.translatable("gui.dn.hotbar"),
+                mainSlotX(0) - 1, L.hotbarLabelY, sectionBarWidth());
+        for (int n = 0; n < 9; n++) {
+            Slot s = playerSlot(n);
+            if (s != null && s.x > OFFSCREEN / 2 && s.y > OFFSCREEN / 2) {
+                DnUiTheme.drawSlotBackdrop(gg, s.x, s.y);
+            }
+        }
+        drawScrollbar(gg);
+        // 左面板状态与人物预览
+        drawLeftStatus(gg);
+        drawPlayerPreview(gg, mouseX, mouseY);
+        // 盔甲底图（头盔 / 胸甲）：物品由 super.render 画（真实菜单槽）
+        int[] armorInv = {39, 38};
+        for (int i = 0; i < armorInv.length; i++) {
+            int ax = L.leftX;
+            int ay = L.armorY + i * PlayerLayout.GEAR_STEP;
+            Slot s = playerSlot(armorInv[i]);
+            ItemStack armor = (s != null) ? s.getItem() : ItemStack.EMPTY;
+            DnUiTheme.drawRaritySlot(gg, ax, ay, armor);
+            if (hit(mouseX, mouseY, ax, ay, PlayerLayout.PITCH, PlayerLayout.PITCH)) {
+                DnUiTheme.drawSlotHover(gg, ax, ay);
+            }
+        }
+        // 装备槽（胸挂/背包：物品本体来自 GearClientState；非菜单槽，自绘）
+        for (GearKind kind : GearKind.values()) {
+            drawGearSlot(gg, kind, L.gearX, gearY(L, kind), mouseX, mouseY);
         }
     }
 
     @Override
     protected void renderLabels(GuiGraphics gg, int mouseX, int mouseY) {
-        PlayerLayout L = PlayerLayout.compute(width, height, true);
-        int lw = PlayerLayout.SLOT + 16;
-        int mw = 9 * PlayerLayout.SLOT + 16;
-        // 左列组标题
-        drawTitle(gg, L.leftX - 8, L.armorY - 22, lw, "gui.dn.armor", DnTheme.TEXT_MAIN);
-        drawTitle(gg, L.leftX - 8, L.hotbarColY - 22, lw, "gui.dn.hotbar", DnTheme.TEXT_MAIN);
-        drawTitle(gg, L.leftX - 8, L.offhandY - 22, lw, "gui.dn.offhand", DnTheme.TEXT_MAIN);
-        // 中列组标题
-        drawTitle(gg, L.midX - 8, L.pocketY - 22, 5 * PlayerLayout.SLOT + 16, "gui.dn.pocket", DnTheme.TEXT_MAIN);
-        drawTitle(gg, L.midX - 8, L.invY - 22, mw, "container.inventory", DnTheme.TEXT_MAIN);
+        PlayerLayout L = layout();
+        // 左面板：装备标题（主面板标签在 renderBg 内随视口滚动绘制）
+        section(gg, "gui.dn.gear", L.leftPanelX, L.gearLabelY, PlayerLayout.EQUIP_W, DnUiTheme.SECTION_TEXT);
         // 右列：仓库标题 + 货币余额
-        drawTitle(gg, L.whX - 8, L.whY - 22, mw, "gui.dn.warehouse", DnTheme.TEXT_MAIN);
+        section(gg, "gui.dn.warehouse", L.whPanelX, L.whLabelY, PlayerLayout.RIGHT_W, DnUiTheme.SECTION_TEXT);
         if (sync != null && sync.currencyUsable) {
             String money = currencyLabel() + ": " + FormatUtil.compact(sync.currencyCount);
-            gg.drawString(font, money, L.whX + 162 - font.width(money), L.whY - 17, DnTheme.GOLD);
+            gg.drawString(font, money, L.whPanelX + PlayerLayout.RIGHT_W - 26 - font.width(money),
+                    L.whLabelY + 5, 0xFFE0A0);
         }
-        // 安全箱标题（中列背包下方；2.1Alpha：被禁用时红色「安全箱被禁用」提示）
-        int safeW = Math.max(1, Math.min(3, menu.safeW));
-        SyncSafeBoxPacket safeSt = SafeBoxOverlay.lastState();
-        String safeTitle = safeSt != null
-                ? SafeBoxOverlay.safeTitle(safeSt)
-                : Component.translatable("gui.dn.safe_box").getString()
-                        + (sync != null ? " Lv" + sync.safeLevel : "");
-        DnTheme.drawTitle(gg, font, L.midX - 8, L.safeY - 22, safeW * 18 + 16, safeTitle,
-                safeSt != null ? SafeBoxOverlay.safeTitleColor(safeSt) : DnTheme.GOLD);
         // 行信息：起始行-结束行 / 已解锁行数（2.0.10Alpha：看玩家解锁了多少，而非仓库总行数）
         int unlocked = Math.max(0, unlockedRows());
         int endRow = Math.min(scrollRow() + WarehouseMenu.WAREHOUSE_ROWS, unlocked);
@@ -205,11 +543,62 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu>
         String rightText = !sellSelection.isEmpty()
                 ? Component.translatable("gui.dn.trade.sell.estimate", FormatUtil.compact(estimateTotal())).getString()
                 : rowInfo;
-        gg.drawString(font, rightText, L.whX + 162 - font.width(rightText), infoStripY() + 5, DnTheme.ACCENT);
+        gg.drawString(font, rightText, L.whPanelX + PlayerLayout.RIGHT_W - 26 - font.width(rightText),
+                infoStripY() + 5, DnUiTheme.SECTION_TEXT);
     }
 
-    private void drawTitle(GuiGraphics gg, int x, int y, int w, String key, int color) {
-        DnTheme.drawTitle(gg, font, x, y, w, Component.translatable(key).getString(), color);
+    /** 分组标签（列内左对齐，整列宽度）。 */
+    private void section(GuiGraphics gg, String key, int panelX, int labelY, int panelW, int color) {
+        DnUiTheme.drawSectionLabel(gg, font, Component.translatable(key), panelX + 4, labelY,
+                panelW - PlayerLayout.PANEL_PAD, color);
+    }
+
+    // ==================================================================
+    // 装备槽（胸挂 / 背包：非菜单槽，自绘自处理点击）
+    // ==================================================================
+
+    /** 装备槽 y 坐标（布局按帧计算，故显式传入）。 */
+    private static int gearY(PlayerLayout L, GearKind kind) {
+        return kind == GearKind.RIG ? L.gearRigY : L.gearBagY;
+    }
+
+    /** 命中测试：返回被点中的装备种类（未命中 = null）。 */
+    private GearKind gearAt(double mx, double my) {
+        PlayerLayout L = PlayerLayout.compute(width, height);
+        for (GearKind kind : GearKind.values()) {
+            if (hit(mx, my, L.gearX, gearY(L, kind), PlayerLayout.PITCH, PlayerLayout.PITCH)) {
+                return kind;
+            }
+        }
+        return null;
+    }
+
+    /** 装备槽：底格 + 悬停金框 + 已装备物品图标（空槽只画底格）。 */
+    private void drawGearSlot(GuiGraphics gg, GearKind kind, int x, int y, int mouseX, int mouseY) {
+        DnUiTheme.drawSlotBackdrop(gg, x, y);
+        ItemStack stack = GearClientState.equipped(kind);
+        if (!stack.isEmpty()) {
+            // x,y 已是 16×16 内容原点：直接画即居中于 18×18 格框 [x-1, x+17]
+            gg.renderItem(stack, x, y);
+            gg.renderItemDecorations(font, stack, x, y);
+        }
+        if (hit(mouseX, mouseY, x, y, PlayerLayout.PITCH, PlayerLayout.PITCH)) {
+            DnUiTheme.drawSlotHover(gg, x, y);
+        }
+    }
+
+    /** 装备槽悬停提示：空槽提示「未装备」，有装备则显示名称与打开提示。 */
+    private void renderGearTooltip(GuiGraphics gg, int mouseX, int mouseY) {
+        GearKind kind = gearAt(mouseX, mouseY);
+        if (kind == null) {
+            return;
+        }
+        ItemStack stack = GearClientState.equipped(kind);
+        if (stack.isEmpty()) {
+            gg.renderTooltip(font, Component.translatable("gui.dn.gear.empty_" + kind.id()), mouseX, mouseY);
+            return;
+        }
+        gg.renderTooltip(font, stack, mouseX, mouseY);
     }
 
     /** 货币类型显示名（vault/playerpoints/计分板 等非物品货币用；item 走图标无需标签）。 */
@@ -231,16 +620,48 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu>
             sendScroll();
             lastScrollSent = System.currentTimeMillis();
         }
+        refreshMainLayout();
         renderBackground(gg);
         super.render(gg, mouseX, mouseY, partialTick);
+        // 胸挂 / 背包网格物品（裁剪在视口内）
+        beginItemClip(gg);
+        drawStorageItems(gg, GearKind.RIG, 64);
+        drawStorageItems(gg, GearKind.BACKPACK, backpackLabelY + 14);
+        drawStorageHover(gg, GearKind.RIG, 64, mouseX, mouseY);
+        drawStorageHover(gg, GearKind.BACKPACK, backpackLabelY + 14, mouseX, mouseY);
+        gg.disableScissor();
         // 出售高亮改由 GridClientRendering 在网格渲染之后调用 renderSellHighlight（否则被 class 背景墙盖住）
-        renderTooltip(gg, mouseX, mouseY);
+        // 提示不在这里画：原版时机早于网格渲染，会被跨格物品的大图标盖住（见 dnRenderTooltips）
+    }
+
+    /**
+     * 原版时机的提示绘制被接管（见 {@link DnOverlayTooltips} 与 {@link #dnRenderTooltips}）：
+     * 网格渲染在更晚的 {@code ScreenEvent.Render.Post} 且大图标 z≈550，就地画会被盖住。
+     */
+    @Override
+    protected void renderTooltip(GuiGraphics gg, int mouseX, int mouseY) {
+        // 故意留空
+    }
+
+    /** 统一提示层：所有网格绘制之后一次画完本界面的全部悬停提示（z 抬到网格内容之上）。 */
+    @Override
+    public void dnRenderTooltips(GuiGraphics gg, int mouseX, int mouseY) {
+        if (com.deltanexus.system.client.GearWindowState.isOverWindow(mouseX, mouseY)) {
+            return; // 光标在浮动装备窗口上：由窗口自己画提示
+        }
+        gg.pose().pushPose();
+        gg.pose().translate(0, 0, TOOLTIP_Z);
+        DnUiTheme.redrawCarriedItem(gg, this.font, this.menu.getCarried(), mouseX, mouseY);
+        renderSlotTooltip(gg, mouseX, mouseY);
+        renderGearTooltip(gg, mouseX, mouseY);
+        drawStorageTooltip(gg, GearKind.RIG, 64, mouseX, mouseY);
+        drawStorageTooltip(gg, GearKind.BACKPACK, backpackLabelY + 14, mouseX, mouseY);
+        gg.pose().popPose();
     }
 
     /** 2.0.10Alpha：未解锁的仓库槽位不显示 tooltip（防御服务端残留数据穿透；
      *  物品与高亮的隐藏由 LockedAwareSlot.isActive() 实现）。 */
-    @Override
-    protected void renderTooltip(GuiGraphics gg, int mouseX, int mouseY) {
+    private void renderSlotTooltip(GuiGraphics gg, int mouseX, int mouseY) {
         if (this.hoveredSlot != null
                 && this.hoveredSlot.index < WarehouseMenu.WAREHOUSE_SLOTS
                 && !isWarehouseSlotUnlocked(this.hoveredSlot.getSlotIndex())) {
@@ -278,19 +699,26 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu>
         return handleScroll(mouseX, mouseY, delta);
     }
 
-    /** 处理一次滚轮（仓库行滚动）；返回是否已消费。 */
+    /** 处理一次滚轮；返回是否已消费。主面板物品区滚动内容，其余滚动仓库行。 */
     public boolean handleScroll(double mouseX, double mouseY, double delta) {
-        if (delta != 0) {
-            pendingScroll += delta > 0 ? -1 : 1;
-            long now = System.currentTimeMillis();
-            // 节流：至少 120ms 或累积 4 格才发送，避免滚轮高频发包
-            if (now - lastScrollSent >= 120 || Math.abs(pendingScroll) >= 4) {
-                sendScroll();
-                lastScrollSent = now;
-            }
+        if (delta == 0) {
+            return false;
+        }
+        // 主面板物品区：滚动胸挂 / 背包 / 安全箱内容
+        if (mouseX >= clipLeft() && mouseX < clipRight() + 8 && itemViewport.contains(mouseY)) {
+            refreshMainLayout();
+            itemViewport.scroll(delta);
+            refreshMainLayout();
             return true;
         }
-        return false;
+        pendingScroll += delta > 0 ? -1 : 1;
+        long now = System.currentTimeMillis();
+        // 节流：至少 120ms 或累积 4 格才发送，避免滚轮高频发包
+        if (now - lastScrollSent >= 120 || Math.abs(pendingScroll) >= 4) {
+            sendScroll();
+            lastScrollSent = now;
+        }
+        return true;
     }
 
     /** 发送滚动请求（起始行 clamp 到已解锁范围）。 */
@@ -326,9 +754,9 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu>
      * 否则低等级玩家（解锁行数少、面板更短）会看到按钮悬在面板下方的空白处。</p>
      */
     private int infoStripY() {
-        PlayerLayout L = PlayerLayout.compute(width, height, true);
+        PlayerLayout L = PlayerLayout.compute(width, height);
         int rows = Math.max(1, Math.min(unlockedRows(), WarehouseMenu.WAREHOUSE_ROWS));
-        return L.whY + rows * PlayerLayout.SLOT;
+        return L.whY + rows * PlayerLayout.PITCH;
     }
 
     /**
@@ -339,7 +767,7 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu>
      * 自网格底沿下 1px 起、垂直居中于 18px 行信息条；左侧与网格首列取齐（原为网格左外 4px）。</p>
      */
     private BtnRect sellBtnRect() {
-        PlayerLayout L = PlayerLayout.compute(width, height, true);
+        PlayerLayout L = PlayerLayout.compute(width, height);
         return new BtnRect(L.whX + 2, infoStripY() + 1, 54, 17);
     }
 
@@ -508,9 +936,9 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu>
         int top = sellConfirm ? (hover ? 0xFFB23A3A : 0xFF8E2B2B) : (hover ? 0xFF3A4655 : 0xFF2A3040);
         int bot = sellConfirm ? (hover ? 0xFF8E2B2B : 0xFF6E1F1F) : (hover ? 0xFF2E3748 : 0xFF20242F);
         gg.fillGradient(r.x, r.y, r.x + r.w, r.y + r.h, top, bot);
-        gg.renderOutline(r.x, r.y, r.w, r.h, sellConfirm ? 0xFFFF6B6B : DnTheme.PANEL_BORDER_IN);
+        gg.renderOutline(r.x, r.y, r.w, r.h, sellConfirm ? 0xFFFF6B6B : 0xFF46536B);
         gg.drawCenteredString(font, label, r.x + r.w / 2, r.y + (r.h - 8) / 2,
-                sellConfirm ? 0xFFFFFFFF : DnTheme.TEXT_MAIN);
+                sellConfirm ? 0xFFFFFFFF : 0xFFE0E6F0);
     }
 
     /**
@@ -598,6 +1026,24 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu>
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
+        // 装备槽（胸挂 / 背包本体）：左键打开（空槽且光标持同类装备时装备）；
+        // 点击 = 卸下；出售模式下吞掉点击
+        GearKind gear = gearAt(mx, my);
+        if (gear != null) {
+            if (sellMode) {
+                return true;
+            }
+            boolean shift = hasShiftDown();
+            if (button == 1 || shift) {
+                int target = gear == GearKind.RIG
+                        ? C2SOverlayClickPacket.TARGET_RIG : C2SOverlayClickPacket.TARGET_BACKPACK;
+                PacketHandler.sendToServer(new C2SOverlayClickPacket(target, -1, button, shift));
+            } else if (button == 0) {
+                // 左键：装上去（若光标持有同类装备）——不打开独立界面
+                PacketHandler.sendToServer(new C2SOpenGearPacket(gear));
+            }
+            return true;
+        }
         BtnRect btn = sellBtnRect();
         if (btn.contains(mx, my)) {
             if (!sellMode) {
@@ -644,6 +1090,27 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu>
             // 槽位之外的点击（原版此处会把光标物品丢到世界里）：出售模式下一并吞掉
             return true;
         }
+        // 主面板物品区：滚动条拖动 / 胸挂 / 背包网格点击
+        refreshMainLayout();
+        if (button == 0 && itemViewport.maximum() > 0 && itemViewport.contains(my)
+                && mx >= clipRight() - 2 && mx < clipRight() + 6) {
+            draggingScrollbar = true;
+            scrollbarGrab = (my >= itemViewport.thumbY() && my < itemViewport.thumbY() + itemViewport.thumbHeight())
+                    ? my - itemViewport.thumbY() : itemViewport.thumbHeight() / 2.0;
+            itemViewport.dragThumb(my, scrollbarGrab);
+            refreshMainLayout();
+            return true;
+        }
+        int rig = storageCellAt(GearKind.RIG, 64, mx, my);
+        if (rig >= 0) {
+            clickGear(C2SOverlayClickPacket.TARGET_RIG, rig, button, hasShiftDown());
+            return true;
+        }
+        int bag = storageCellAt(GearKind.BACKPACK, backpackLabelY + 14, mx, my);
+        if (bag >= 0) {
+            clickGear(C2SOverlayClickPacket.TARGET_BACKPACK, bag, button, hasShiftDown());
+            return true;
+        }
         // 点击“界面之外”的空白处丢出光标物品（原版在全屏自绘界面下判定不出“之外”）。
         // 只有落在**所有面板之外**才算丢——否则面板内的格间缝隙/行信息条会把物品误丢进世界（看起来像“消失”）。
         boolean handled = super.mouseClicked(mx, my, button);
@@ -665,15 +1132,27 @@ public class WarehouseScreen extends AbstractContainerScreen<WarehouseMenu>
      * 否则拿着物品点到缝隙就会把物品丢进世界——看起来就是“物品消失”。</p>
      */
     private boolean insideAnyPanel(double mx, double my) {
-        PlayerLayout L = PlayerLayout.compute(width, height, true);
-        int whRows = Math.min(unlockedRows(), WarehouseMenu.WAREHOUSE_ROWS);
-        int safeRows = Math.max(1, (menu.safeCount() + Math.max(1, menu.safeW) - 1) / Math.max(1, menu.safeW));
-        int leftBottom = L.offhandY + PlayerLayout.SLOT + 8;
-        int midBottom = L.safeY + safeRows * PlayerLayout.SLOT + 8;
-        return hit(mx, my, L.whX - 8, L.whY - 22, 162 + 16, whRows * 18 + 22 + 18 + 8)
-                || hit(mx, my, L.leftX - 8, L.baseY - 22, PlayerLayout.SLOT + 16, leftBottom - L.baseY + 22 + 8)
-                || hit(mx, my, L.midX - 8, L.baseY - 22, 9 * PlayerLayout.SLOT + 16, midBottom - L.baseY + 22 + 8)
+        PlayerLayout L = layout();
+        return hit(mx, my, L.leftPanelX, L.topY, PlayerLayout.EQUIP_W, L.panelH)
+                || hit(mx, my, L.midPanelX, L.topY, PlayerLayout.MAIN_W, L.panelH)
+                || hit(mx, my, L.whPanelX, L.topY, PlayerLayout.RIGHT_W, L.panelH)
                 || sellBtnRect().contains(mx, my);
+    }
+
+    @Override
+    public boolean mouseDragged(double mx, double my, int button, double dragX, double dragY) {
+        if (draggingScrollbar) {
+            itemViewport.dragThumb(my, scrollbarGrab);
+            refreshMainLayout();
+            return true;
+        }
+        return super.mouseDragged(mx, my, button, dragX, dragY);
+    }
+
+    @Override
+    public boolean mouseReleased(double mx, double my, int button) {
+        draggingScrollbar = false;
+        return super.mouseReleased(mx, my, button);
     }
 
     private static boolean hit(double mx, double my, int x, int y, int w, int h) {
